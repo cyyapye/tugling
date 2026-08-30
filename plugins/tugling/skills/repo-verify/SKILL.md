@@ -51,12 +51,16 @@ On-disk presence is not proof that a file exists in the commit.
 
 Report the strongest state actually proven:
 
+- `NOOP`: the bounded requested work was shown to be already satisfied or absent, the relevant check passed, and repository status confirms no change was needed.
 - `LOCAL_PASS`: canonical local gate and matched local artifact proof passed.
 - `REMOTE_PASS`: relevant checks passed for the exact pushed revision.
 - `MERGED_PASS`: post-merge checks passed for the merged revision.
 - `DEPLOYED_PASS`: the exact revision was deployed and a current-run smoke passed.
+- `BLOCKED`: a required readiness boundary is unmet or inconclusive. A narrower green command does not override missing commit content, invalid judging machinery, or another failed matched proof channel.
 
 Repositories may use stricter names or additional states. Never collapse a lower state into a higher one.
+
+When readiness concerns a commit, `LOCAL_PASS` requires the files that made the local gate pass to exist in that commit. A test that succeeds only because of an ignored or untracked support file is evidence for `BLOCKED`, not `LOCAL_PASS`.
 
 ## Guardrails
 

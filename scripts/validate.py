@@ -20,6 +20,7 @@ EXPECTED_SKILLS = {
     "skill-delivery",
     "tugling",
 }
+ALLOWED_SKILL_FRONTMATTER = {"name", "description", "license", "allowed-tools", "metadata"}
 ERRORS: list[str] = []
 
 
@@ -118,10 +119,26 @@ def validate_skills() -> None:
         skill_path = folder / "SKILL.md"
         text = skill_path.read_text(encoding="utf-8")
         fm = frontmatter(text, skill_path)
+        frontmatter_keys = set(re.findall(r"^([A-Za-z0-9_-]+):", fm, re.MULTILINE))
+        require(
+            frontmatter_keys <= ALLOWED_SKILL_FRONTMATTER,
+            f"{skill_path.relative_to(ROOT)}: unexpected frontmatter keys {sorted(frontmatter_keys - ALLOWED_SKILL_FRONTMATTER)}",
+        )
         name_match = re.search(r"^name:\s*['\"]?([^'\"\n]+)", fm, re.MULTILINE)
         description_match = re.search(r"^description:\s*(.+)$", fm, re.MULTILINE)
         require(bool(name_match) and name_match.group(1).strip() == name, f"{skill_path.relative_to(ROOT)}: name must match folder")
         require(bool(description_match) and len(description_match.group(1).strip()) >= 40, f"{skill_path.relative_to(ROOT)}: description is missing or too vague")
+        if name_match:
+            skill_name = name_match.group(1).strip()
+            require(
+                len(skill_name) <= 64
+                and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", skill_name) is not None,
+                f"{skill_path.relative_to(ROOT)}: name must be hyphen-case and at most 64 characters",
+            )
+        if description_match:
+            description = description_match.group(1).strip()
+            require(len(description) <= 1024, f"{skill_path.relative_to(ROOT)}: description exceeds 1024 characters")
+            require("<" not in description and ">" not in description, f"{skill_path.relative_to(ROOT)}: description contains angle brackets")
         require("[TODO" not in text and "TODO:" not in text, f"{skill_path.relative_to(ROOT)}: unfinished placeholder")
 
         ui_path = folder / "agents" / "openai.yaml"

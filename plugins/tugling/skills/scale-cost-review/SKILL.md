@@ -45,4 +45,6 @@ Use these sections for a design review:
 6. `Verification plan`
 7. `Decision and blocked assumptions`
 
+Report `ADVISORY` when the result is guidance and no accepted readiness boundary is shown to fail. Report `BLOCKED` when the inspected current or proposed design violates an explicit required envelope, or when a requested readiness claim lacks its required scale or query-shape proof. A read-only review can still prove that readiness is blocked.
+
 When implementing, state the accepted envelope before editing and verify the changed path against it. Do not claim performance or savings from architectural intuition alone.

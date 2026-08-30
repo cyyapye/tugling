@@ -1,6 +1,6 @@
 ---
 name: tugling
-description: Carry a non-trivial repository change from intent through verified handoff. Use when explicitly invoked or when the user asks to design, implement, fix, refactor, optimize, or ship multi-step work that benefits from repository-grounded planning and proof. Do not use for a simple factual answer, read-only status request, or trivial edit that does not need orchestration.
+description: Carry a non-trivial repository change or bounded tracked-queue task from intent through verified handoff. Use when explicitly invoked or when the user asks to design, implement, fix, refactor, optimize, ship multi-step work, or complete the next checklist or backlog item even when current evidence may produce a no-op. Do not use for a simple factual answer, read-only status request, or trivial edit that does not need orchestration.
 ---
 
 # Tugling
@@ -35,6 +35,7 @@ Use the smallest focused skill that owns the main risk:
 - `$repo-verify` before claiming an implemented change is ready.
 
 Do not invoke every skill by default. One small change may need only repository instructions and `$repo-verify`.
+For a bounded no-op, run the relevant native check and inspect repository status directly; do not load `$repo-verify` unless the verification contract is ambiguous or failing.
 
 ## Workflow
 
@@ -48,7 +49,11 @@ Do not invoke every skill by default. One small change may need only repository 
 
 ## Honest stop conditions
 
-- If current evidence proves the requested behavior already exists or the tracked queue is empty, return a bounded no-op. Do not invent work to justify the invocation.
+- If current evidence suggests the requested behavior already exists or the tracked queue is empty, `NOOP` requires both of these current-run proofs:
+  1. run the repository's native command that validates the bounded condition or queue; reading the source file alone is not a substitute
+  2. run `git status --short --untracked-files=all` and confirm no change was needed
+  The state name is part of the proof: report this outcome as `NOOP`, never `LOCAL_PASS`, even though the native validation command passed.
+  Do not invent work to justify the invocation or relabel the no-op as an implementation pass.
 - If the user requested diagnosis or review only, do not implement a fix.
 - If a missing decision would materially change the product or expand authority, stop and ask for it after exhausting safe read-only checks.
 - If verification is blocked, report the exact unverified boundary. Do not translate an inconclusive check into success.
@@ -60,5 +65,5 @@ Keep the final report compact:
 1. user-visible or operator-visible outcome
 2. material design decisions and any principle that changed them
 3. verification commands and real artifacts inspected
-4. strongest proven state: local, remote, merged, deployed, or observed in production
+4. strongest proven state: no-op, local, remote, merged, deployed, or observed in production
 5. remaining risk or next approval, if any

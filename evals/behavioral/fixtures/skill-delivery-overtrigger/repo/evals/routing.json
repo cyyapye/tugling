@@ -1,0 +1,7 @@
+[
+  {
+    "id": "release-notes-positive",
+    "kind": "positive",
+    "prompt": "Draft release notes from the commits since the last tagged version."
+  }
+]

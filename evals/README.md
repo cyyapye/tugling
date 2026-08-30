@@ -1,5 +1,7 @@
-# Routing fixtures
+# Evaluations
 
 `routing.json` records one positive, one negative, and one holdout prompt for every shipped skill. `make verify` checks coverage and schema.
 
-These fixtures make trigger intent reviewable, but they do not claim model behavior. For a consequential skill change, run the same blinded prompts against the current and candidate versions, score observable decisions, and record the result before promotion.
+[`behavioral/`](behavioral/README.md) contains seven synthetic, executable cases plus a dependency-free control/treatment runner and deterministic grader. It can also dogfood Tugling against a clean external project checkout while keeping project prompts and results outside this repository.
+
+Routing fixtures make trigger intent reviewable; they do not claim model behavior. Structural checks, live synthetic comparisons, project dogfood, and the full promotion gate are deliberately separate proof levels.

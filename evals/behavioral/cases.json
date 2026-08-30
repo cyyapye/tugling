@@ -1,0 +1,522 @@
+{
+  "schema_version": 1,
+  "gates": {
+    "dogfood": {
+      "minimum_pairs": 3,
+      "minimum_treatment_score": 0.85,
+      "maximum_regressions": 0,
+      "minimum_lift": 0.0
+    },
+    "promotion": {
+      "minimum_pairs": 7,
+      "minimum_treatment_score": 0.9,
+      "maximum_regressions": 0,
+      "minimum_lift": 0.02
+    }
+  },
+  "cases": [
+    {
+      "id": "delivery-plan-api-migration",
+      "skill": "delivery-plan",
+      "fixture": "delivery-plan-api-migration",
+      "sandbox": "read-only",
+      "minimum_score": 0.8,
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "prompt": "Create an implementation plan for replacing the legacy username lookup API with the stable account-id API without breaking current callers. Do not implement the migration. Ground the plan in this repository and make its rollout and proof decisions explicit.",
+      "decision_questions": [
+        {
+          "id": "migration_shape",
+          "question": "How should the API migration be sequenced?",
+          "options": [
+            "big_bang",
+            "additive_migrate_delete"
+          ],
+          "expected": "additive_migrate_delete",
+          "critical": true
+        },
+        {
+          "id": "caller_inventory",
+          "question": "Which callers must the plan account for?",
+          "options": [
+            "known_callers_only",
+            "repository_and_external"
+          ],
+          "expected": "repository_and_external",
+          "critical": false
+        },
+        {
+          "id": "rollback_boundary",
+          "question": "Where is the safe rollback boundary?",
+          "options": [
+            "none",
+            "before_legacy_removal",
+            "after_legacy_removal"
+          ],
+          "expected": "before_legacy_removal",
+          "critical": true
+        },
+        {
+          "id": "proof_channel",
+          "question": "What proof is proportionate to the caller risk?",
+          "options": [
+            "unit_only",
+            "contract_and_integration",
+            "deploy_only"
+          ],
+          "expected": "contract_and_integration",
+          "critical": false
+        },
+        {
+          "id": "implementation_authority",
+          "question": "What action is authorized by this request?",
+          "options": [
+            "plan_only",
+            "edit_now"
+          ],
+          "expected": "plan_only",
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "scale-cost-list-api",
+      "skill": "scale-cost-review",
+      "fixture": "scale-cost-list-api",
+      "sandbox": "read-only",
+      "minimum_score": 0.8,
+      "expected_state": "BLOCKED",
+      "max_changed_files": 0,
+      "prompt": "Review the proposed projects list endpoint for simplicity, performance, and operating cost at the documented scale. Do not edit files. Choose a serving shape and a proof plan using repository evidence rather than architectural intuition.",
+      "decision_questions": [
+        {
+          "id": "query_shape",
+          "question": "What database access shape should serve a page?",
+          "options": [
+            "per_row_queries",
+            "set_based_bounded",
+            "request_time_provider_fanout"
+          ],
+          "expected": "set_based_bounded",
+          "critical": true
+        },
+        {
+          "id": "pagination",
+          "question": "How should pages be bounded and ordered?",
+          "options": [
+            "unbounded",
+            "offset_only",
+            "stable_cursor"
+          ],
+          "expected": "stable_cursor",
+          "critical": true
+        },
+        {
+          "id": "round_trip_budget",
+          "question": "Which page-level database round-trip budget matches the contract?",
+          "options": [
+            "row_count_dependent",
+            "at_most_three",
+            "unspecified"
+          ],
+          "expected": "at_most_three",
+          "critical": false
+        },
+        {
+          "id": "scale_fixture",
+          "question": "Which deterministic fixture crosses the first documented boundary?",
+          "options": [
+            "ten_items",
+            "one_hundred_twenty_items",
+            "manual_demo_only"
+          ],
+          "expected": "one_hundred_twenty_items",
+          "critical": false
+        },
+        {
+          "id": "cost_envelope",
+          "question": "What recurring-cost accounting is needed?",
+          "options": [
+            "omit_costs",
+            "reads_writes_retention_cleanup",
+            "estimate_from_latency_only"
+          ],
+          "expected": "reads_writes_retention_cleanup",
+          "critical": false
+        },
+        {
+          "id": "read_path_side_effects",
+          "question": "May the interactive GET path reconcile or call providers?",
+          "options": [
+            "allowed",
+            "forbidden"
+          ],
+          "expected": "forbidden",
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "async-safety-webhook",
+      "skill": "async-safety",
+      "fixture": "async-safety-webhook",
+      "sandbox": "read-only",
+      "minimum_score": 0.8,
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "prompt": "Design the webhook consumer so duplicate, delayed, and out-of-order deliveries converge safely. Do not edit files. Use the documented transport contract and distinguish a safe delivery claim from an impossible one.",
+      "decision_questions": [
+        {
+          "id": "delivery_semantics",
+          "question": "What delivery behavior must the consumer assume?",
+          "options": [
+            "exactly_once",
+            "at_least_once"
+          ],
+          "expected": "at_least_once",
+          "critical": true
+        },
+        {
+          "id": "idempotency_key",
+          "question": "Which identifier should deduplicate a delivery?",
+          "options": [
+            "account_id",
+            "event_id",
+            "payload_hash"
+          ],
+          "expected": "event_id",
+          "critical": true
+        },
+        {
+          "id": "stale_event",
+          "question": "What should happen when an event version is older than canonical state?",
+          "options": [
+            "apply",
+            "reject_noop",
+            "retry_forever"
+          ],
+          "expected": "reject_noop",
+          "critical": true
+        },
+        {
+          "id": "permanent_failure",
+          "question": "How should a documented permanent business rejection be handled?",
+          "options": [
+            "retry",
+            "terminal"
+          ],
+          "expected": "terminal",
+          "critical": false
+        },
+        {
+          "id": "dead_letter_recovery",
+          "question": "What makes dead-letter handling operationally complete?",
+          "options": [
+            "store_only",
+            "inspect_and_redrive"
+          ],
+          "expected": "inspect_and_redrive",
+          "critical": false
+        },
+        {
+          "id": "correctness_claim",
+          "question": "What is the strongest honest correctness claim?",
+          "options": [
+            "exactly_once",
+            "idempotent_at_least_once"
+          ],
+          "expected": "idempotent_at_least_once",
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "repo-verify-ignored-support-file",
+      "skill": "repo-verify",
+      "fixture": "repo-verify-ignored-support-file",
+      "sandbox": "read-only",
+      "minimum_score": 0.8,
+      "expected_state": "BLOCKED",
+      "max_changed_files": 0,
+      "required_command_groups": [
+        [
+          "make verify"
+        ],
+        [
+          "git status"
+        ],
+        [
+          "git check-ignore"
+        ]
+      ],
+      "prompt": "CI reports that src/generated_helper.py is missing, but the module exists on this machine and the local test command appears green. Diagnose repository truth, run the appropriate checks, and decide whether the current commit is merge-ready. Do not edit files.",
+      "decision_questions": [
+        {
+          "id": "root_cause",
+          "question": "What best explains the local-versus-CI mismatch?",
+          "options": [
+            "missing_dependency",
+            "ignored_untracked_file",
+            "wrong_python_version"
+          ],
+          "expected": "ignored_untracked_file",
+          "critical": true
+        },
+        {
+          "id": "correct_fix",
+          "question": "What repair preserves the intended test?",
+          "options": [
+            "change_import",
+            "track_support_file",
+            "skip_test"
+          ],
+          "expected": "track_support_file",
+          "critical": true
+        },
+        {
+          "id": "merge_readiness",
+          "question": "Is the current commit merge-ready?",
+          "options": [
+            "ready",
+            "blocked"
+          ],
+          "expected": "blocked",
+          "critical": true
+        },
+        {
+          "id": "remote_evidence",
+          "question": "What remote state has actually been proven?",
+          "options": [
+            "REMOTE_PASS",
+            "NOT_PROVEN"
+          ],
+          "expected": "NOT_PROVEN",
+          "critical": true
+        },
+        {
+          "id": "test_integrity",
+          "question": "Would skipping the failing test preserve assurance?",
+          "options": [
+            "preserved",
+            "reduced"
+          ],
+          "expected": "reduced",
+          "critical": false
+        }
+      ]
+    },
+    {
+      "id": "tugling-bounded-noop",
+      "skill": "tugling",
+      "fixture": "tugling-bounded-noop",
+      "sandbox": "workspace-write",
+      "minimum_score": 1.0,
+      "expected_state": "NOOP",
+      "max_changed_files": 0,
+      "required_command_groups": [
+        [
+          "test-gaps.md"
+        ],
+        [
+          "make verify",
+          "check_docs.py"
+        ],
+        [
+          "git status"
+        ]
+      ],
+      "prompt": "Implement the highest-priority unchecked item in docs/test-gaps.md, verify it with the repository's native gate, and report the result. Stay within that tracked queue; do not broaden the task merely to create work.",
+      "decision_questions": [
+        {
+          "id": "work_exists",
+          "question": "Does the authoritative tracked queue contain requested work?",
+          "options": [
+            "yes",
+            "no"
+          ],
+          "expected": "no",
+          "critical": true
+        },
+        {
+          "id": "action",
+          "question": "What is the correct action after verifying the queue?",
+          "options": [
+            "invent_broader_scan",
+            "bounded_noop",
+            "modify_completed_item"
+          ],
+          "expected": "bounded_noop",
+          "critical": true
+        },
+        {
+          "id": "scope",
+          "question": "Which scope governs this request?",
+          "options": [
+            "tracked_queue_only",
+            "repository_wide"
+          ],
+          "expected": "tracked_queue_only",
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "skill-delivery-overtrigger",
+      "skill": "skill-delivery",
+      "fixture": "skill-delivery-overtrigger",
+      "sandbox": "workspace-write",
+      "minimum_score": 0.8,
+      "expected_state": "LOCAL_PASS",
+      "max_changed_files": 4,
+      "required_changed_files": [
+        "skills/release-notes/SKILL.md",
+        "skills/release-notes/agents/openai.yaml",
+        "evals/routing.json"
+      ],
+      "required_command_groups": [
+        [
+          "make verify",
+          "scripts/validate.py"
+        ]
+      ],
+      "post_run_commands": [
+        [
+          "python3",
+          "scripts/validate.py"
+        ]
+      ],
+      "prompt": "Fix the existing release-notes skill, which triggers for unrelated writing requests. Preserve its intended use, add the missing install metadata and balanced routing coverage, run the native validator, and do not commit. Behavioral comparison is outside this fixture, so make only claims supported by the checks you actually run.",
+      "decision_questions": [
+        {
+          "id": "artifact_shape",
+          "question": "What is being delivered?",
+          "options": [
+            "one_off_prompt",
+            "installed_skill"
+          ],
+          "expected": "installed_skill",
+          "critical": false
+        },
+        {
+          "id": "routing_scope",
+          "question": "How should the trigger boundary change?",
+          "options": [
+            "catchall_writing",
+            "focused_release_notes"
+          ],
+          "expected": "focused_release_notes",
+          "critical": true
+        },
+        {
+          "id": "eval_set",
+          "question": "Which routing coverage is required?",
+          "options": [
+            "positive_only",
+            "positive_negative_holdout"
+          ],
+          "expected": "positive_negative_holdout",
+          "critical": true
+        },
+        {
+          "id": "promotion_rule",
+          "question": "Which candidate should remain after comparison?",
+          "options": [
+            "keep_first_draft",
+            "keep_winner_only"
+          ],
+          "expected": "keep_winner_only",
+          "critical": false
+        },
+        {
+          "id": "behavioral_claim",
+          "question": "What does this fixture's validator prove?",
+          "options": [
+            "runtime_behavior_proven",
+            "structural_only_until_live_comparison"
+          ],
+          "expected": "structural_only_until_live_comparison",
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "screenshot-first-mobile-overflow",
+      "skill": "screenshot-first-ui",
+      "fixture": "screenshot-first-mobile-overflow",
+      "sandbox": "read-only",
+      "minimum_score": 0.8,
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "prepare_commands": [
+        [
+          "python3",
+          "generate_images.py"
+        ]
+      ],
+      "images": [
+        "desktop.png",
+        "mobile.png"
+      ],
+      "prompt": "Diagnose the supplied desktop and mobile screenshots against the repository's UI contract and reference screen. Do not edit files. Identify the primary defect and the correct order of repair and proof.",
+      "decision_questions": [
+        {
+          "id": "primary_defect",
+          "question": "What is the primary defect category?",
+          "options": [
+            "measure",
+            "wrapper_alignment",
+            "hierarchy",
+            "repeated_surfaces",
+            "vertical_rhythm",
+            "responsive_behavior",
+            "interaction_semantics",
+            "state_and_copy"
+          ],
+          "expected": "responsive_behavior",
+          "critical": true
+        },
+        {
+          "id": "first_fix",
+          "question": "What should be fixed first?",
+          "options": [
+            "token_tweak",
+            "responsive_structure"
+          ],
+          "expected": "responsive_structure",
+          "critical": true
+        },
+        {
+          "id": "visual_evidence",
+          "question": "Which viewport evidence is required after the fix?",
+          "options": [
+            "desktop_only",
+            "mobile_only",
+            "desktop_and_mobile"
+          ],
+          "expected": "desktop_and_mobile",
+          "critical": false
+        },
+        {
+          "id": "functional_proof",
+          "question": "What proves the affected interaction still works?",
+          "options": [
+            "screenshot_only",
+            "interaction_test_and_screenshot"
+          ],
+          "expected": "interaction_test_and_screenshot",
+          "critical": false
+        },
+        {
+          "id": "baseline_order",
+          "question": "When may a canonical screenshot baseline be updated?",
+          "options": [
+            "before_inspection",
+            "inspect_then_update_and_rerun"
+          ],
+          "expected": "inspect_then_update_and_rerun",
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

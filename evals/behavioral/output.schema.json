@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "evidence"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "artifacts_inspected": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changes_made": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "strongest_proven_state": {
+      "type": "string",
+      "enum": [
+        "ADVISORY",
+        "NOOP",
+        "LOCAL_PASS",
+        "REMOTE_PASS",
+        "MERGED_PASS",
+        "DEPLOYED_PASS",
+        "BLOCKED"
+      ]
+    },
+    "unverified": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "case_id",
+    "summary",
+    "decisions",
+    "commands_run",
+    "artifacts_inspected",
+    "changes_made",
+    "strongest_proven_state",
+    "unverified"
+  ],
+  "additionalProperties": false
+}

@@ -7,6 +7,7 @@ Keep Tugling small, portable, and evidence-led.
 3. Change the narrowest skill that owns the decision.
 4. Add positive and negative routing fixtures for changed trigger behavior.
 5. Run `make verify`.
-6. For consequential instruction changes, compare the current and proposed skill on blinded holdout prompts before promotion.
+6. For consequential instruction changes, run the paired behavioral dogfood gate.
+7. Before a broad quality claim, dogfood on a clean external project and pass the full seven-pair promotion gate.
 
 A longer skill is not automatically a better skill. Prefer one instruction that changes a decision over a catalog of generic advice.

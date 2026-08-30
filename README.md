@@ -53,7 +53,18 @@ Tugling does not grant permission to merge, deploy, delete, contact people, spen
 make verify
 ```
 
-`make verify` checks the marketplace and plugin manifests, skill frontmatter and UI metadata, the generic/project boundary, and routing-fixture coverage. Routing fixtures are reviewable test inputs; they are not a substitute for blinded behavioral evaluation when a skill change is consequential.
+`make verify` checks the marketplace and plugin manifests, skill frontmatter and UI metadata, the generic/project boundary, routing-fixture coverage, behavioral fixtures, and the dependency-free grader tests.
+
+Use this proof ladder for consequential instruction changes:
+
+1. **Structural:** run `make verify` on every change.
+2. **Synthetic dogfood:** run at least three paired control/treatment cases and require the dogfood gate.
+3. **Project dogfood:** run an external case against a clean project checkout without committing project source or results here.
+4. **Promotion:** run all seven paired cases and require the stricter promotion gate before making a broad quality claim.
+
+The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, and tokens, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
+
+Tugling does not hard-code a model per skill. Pin models in comparable evaluations first; add a recommendation only after repeated evidence shows a meaningful quality, latency, or cost tradeoff for that skill.
 
 ## Design choices
 
