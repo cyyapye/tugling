@@ -1,0 +1,149 @@
+[
+  {
+    "id": "tugling-positive-feature",
+    "skill": "tugling",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Use Tugling to add this feature, keep the diff small, and verify the real user flow."
+  },
+  {
+    "id": "tugling-negative-explanation",
+    "skill": "tugling",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Explain what this existing helper function returns without changing any files."
+  },
+  {
+    "id": "tugling-holdout-trivial",
+    "skill": "tugling",
+    "kind": "holdout",
+    "should_trigger": false,
+    "prompt": "Fix the spelling error in this one sentence and leave everything else untouched."
+  },
+  {
+    "id": "delivery-plan-positive",
+    "skill": "delivery-plan",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Create an implementation plan for migrating this endpoint without breaking current callers."
+  },
+  {
+    "id": "delivery-plan-negative-build",
+    "skill": "delivery-plan",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "The design is settled; implement the named two-line fix and run the focused test."
+  },
+  {
+    "id": "delivery-plan-holdout-rollout",
+    "skill": "delivery-plan",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "Before coding, split this database change into safe rollout steps with rollback and proof."
+  },
+  {
+    "id": "scale-cost-positive-list",
+    "skill": "scale-cost-review",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Review this list API design for pagination, query count, latency, and cost at one million rows."
+  },
+  {
+    "id": "scale-cost-negative-copy",
+    "skill": "scale-cost-review",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Change this empty-state sentence to be shorter without touching application behavior."
+  },
+  {
+    "id": "scale-cost-holdout-cron",
+    "skill": "scale-cost-review",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "This daily job is cheap today; model its reads, retention, cleanup, and monthly cost at ten times the accounts."
+  },
+  {
+    "id": "async-positive-webhook",
+    "skill": "async-safety",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Design this webhook consumer so duplicate, delayed, and out-of-order deliveries converge safely."
+  },
+  {
+    "id": "async-negative-sync",
+    "skill": "async-safety",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Add synchronous request validation for this form field and return a clear client error."
+  },
+  {
+    "id": "async-holdout-overlap",
+    "skill": "async-safety",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "Two scheduler runs can overlap after a timeout; define the idempotency and recovery behavior."
+  },
+  {
+    "id": "verify-positive-ready",
+    "skill": "repo-verify",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Run the repository checks, fix failures caused by this diff, and tell me whether it is merge-ready."
+  },
+  {
+    "id": "verify-negative-status",
+    "skill": "repo-verify",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Summarize the implementation approach from the code without running tests or changing anything."
+  },
+  {
+    "id": "verify-holdout-missing-module",
+    "skill": "repo-verify",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "CI reports a missing module that exists on my disk; diagnose the repository state and rerun the right gate."
+  },
+  {
+    "id": "ui-positive-off",
+    "skill": "screenshot-first-ui",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "This screen still looks off after several spacing tweaks; diagnose the screenshot before changing CSS."
+  },
+  {
+    "id": "ui-negative-brand",
+    "skill": "screenshot-first-ui",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Invent a new logo and color palette for a product that does not have an interface yet."
+  },
+  {
+    "id": "ui-holdout-mobile",
+    "skill": "screenshot-first-ui",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "Fix the mobile overflow, compare the nearest product screen, and inspect desktop and narrow screenshots."
+  },
+  {
+    "id": "skill-positive-create",
+    "skill": "skill-delivery",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Create a reusable Codex skill for reviewing migrations and include routing cases and validation."
+  },
+  {
+    "id": "skill-negative-prompt",
+    "skill": "skill-delivery",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Rewrite this one-off prompt so it asks for a shorter summary; do not save it as a skill."
+  },
+  {
+    "id": "skill-holdout-revision",
+    "skill": "skill-delivery",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "Revise the existing skill that over-triggers, preserve its good cases, and prove the holdouts do not regress."
+  }
+]

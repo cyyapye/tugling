@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Verify"
+  short_description: "Run repository-native checks and report proof"
+  default_prompt: "Use $repo-verify to verify this change with the native repository gates."

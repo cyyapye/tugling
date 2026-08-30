@@ -1,0 +1,4 @@
+interface:
+  display_name: "Async Safety"
+  short_description: "Design retries, ordering, and idempotent transitions"
+  default_prompt: "Use $async-safety to design this workflow for retries and duplicate delivery."

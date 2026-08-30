@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Delivery"
+  short_description: "Create and validate reusable Codex skills"
+  default_prompt: "Use $skill-delivery to create and validate this reusable Codex skill."

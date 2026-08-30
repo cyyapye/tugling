@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scale & Cost Review"
+  short_description: "Bound performance, data access, and runtime cost"
+  default_prompt: "Use $scale-cost-review to review this design for scale, simplicity, and cost."

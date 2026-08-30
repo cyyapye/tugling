@@ -1,0 +1,4 @@
+interface:
+  display_name: "Screenshot-First UI"
+  short_description: "Diagnose visual defects before tweaking styles"
+  default_prompt: "Use $screenshot-first-ui to diagnose what is visually wrong before editing."
