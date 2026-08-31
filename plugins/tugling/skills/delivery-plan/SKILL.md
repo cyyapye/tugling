@@ -36,3 +36,4 @@ For a non-trivial bug, state what should fail before the fix and why that failur
 - Prefer a small complete beachhead over a broad roadmap disguised as one change.
 - Flag blocked product decisions separately from implementation details.
 - Do not make implementation edits unless the user also asked to build.
+- Report plan-only or design-only work as `ADVISORY`, even when a repository check was run. Reserve `LOCAL_PASS` for an implemented change whose local completion gate passed.

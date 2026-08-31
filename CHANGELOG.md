@@ -6,6 +6,7 @@
 - Add opt-in local correction capture and review with no hooks, telemetry, or automatic upload.
 - Compare no-Tugling, released, and candidate behavior and generate a machine-readable release proof card.
 - Record exact source identities, regressions, token and latency totals, plugin permission and hook changes, and configurable public-policy scans.
+- Keep plan-only work at the advisory evidence state even when a local repository check passes.
 
 ## 0.2.1 - 2026-08-30
 
