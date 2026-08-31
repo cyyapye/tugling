@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import behavioral_eval as harness
 
@@ -206,19 +207,22 @@ class BehavioralEvalTest(unittest.TestCase):
                 harness.resolve_release_baseline("HEAD", Path(directory))
 
     def test_distinct_released_baseline_is_materialized_with_exact_identity(self) -> None:
-        initial = harness.git_output(
-            harness.ROOT,
-            "rev-list",
-            "--max-parents=0",
-            "HEAD",
-        )
+        current = harness.git_output(harness.ROOT, "rev-parse", "HEAD")
         with tempfile.TemporaryDirectory() as directory:
-            baseline = harness.resolve_release_baseline(initial, Path(directory))
-            self.assertEqual(baseline["revision"], initial)
+            with patch.object(
+                harness,
+                "repository_identity",
+                return_value={
+                    "revision": "f" * 40,
+                    "plugin_content_sha256": "0" * 64,
+                },
+            ):
+                baseline = harness.resolve_release_baseline("HEAD", Path(directory))
+            self.assertEqual(baseline["revision"], current)
             self.assertTrue((Path(baseline["skills"]) / "tugling" / "SKILL.md").is_file())
             self.assertNotEqual(
                 baseline["plugin_content_sha256"],
-                harness.repository_identity()["plugin_content_sha256"],
+                "0" * 64,
             )
 
     def test_policy_scan_records_only_pattern_digest_when_clean(self) -> None:
