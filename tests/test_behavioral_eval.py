@@ -28,6 +28,53 @@ class BehavioralEvalTest(unittest.TestCase):
             installed = {path.name for path in (workspace / ".agents" / "skills").iterdir()}
             self.assertEqual(installed, harness.skill_names())
 
+    def test_changed_files_preserves_first_modified_path(self) -> None:
+        case = self.by_id["skill-delivery-overtrigger"]
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "workspace"
+            harness.initialize_fixture(case, workspace)
+            path = workspace / "evals" / "routing.json"
+            path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            files, status = harness.changed_files(workspace)
+        self.assertEqual(files, ["evals/routing.json"])
+        self.assertTrue(status.startswith(" M evals/routing.json"))
+
+    def test_image_arguments_are_terminated_before_prompt(self) -> None:
+        argv = ["codex", "exec"]
+        images = [Path("desktop.png"), Path("mobile.png")]
+        harness.append_prompt_and_images(argv, images, "Inspect both screenshots")
+        self.assertEqual(
+            argv,
+            [
+                "codex",
+                "exec",
+                "--image",
+                "desktop.png",
+                "mobile.png",
+                "--",
+                "Inspect both screenshots",
+            ],
+        )
+
+    def test_isolated_codex_home_copies_only_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            (source / "auth.json").write_text('{"token":"synthetic"}\n', encoding="utf-8")
+            (source / "config.toml").write_text("model = 'example'\n", encoding="utf-8")
+            (source / "skills").mkdir()
+            destination = root / "isolated"
+            harness.prepare_isolated_codex_home(destination, source)
+            self.assertEqual(
+                {path.name for path in destination.iterdir()},
+                {"auth.json"},
+            )
+            self.assertEqual(
+                (destination / "auth.json").read_text(encoding="utf-8"),
+                '{"token":"synthetic"}\n',
+            )
+
     def test_grader_passes_observable_noop_contract(self) -> None:
         case = self.by_id["tugling-bounded-noop"]
         output = {

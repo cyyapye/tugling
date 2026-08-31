@@ -41,3 +41,5 @@ Say `Not applicable` for an irrelevant bucket instead of silently omitting it.
 ## Handoff
 
 Report the producer and consumer, transition delta, idempotency and ordering rule, retry and terminal split, recovery path, proof collected, and any runtime rail that remains unverified.
+
+Report read-only design or review work as `ADVISORY`, even when no files were meant to change. Use `NOOP` only when the user requested a bounded implementation and current evidence proves it was already satisfied or absent.

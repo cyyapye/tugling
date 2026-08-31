@@ -53,3 +53,5 @@ When the user also asks for implementation:
 ## Handoff
 
 Report the primary defect category, evidence, structural fix, any remaining micro-tweaks, screenshots inspected, functional proof, and the closest product reference used.
+
+Report a requested read-only diagnosis as `ADVISORY`, even when no edit was authorized. Use `NOOP` only when a bounded requested implementation is already satisfied or absent, not merely because the task was diagnostic.

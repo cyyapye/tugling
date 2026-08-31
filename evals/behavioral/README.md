@@ -41,9 +41,11 @@ python3 scripts/behavioral_eval.py run \
 ```
 
 The runner is opt-in and never runs from `make verify` or the default GitHub
-workflow. It uses ephemeral Codex sessions, ignores user configuration and
-execution-policy files, forbids network use in the prompt, and grants only the
-case's declared sandbox. It does not bypass approvals or the sandbox.
+workflow. It uses ephemeral Codex sessions and a private temporary Codex home
+that copies authentication but excludes user configuration and global skills.
+It also ignores execution-policy files, forbids network use in the prompt, and
+grants only the case's declared sandbox. The temporary home is removed with the
+run workspace. The runner does not bypass approvals or the sandbox.
 
 The dogfood gate needs at least three paired cases, no treatment regressions,
 no critical treatment failure, and an average treatment score of at least 85%.

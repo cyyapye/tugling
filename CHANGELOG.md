@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-08-30
+
+- Preserve modified paths when grading unstaged Git changes.
+- Pass screenshot prompts after variadic image arguments correctly.
+- Clarify advisory versus no-op evidence states for asynchronous design and screenshot-led UI reviews.
+- Isolate live runs from user configuration and global skills with a temporary Codex home.
+
 ## 0.2.0 - 2026-08-30
 
 - Add a dependency-free behavioral harness with isolated, blinded control/treatment runs, deterministic grading, token and latency capture, and explicit dogfood and promotion gates.

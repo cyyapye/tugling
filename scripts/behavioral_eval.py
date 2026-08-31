@@ -69,6 +69,22 @@ def command_env() -> dict[str, str]:
     return env
 
 
+def prepare_isolated_codex_home(destination: Path, source: Path | None = None) -> None:
+    source = source or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    destination.mkdir(parents=True, mode=0o700)
+    destination.chmod(0o700)
+    auth_source = source / "auth.json"
+    if auth_source.is_file():
+        auth_destination = destination / "auth.json"
+        shutil.copy2(auth_source, auth_destination)
+        auth_destination.chmod(0o600)
+        return
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise EvalError(
+            f"Codex authentication not found at {auth_source}; log in or provide OPENAI_API_KEY"
+        )
+
+
 def run_command(
     argv: list[str],
     *,
@@ -326,7 +342,12 @@ def git_output(workspace: Path, *args: str) -> str:
 
 
 def changed_files(workspace: Path) -> tuple[list[str], str]:
-    status = git_output(workspace, "status", "--porcelain", "--untracked-files=all")
+    completed = run_command(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=workspace,
+        check=True,
+    )
+    status = completed.stdout.rstrip("\n")
     files: list[str] = []
     for line in status.splitlines():
         path = line[3:] if len(line) >= 4 else line
@@ -334,6 +355,12 @@ def changed_files(workspace: Path) -> tuple[list[str], str]:
             path = path.split(" -> ", 1)[1]
         files.append(path)
     return sorted(set(files)), status
+
+
+def append_prompt_and_images(argv: list[str], image_paths: list[Path], prompt: str) -> None:
+    if image_paths:
+        argv.extend(["--image", *(str(path) for path in image_paths), "--"])
+    argv.append(prompt)
 
 
 def build_prompt(case: dict[str, Any]) -> str:
@@ -609,6 +636,7 @@ def run_codex(
     codex_bin: str,
     case: dict[str, Any],
     workspace: Path,
+    codex_home: Path,
     artifact_dir: Path,
     model: str,
     reasoning_effort: str,
@@ -640,20 +668,23 @@ def run_codex(
         "--output-last-message",
         str(final_path),
     ]
+    image_paths: list[Path] = []
     for image in case.get("images", []):
         image_path = workspace / image
         if not image_path.is_file():
             raise EvalError(f"declared image does not exist after fixture preparation: {image_path}")
-        argv.extend(["--image", str(image_path)])
-    argv.append(build_prompt(case))
+        image_paths.append(image_path)
+    append_prompt_and_images(argv, image_paths, build_prompt(case))
 
     started = time.perf_counter()
     timed_out = False
     try:
+        child_env = command_env()
+        child_env["CODEX_HOME"] = str(codex_home)
         completed = subprocess.run(
             argv,
             cwd=workspace,
-            env=command_env(),
+            env=child_env,
             stdin=subprocess.DEVNULL,
             text=True,
             capture_output=True,
@@ -728,7 +759,9 @@ def run_condition(
     artifact_dir = out_dir / case["id"] / condition / f"attempt-{attempt}"
     scratch = Path(tempfile.mkdtemp(prefix=f"tugling-{case['id']}-{condition}-"))
     workspace = scratch / "workspace"
+    codex_home = scratch / "codex-home"
     try:
+        prepare_isolated_codex_home(codex_home)
         if project_repo is None:
             baseline_head = initialize_fixture(case, workspace)
         else:
@@ -740,6 +773,7 @@ def run_condition(
             codex_bin=codex_bin,
             case=case,
             workspace=workspace,
+            codex_home=codex_home,
             artifact_dir=artifact_dir,
             model=model,
             reasoning_effort=reasoning_effort,
