@@ -1,4 +1,4 @@
 interface:
   display_name: "Tugling"
-  short_description: "Carry a repo change from intent to proof"
-  default_prompt: "Use $tugling to deliver this repository change from intent through verification."
+  short_description: "Set up or deliver a repo change with proof"
+  default_prompt: "Use $tugling to set up or deliver this repository work through verified handoff."

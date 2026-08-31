@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tugling release proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "created_at",
+    "passed",
+    "checks",
+    "candidate",
+    "released",
+    "reproducibility",
+    "metrics",
+    "per_case",
+    "usage_and_latency",
+    "plugin_surface_changes",
+    "privacy_scan",
+    "policy_scan"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "candidate": {
+      "type": "object"
+    },
+    "released": {
+      "type": "object"
+    },
+    "reproducibility": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "per_case": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "usage_and_latency": {
+      "type": "object"
+    },
+    "plugin_surface_changes": {
+      "type": "object"
+    },
+    "privacy_scan": {
+      "type": "object"
+    },
+    "policy_scan": {
+      "type": "object"
+    }
+  }
+}

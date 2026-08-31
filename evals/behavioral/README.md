@@ -4,12 +4,13 @@ This suite asks a narrower question than `make verify`: does installing Tugling
 change observable engineering decisions without causing unsafe side effects?
 
 Each case has a synthetic Git repository, a prompt, hidden expected decisions,
-and executable invariants. The live runner creates two isolated copies:
+and executable invariants. The live runner can create three isolated copies:
 
 - `control`: no Tugling skills are present.
-- `treatment`: the current Tugling skills are exposed from `.agents/skills`.
+- `released`: skills are materialized from an exact released Git revision.
+- `candidate`: the current Tugling skills are exposed from `.agents/skills`.
 
-Both conditions receive the same prompt and structured-output schema. Grading
+All conditions receive the same prompt and structured-output schema. Grading
 uses the final decisions, the actual Codex JSONL command events, the resulting
 Git state, and independent post-run commands. Generated reports also include a
 blinded A/B artifact, elapsed time, and token usage. A single run is exploratory
@@ -47,10 +48,32 @@ It also ignores execution-policy files, forbids network use in the prompt, and
 grants only the case's declared sandbox. The temporary home is removed with the
 run workspace. The runner does not bypass approvals or the sandbox.
 
-The dogfood gate needs at least three paired cases, no treatment regressions,
-no critical treatment failure, and an average treatment score of at least 85%.
-The promotion gate requires all seven paired cases, at least 90%, no regression,
-and measurable aggregate lift over control. The report states both gates.
+The dogfood gate needs at least three no-Tugling/candidate comparisons, no
+candidate regressions, no critical candidate failure, and an average candidate
+score of at least 85%.
+
+Promotion compares an exact released revision with the candidate and also keeps
+the no-Tugling arm as a sanity check. Provide the released ref and an external
+policy-pattern file whose contents are never copied into the report:
+
+```bash
+python3 scripts/behavioral_eval.py run \
+  --case all \
+  --condition all \
+  --baseline-ref <released-tag-or-full-sha> \
+  --policy-pattern-file /path/outside/tugling/public-policy-patterns.txt \
+  --model gpt-5.4-mini \
+  --reasoning-effort medium \
+  --require-gate promotion
+```
+
+The promotion proof requires all eight cases, an average candidate score of at
+least 90%, measurable improvement over the released version, no candidate
+regression, a clean candidate worktree, distinct released/candidate revisions
+and plugin content, and passing privacy and configured policy scans. The output
+includes `release-proof.json` and `release-proof.md` beside the behavioral
+report. The JSON shape is documented by
+[`release-proof.schema.json`](release-proof.schema.json).
 
 ## External-project dogfood
 
@@ -61,7 +84,7 @@ same runner at a clean local checkout and an external case file:
 python3 scripts/behavioral_eval.py project \
   --repo /path/to/project \
   --case-file /path/to/project-case.json \
-  --condition treatment \
+  --condition candidate \
   --model gpt-5.4-mini \
   --reasoning-effort medium
 ```
@@ -73,7 +96,7 @@ not include uncommitted source-repository files.
 ## What the gates do not prove
 
 - Structural checks do not prove model behavior.
-- One control/treatment pair does not prove a durable causal lift.
+- One no-Tugling/candidate comparison does not prove a durable causal lift.
 - Synthetic cases do not replace product-specific acceptance criteria.
 - Local model runs do not prove remote checks, merge, deployment, or production
   behavior.

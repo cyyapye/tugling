@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-08-30
+
+- Add read-only-first project setup guidance, a pinned project contract, and a synthetic dogfood format.
+- Add opt-in local correction capture and review with no hooks, telemetry, or automatic upload.
+- Compare no-Tugling, released, and candidate behavior and generate a machine-readable release proof card.
+- Record exact source identities, regressions, token and latency totals, plugin permission and hook changes, and configurable public-policy scans.
+
 ## 0.2.1 - 2026-08-30
 
 - Preserve modified paths when grading unstaged Git changes.

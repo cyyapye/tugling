@@ -17,7 +17,7 @@ class BehavioralEvalTest(unittest.TestCase):
         self.assertEqual(harness.validate_suite(self.suite), [])
         self.assertEqual({case["skill"] for case in self.suite["cases"]}, harness.skill_names())
 
-    def test_treatment_install_is_clean_and_does_not_change_fixture_head(self) -> None:
+    def test_candidate_install_is_clean_and_does_not_change_fixture_head(self) -> None:
         case = self.by_id["tugling-bounded-noop"]
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory) / "workspace"
@@ -174,19 +174,127 @@ class BehavioralEvalTest(unittest.TestCase):
         )
 
     def test_gate_requires_distinct_paired_cases(self) -> None:
-        pairs = [
+        comparisons = [
             {
                 "case_id": f"case-{index}",
                 "control_score": 0.7,
-                "treatment_score": 1.0,
-                "regression": False,
-                "treatment_critical_pass": True,
+                "released_score": None,
+                "candidate_score": 1.0,
+                "candidate_vs_control": 0.3,
+                "candidate_vs_released": None,
+                "control_regression": False,
+                "released_regression": None,
+                "candidate_critical_pass": True,
             }
             for index in range(3)
         ]
-        metrics = harness.evaluate_gates(self.suite["gates"], pairs)
+        metrics = harness.evaluate_gates(self.suite["gates"], comparisons)
         self.assertTrue(metrics["gates"]["dogfood"]["passed"])
         self.assertFalse(metrics["gates"]["promotion"]["passed"])
+
+    def test_conditions_preserve_legacy_alias_and_add_release_comparison(self) -> None:
+        self.assertEqual(harness.conditions_for("treatment"), ["candidate"])
+        self.assertEqual(harness.conditions_for("both"), ["control", "candidate"])
+        self.assertEqual(
+            harness.conditions_for("all"),
+            ["control", "released", "candidate"],
+        )
+
+    def test_released_baseline_cannot_resolve_to_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(harness.EvalError, "candidate revision"):
+                harness.resolve_release_baseline("HEAD", Path(directory))
+
+    def test_distinct_released_baseline_is_materialized_with_exact_identity(self) -> None:
+        initial = harness.git_output(
+            harness.ROOT,
+            "rev-list",
+            "--max-parents=0",
+            "HEAD",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            baseline = harness.resolve_release_baseline(initial, Path(directory))
+            self.assertEqual(baseline["revision"], initial)
+            self.assertTrue((Path(baseline["skills"]) / "tugling" / "SKILL.md").is_file())
+            self.assertNotEqual(
+                baseline["plugin_content_sha256"],
+                harness.repository_identity()["plugin_content_sha256"],
+            )
+
+    def test_policy_scan_records_only_pattern_digest_when_clean(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pattern_file = Path(directory) / "patterns.txt"
+            pattern_file.write_text(
+                f"runtime-only-{Path(directory).name}\n",
+                encoding="utf-8",
+            )
+            report = harness.policy_scan(pattern_file)
+        self.assertTrue(report["configured"])
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["pattern_count"], 1)
+        self.assertNotIn("patterns", report)
+
+    def test_release_proof_requires_clean_distinct_source_and_scans(self) -> None:
+        candidate = {
+            "revision": "b" * 40,
+            "worktree_dirty": False,
+            "content_sha256": "c" * 64,
+            "plugin_content_sha256": "d" * 64,
+        }
+        released = {
+            "revision": "a" * 40,
+            "ref": "v0.2.1",
+            "worktree_dirty": False,
+            "version": "0.2.1",
+            "plugin_content_sha256": "e" * 64,
+        }
+        summary = {
+            "run_id": "synthetic-proof",
+            "created_at": "2026-08-30T00:00:00+00:00",
+            "candidate_identity": candidate,
+            "released_identity": released,
+            "codex_version": "codex-test",
+            "model": "model-test",
+            "reasoning_effort": "medium",
+            "conditions": ["control", "released", "candidate"],
+            "attempts": 1,
+            "case_ids": ["case-1"],
+            "metrics": {
+                "candidate_average": 1.0,
+                "candidate_vs_control": 0.5,
+                "candidate_vs_released": 0.2,
+                "released_regressions": 0,
+                "gates": {"promotion": {"passed": True}},
+            },
+        }
+        proof = harness.release_proof(
+            summary=summary,
+            comparisons=[],
+            results=[],
+            policy={"configured": True, "passed": True},
+            privacy={"passed": True},
+            surface={
+                "permissions_changed": False,
+                "hooks_changed": False,
+                "changed_plugin_paths": [],
+            },
+        )
+        self.assertTrue(proof["passed"])
+        summary["candidate_identity"] = {**candidate, "worktree_dirty": True}
+        dirty = harness.release_proof(
+            summary=summary,
+            comparisons=[],
+            results=[],
+            policy={"configured": True, "passed": True},
+            privacy={"passed": True},
+            surface={
+                "permissions_changed": False,
+                "hooks_changed": False,
+                "changed_plugin_paths": [],
+            },
+        )
+        self.assertFalse(dirty["passed"])
+        self.assertFalse(dirty["checks"]["candidate_worktree_clean"])
 
 
 if __name__ == "__main__":

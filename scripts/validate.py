@@ -207,17 +207,38 @@ def validate_markdown_links() -> None:
             require((path.parent / local_target).exists(), f"{path.relative_to(ROOT)}: broken link {target}")
 
 
+def validate_release_proof_schema() -> None:
+    path = ROOT / "evals" / "behavioral" / "release-proof.schema.json"
+    value = read_json(path)
+    require(isinstance(value, dict), "release-proof.schema.json: root must be an object")
+    if not isinstance(value, dict):
+        return
+    require(value.get("type") == "object", "release-proof.schema.json: root type must be object")
+    required = value.get("required")
+    require(
+        isinstance(required, list)
+        and {"candidate", "released", "checks", "metrics", "policy_scan"}.issubset(required),
+        "release-proof.schema.json: required release evidence fields are missing",
+    )
+
+
 def main() -> int:
     validate_marketplace()
     validate_manifest()
     validate_skills()
     validate_routing_cases()
     validate_markdown_links()
+    validate_release_proof_schema()
     if ERRORS:
         for error in ERRORS:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    print(f"Tugling validation passed: 1 plugin, {len(EXPECTED_SKILLS)} skills, 12 principles, 21 routing cases.")
+    routing_cases = read_json(ROOT / "evals" / "routing.json")
+    routing_count = len(routing_cases) if isinstance(routing_cases, list) else 0
+    print(
+        f"Tugling validation passed: 1 plugin, {len(EXPECTED_SKILLS)} skills, "
+        f"12 principles, {routing_count} routing cases."
+    )
     return 0
 
 

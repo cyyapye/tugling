@@ -38,12 +38,46 @@ Use $tugling to add this feature. Keep the change small and show me the real ver
 
 The repository is also shaped as a GitHub-backed marketplace. Workspace admins can import `https://github.com/cyyapye/tugling` from the plugin administration UI. See the official [Codex plugin guide](https://developers.openai.com/codex/build-plugins) and [GitHub marketplace sync guide](https://learn.chatgpt.com/docs/enterprise/plugin-management).
 
-## Add Tugling to a project
+## Set up a project
 
-1. Keep the project's `AGENTS.md` authoritative.
-2. Copy and adapt [`templates/PROJECT_ADAPTER.md`](templates/PROJECT_ADAPTER.md).
-3. Point the adapter at the project's canonical verification commands and durable product contracts.
-4. Tighten Tugling's generic defaults where the domain requires it; never weaken a project safety rule.
+In a new thread opened on the project, start with:
+
+```text
+Use $tugling to set up this project. Assess it read-only first, then propose the smallest adapter and pinned CI contract before writing.
+```
+
+The intended setup delta is deliberately small:
+
+- a short `Tugling project adapter` section in the existing `AGENTS.md`;
+- `.tugling/project.json` with the exact Tugling source, native verification argv, and learning mode;
+- one committed synthetic case at `.tugling/dogfood.json`;
+- a deterministic CI check that validates the source pin and adapter without calling a model;
+- an ignored `.tugling/local/` directory only when local learning is enabled.
+
+The bundled project check is dependency-free:
+
+```bash
+python3 /path/to/tugling/plugins/tugling/scripts/project_contract.py \
+  --repo /path/to/project \
+  --source-root /path/to/tugling \
+  --source-mode pinned
+```
+
+[`templates/PROJECT_ADAPTER.md`](templates/PROJECT_ADAPTER.md) remains useful when a repository needs a fuller domain adapter. The setup workflow preserves existing project rules and commands instead of replacing them.
+
+## Learn locally, by choice
+
+Learning is off by default. A project may opt into `local` mode, where explicit reusable corrections can be summarized into an ignored, permission-restricted JSONL ledger. Tugling installs no capture hook, records no full transcript, sends no telemetry, and uploads nothing.
+
+The bundled helper can capture, digest, and review those local records. A lesson reaches Tugling only after a person chooses `promote`, rewrites it as a sanitized synthetic case, and the released-versus-candidate evaluation passes without a critical holdout regression.
+
+## Choose an update posture
+
+- `pinned`: use a full commit SHA for an auditable, review-gated project or workspace.
+- `stable`: follow Tugling's `stable` branch for evaluated releases.
+- `preview`: follow `main` to test changes before stable promotion.
+
+GitHub-backed workspace marketplaces can follow a branch for future syncs or stay fixed to a tag or commit. Project CI should prefer a full SHA; a separate scheduled candidate check may exercise `stable` without silently changing the accepted pin.
 
 Tugling does not grant permission to merge, deploy, delete, contact people, spend money, or mutate external systems. Those actions still require the authority established by the user, environment, and repository.
 
@@ -58,11 +92,11 @@ make verify
 Use this proof ladder for consequential instruction changes:
 
 1. **Structural:** run `make verify` on every change.
-2. **Synthetic dogfood:** run at least three paired control/treatment cases and require the dogfood gate.
+2. **Synthetic dogfood:** run at least three no-Tugling/candidate comparisons and require the dogfood gate.
 3. **Project dogfood:** run an external case against a clean project checkout without committing project source or results here.
-4. **Promotion:** run all seven paired cases and require the stricter promotion gate before making a broad quality claim.
+4. **Promotion:** compare no Tugling, the exact released revision, and the candidate on all eight cases; require the release proof before making a broad quality claim.
 
-The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, and tokens, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
+The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, tokens, source identities, regressions, and plugin permission or hook changes, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
 
 Tugling does not hard-code a model per skill. Pin models in comparable evaluations first; add a recommendation only after repeated evidence shows a meaningful quality, latency, or cost tradeoff for that skill.
 
@@ -70,6 +104,7 @@ Tugling does not hard-code a model per skill. Pin models in comparable evaluatio
 
 - Skills before machinery: there is no MCP server, runtime service, or required model configuration.
 - Repository rules win: Tugling reads local instructions instead of imposing one stack or language.
+- Local by default: setup and learning do not require a service, account, telemetry stream, or prompt hook.
 - Honest evidence states: local checks, remote checks, and deployed behavior remain distinct.
 - Small core, local adapters: financial, healthcare, infrastructure, and product-specific rules stay with their repositories.
 

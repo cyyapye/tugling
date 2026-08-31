@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency-free control-versus-Tugling behavioral evaluation harness."""
+"""Dependency-free no-Tugling, released, and candidate evaluation harness."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,7 @@ DEFAULT_SUITE = ROOT / "evals" / "behavioral" / "cases.json"
 OUTPUT_SCHEMA = ROOT / "evals" / "behavioral" / "output.schema.json"
 FIXTURES = ROOT / "evals" / "behavioral" / "fixtures"
 SKILLS = ROOT / "plugins" / "tugling" / "skills"
+PLUGIN = ROOT / "plugins" / "tugling"
 VALID_SANDBOXES = {"read-only", "workspace-write"}
 VALID_STATES = {
     "ADVISORY",
@@ -115,13 +117,12 @@ def skill_names() -> set[str]:
     return {path.parent.name for path in SKILLS.glob("*/SKILL.md")}
 
 
-def repository_identity() -> dict[str, Any]:
-    status = git_output(ROOT, "status", "--porcelain", "--untracked-files=all")
+def content_digest(root: Path) -> str:
     digest = hashlib.sha256()
-    for path in sorted(ROOT.rglob("*")):
+    for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
-        relative = path.relative_to(ROOT)
+        relative = path.relative_to(root)
         if ".git" in relative.parts or "__pycache__" in relative.parts:
             continue
         if relative.parts[:2] == ("evals", "runs"):
@@ -130,11 +131,79 @@ def repository_identity() -> dict[str, Any]:
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def repository_identity() -> dict[str, Any]:
+    status = git_output(ROOT, "status", "--porcelain", "--untracked-files=all")
     return {
         "revision": git_output(ROOT, "rev-parse", "HEAD"),
         "worktree_dirty": bool(status),
-        "content_sha256": digest.hexdigest(),
+        "content_sha256": content_digest(ROOT),
+        "plugin_content_sha256": content_digest(PLUGIN),
     }
+
+
+def git_bytes(*args: str) -> bytes:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            env=command_env(),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise EvalError(f"git command failed to run: {args!r}: {exc}") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise EvalError(f"git command failed ({completed.returncode}): {args!r}: {detail}")
+    return completed.stdout
+
+
+def materialize_plugin_revision(ref: str, destination: Path) -> dict[str, Any]:
+    revision = git_output(ROOT, "rev-parse", f"{ref}^{{commit}}")
+    paths = git_output(
+        ROOT,
+        "ls-tree",
+        "-r",
+        "--name-only",
+        revision,
+        "--",
+        "plugins/tugling",
+    ).splitlines()
+    if "plugins/tugling/.codex-plugin/plugin.json" not in paths:
+        raise EvalError(f"baseline {ref!r} does not contain the Tugling plugin")
+    for relative in paths:
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise EvalError(f"unsafe path in baseline tree: {relative}")
+        target = destination / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(git_bytes("show", f"{revision}:{relative}"))
+    plugin_root = destination / "plugins" / "tugling"
+    manifest = read_json(plugin_root / ".codex-plugin" / "plugin.json")
+    return {
+        "revision": revision,
+        "ref": ref,
+        "worktree_dirty": False,
+        "version": manifest.get("version") if isinstance(manifest, dict) else None,
+        "plugin_content_sha256": content_digest(plugin_root),
+        "skills": plugin_root / "skills",
+        "plugin_root": plugin_root,
+    }
+
+
+def resolve_release_baseline(ref: str, destination: Path) -> dict[str, Any]:
+    candidate = repository_identity()
+    baseline = materialize_plugin_revision(ref, destination)
+    if baseline["revision"] == candidate["revision"]:
+        raise EvalError("released baseline resolves to the candidate revision")
+    if baseline["plugin_content_sha256"] == candidate["plugin_content_sha256"]:
+        raise EvalError("released baseline plugin content is identical to the candidate")
+    return baseline
 
 
 def validate_case(case: Any, *, require_fixture: bool = True) -> list[str]:
@@ -248,10 +317,26 @@ def validate_suite(suite: Any) -> list[str]:
             if not isinstance(gate, dict):
                 errors.append(f"{name} gate must be an object")
                 continue
+            expected_fields = {
+                "comparison",
+                "minimum_pairs",
+                "minimum_candidate_score",
+                "maximum_regressions",
+                "minimum_delta",
+                "minimum_control_lift",
+            }
+            if set(gate) != expected_fields:
+                errors.append(
+                    f"{name} gate fields differ: expected {sorted(expected_fields)}, "
+                    f"found {sorted(gate)}"
+                )
+                continue
+            if gate.get("comparison") not in {"control", "released"}:
+                errors.append(f"{name} gate comparison must be control or released")
             for field in ("minimum_pairs", "maximum_regressions"):
                 if not isinstance(gate.get(field), int) or gate[field] < 0:
                     errors.append(f"{name} gate {field} must be a non-negative integer")
-            for field in ("minimum_treatment_score", "minimum_lift"):
+            for field in ("minimum_candidate_score", "minimum_delta", "minimum_control_lift"):
                 if not isinstance(gate.get(field), (int, float)):
                     errors.append(f"{name} gate {field} must be numeric")
     if not OUTPUT_SCHEMA.is_file():
@@ -325,11 +410,13 @@ def clone_project(source: Path, workspace: Path) -> str:
     return git_output(workspace, "rev-parse", "HEAD")
 
 
-def install_tugling(workspace: Path) -> None:
+def install_tugling(workspace: Path, skills_source: Path = SKILLS) -> None:
     destination = workspace / ".agents" / "skills"
     if destination.exists() and any(destination.iterdir()):
         raise EvalError("workspace already has .agents/skills; refusing to overwrite project skills")
-    for skill in sorted(SKILLS.iterdir()):
+    if not skills_source.is_dir():
+        raise EvalError(f"Tugling skills source does not exist: {skills_source}")
+    for skill in sorted(skills_source.iterdir()):
         if (skill / "SKILL.md").is_file():
             shutil.copytree(skill, destination / skill.name)
     exclude = workspace / ".git" / "info" / "exclude"
@@ -755,6 +842,8 @@ def run_condition(
     timeout: int,
     keep_workspace: bool,
     project_repo: Path | None,
+    skills_source: Path | None,
+    condition_identity: dict[str, Any] | None,
 ) -> dict[str, Any]:
     artifact_dir = out_dir / case["id"] / condition / f"attempt-{attempt}"
     scratch = Path(tempfile.mkdtemp(prefix=f"tugling-{case['id']}-{condition}-"))
@@ -766,8 +855,8 @@ def run_condition(
             baseline_head = initialize_fixture(case, workspace)
         else:
             baseline_head = clone_project(project_repo, workspace)
-        if condition == "treatment":
-            install_tugling(workspace)
+        if skills_source is not None:
+            install_tugling(workspace, skills_source)
 
         execution = run_codex(
             codex_bin=codex_bin,
@@ -794,7 +883,7 @@ def run_condition(
             "model": model,
             "reasoning_effort": reasoning_effort,
             "codex_version": codex_version,
-            "tugling_identity": repository_identity(),
+            "tugling_identity": condition_identity,
             "baseline_head": baseline_head,
             "final_head": final_head,
             "changed_files": files,
@@ -818,89 +907,162 @@ def run_condition(
         shutil.rmtree(scratch, ignore_errors=True)
 
 
-def pair_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def comparison_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, int], dict[str, dict[str, Any]]] = {}
     for result in results:
         key = (result["case_id"], result["attempt"])
         grouped.setdefault(key, {})[result["condition"]] = result
-    pairs: list[dict[str, Any]] = []
+    comparisons: list[dict[str, Any]] = []
     for (case_id, attempt), conditions in sorted(grouped.items()):
-        if set(conditions) != {"control", "treatment"}:
+        if "candidate" not in conditions or not ({"control", "released"} & set(conditions)):
             continue
-        control = conditions["control"]
-        treatment = conditions["treatment"]
-        control_score = float(control["grade"]["effective_score"])
-        treatment_score = float(treatment["grade"]["effective_score"])
-        pairs.append(
+        candidate = conditions["candidate"]
+        control = conditions.get("control")
+        released = conditions.get("released")
+        candidate_score = float(candidate["grade"]["effective_score"])
+        control_score = float(control["grade"]["effective_score"]) if control else None
+        released_score = float(released["grade"]["effective_score"]) if released else None
+        comparisons.append(
             {
                 "case_id": case_id,
                 "attempt": attempt,
                 "control_score": control_score,
-                "treatment_score": treatment_score,
-                "control_decision_score": float(control["grade"]["score"]),
-                "treatment_decision_score": float(treatment["grade"]["score"]),
-                "lift": round(treatment_score - control_score, 4),
-                "regression": treatment_score < control_score,
-                "treatment_critical_pass": bool(treatment["grade"]["critical_pass"]),
+                "released_score": released_score,
+                "candidate_score": candidate_score,
+                "candidate_vs_control": (
+                    round(candidate_score - control_score, 4) if control_score is not None else None
+                ),
+                "candidate_vs_released": (
+                    round(candidate_score - released_score, 4)
+                    if released_score is not None
+                    else None
+                ),
+                "control_regression": (
+                    candidate_score < control_score if control_score is not None else None
+                ),
+                "released_regression": (
+                    candidate_score < released_score if released_score is not None else None
+                ),
+                "candidate_critical_pass": bool(candidate["grade"]["critical_pass"]),
                 "control": control,
-                "treatment": treatment,
+                "released": released,
+                "candidate": candidate,
             }
         )
-    return pairs
+    return comparisons
 
 
-def evaluate_gates(gates: dict[str, Any], pairs: list[dict[str, Any]]) -> dict[str, Any]:
-    if pairs:
-        control_average = sum(pair["control_score"] for pair in pairs) / len(pairs)
-        treatment_average = sum(pair["treatment_score"] for pair in pairs) / len(pairs)
-    else:
-        control_average = 0.0
-        treatment_average = 0.0
-    distinct_cases = len({pair["case_id"] for pair in pairs})
-    regressions = sum(int(pair["regression"]) for pair in pairs)
-    critical_pass = all(pair["treatment_critical_pass"] for pair in pairs) if pairs else False
-    lift = treatment_average - control_average
+def average(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> dict[str, Any]:
+    control_values = [
+        float(item["control_score"])
+        for item in comparisons
+        if item["control_score"] is not None
+    ]
+    released_values = [
+        float(item["released_score"])
+        for item in comparisons
+        if item["released_score"] is not None
+    ]
+    candidate_values = [float(item["candidate_score"]) for item in comparisons]
+    control_average = average(control_values)
+    released_average = average(released_values)
+    candidate_average = average(candidate_values)
+    control_lifts = [
+        float(item["candidate_vs_control"])
+        for item in comparisons
+        if item["candidate_vs_control"] is not None
+    ]
+    released_deltas = [
+        float(item["candidate_vs_released"])
+        for item in comparisons
+        if item["candidate_vs_released"] is not None
+    ]
+    control_lift = average(control_lifts)
+    released_delta = average(released_deltas)
     evaluated: dict[str, Any] = {}
     for name, gate in gates.items():
+        comparison = gate["comparison"]
+        score_key = f"{comparison}_score"
+        delta_key = f"candidate_vs_{comparison}"
+        regression_key = f"{comparison}_regression"
+        eligible = [item for item in comparisons if item[score_key] is not None]
+        distinct_cases = len({item["case_id"] for item in eligible})
+        candidate_gate_average = average(
+            [float(item["candidate_score"]) for item in eligible]
+        )
+        delta = average([float(item[delta_key]) for item in eligible])
+        regressions = sum(bool(item[regression_key]) for item in eligible)
+        critical_pass = (
+            all(item["candidate_critical_pass"] for item in eligible) if eligible else False
+        )
         checks = {
             "minimum_distinct_pairs": distinct_cases >= gate["minimum_pairs"],
-            "minimum_treatment_score": treatment_average >= gate["minimum_treatment_score"],
+            "minimum_candidate_score": (
+                candidate_gate_average is not None
+                and candidate_gate_average >= gate["minimum_candidate_score"]
+            ),
             "maximum_regressions": regressions <= gate["maximum_regressions"],
-            "minimum_lift": lift >= gate["minimum_lift"],
-            "critical_treatment_checks": critical_pass,
+            "minimum_delta": delta is not None and delta >= gate["minimum_delta"],
+            "minimum_control_lift": (
+                control_lift is not None and control_lift >= gate["minimum_control_lift"]
+            ),
+            "critical_candidate_checks": critical_pass,
         }
         evaluated[name] = {
             "passed": all(checks.values()),
             "checks": checks,
             "thresholds": gate,
+            "comparison": comparison,
+            "distinct_case_count": distinct_cases,
+            "candidate_average": round(candidate_gate_average, 4)
+            if candidate_gate_average is not None
+            else None,
+            "average_delta": round(delta, 4) if delta is not None else None,
+            "regressions": regressions,
         }
     return {
-        "pair_count": len(pairs),
-        "distinct_case_count": distinct_cases,
-        "control_average": round(control_average, 4),
-        "treatment_average": round(treatment_average, 4),
-        "average_lift": round(lift, 4),
-        "regressions": regressions,
+        "comparison_count": len(comparisons),
+        "distinct_case_count": len({item["case_id"] for item in comparisons}),
+        "control_average": round(control_average, 4) if control_average is not None else None,
+        "released_average": round(released_average, 4) if released_average is not None else None,
+        "candidate_average": round(candidate_average, 4) if candidate_average is not None else None,
+        "candidate_vs_control": round(control_lift, 4) if control_lift is not None else None,
+        "candidate_vs_released": round(released_delta, 4) if released_delta is not None else None,
+        "control_regressions": sum(
+            bool(item["control_regression"])
+            for item in comparisons
+            if item["control_regression"] is not None
+        ),
+        "released_regressions": sum(
+            bool(item["released_regression"])
+            for item in comparisons
+            if item["released_regression"] is not None
+        ),
         "gates": evaluated,
     }
 
 
-def write_blinded(out_dir: Path, run_id: str, pairs: list[dict[str, Any]]) -> None:
+def write_blinded(out_dir: Path, run_id: str, comparisons: list[dict[str, Any]]) -> None:
     blinded_dir = out_dir / "blinded"
     blinded_dir.mkdir(parents=True, exist_ok=True)
     key: dict[str, Any] = {}
-    for pair in pairs:
-        name = f"{pair['case_id']}-attempt-{pair['attempt']}"
+    for comparison in comparisons:
+        name = f"{comparison['case_id']}-attempt-{comparison['attempt']}"
         seed = int(hashlib.sha256(f"{run_id}:{name}".encode()).hexdigest()[:16], 16)
         randomizer = random.Random(seed)
-        labels = ["control", "treatment"]
+        baseline_label = "released" if comparison["released"] is not None else "control"
+        labels = [baseline_label, "candidate"]
         randomizer.shuffle(labels)
         candidate_a, candidate_b = labels
         artifact = {
-            "case_id": pair["case_id"],
-            "attempt": pair["attempt"],
-            "candidate_a": pair[candidate_a]["final_output"],
-            "candidate_b": pair[candidate_b]["final_output"],
+            "case_id": comparison["case_id"],
+            "attempt": comparison["attempt"],
+            "candidate_a": comparison[candidate_a]["final_output"],
+            "candidate_b": comparison[candidate_b]["final_output"],
             "judge_prompt": "Compare correctness, evidence, scope discipline, and overclaiming. Do not infer condition from style.",
         }
         write_json(blinded_dir / f"{name}.json", artifact)
@@ -908,36 +1070,65 @@ def write_blinded(out_dir: Path, run_id: str, pairs: list[dict[str, Any]]) -> No
     write_json(blinded_dir / "key.json", key)
 
 
-def report_markdown(summary: dict[str, Any], pairs: list[dict[str, Any]], results: list[dict[str, Any]]) -> str:
+def display_number(value: float | None, *, signed: bool = False) -> str:
+    if value is None:
+        return "-"
+    return f"{value:+.2f}" if signed else f"{value:.2f}"
+
+
+def run_tokens(result: dict[str, Any] | None) -> int | None:
+    if result is None:
+        return None
+    usage = result["events"]["usage"]
+    return int(usage["input_tokens"]) + int(usage["output_tokens"])
+
+
+def report_markdown(
+    summary: dict[str, Any],
+    comparisons: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+) -> str:
     lines = [
         "# Tugling behavioral evaluation",
         "",
         f"Run: `{summary['run_id']}`",
         "",
-        "This is exploratory control-versus-treatment evidence from isolated local runs.",
+        "This is exploratory no-Tugling, released, and candidate evidence from isolated local runs.",
         "",
-        "| Case | Control effective | Treatment effective | Lift | Control tokens | Treatment tokens | Seconds C / T |",
+        "| Case | No Tugling | Released | Candidate | Candidate vs released | Tokens N / R / C | Seconds N / R / C |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
-    for pair in pairs:
-        control_usage = pair["control"]["events"]["usage"]
-        treatment_usage = pair["treatment"]["events"]["usage"]
-        control_tokens = control_usage["input_tokens"] + control_usage["output_tokens"]
-        treatment_tokens = treatment_usage["input_tokens"] + treatment_usage["output_tokens"]
-        lines.append(
-            f"| {pair['case_id']} | {pair['control_score']:.2f} | {pair['treatment_score']:.2f} | "
-            f"{pair['lift']:+.2f} | {control_tokens} | {treatment_tokens} | "
-            f"{pair['control']['elapsed_seconds']:.1f} / {pair['treatment']['elapsed_seconds']:.1f} |"
+    for comparison in comparisons:
+        control = comparison["control"]
+        released = comparison["released"]
+        candidate = comparison["candidate"]
+        delta = (
+            comparison["candidate_vs_released"]
+            if released is not None
+            else comparison["candidate_vs_control"]
         )
-    if not pairs:
-        lines.append("| No complete control/treatment pairs | - | - | - | - | - | - |")
+        seconds = [
+            f"{item['elapsed_seconds']:.1f}" if item is not None else "-"
+            for item in (control, released, candidate)
+        ]
+        tokens = [str(run_tokens(item)) if item is not None else "-" for item in (control, released, candidate)]
+        lines.append(
+            f"| {comparison['case_id']} | {display_number(comparison['control_score'])} | "
+            f"{display_number(comparison['released_score'])} | {display_number(comparison['candidate_score'])} | "
+            f"{display_number(delta, signed=True)} | {' / '.join(tokens)} | {' / '.join(seconds)} |"
+        )
+    if not comparisons:
+        lines.append("| No complete comparisons | - | - | - | - | - | - |")
+    metrics = summary["metrics"]
     lines.extend(
         [
             "",
-            f"Control average: **{summary['metrics']['control_average']:.2f}**",
-            f"Treatment average: **{summary['metrics']['treatment_average']:.2f}**",
-            f"Average lift: **{summary['metrics']['average_lift']:+.2f}**",
-            f"Treatment regressions: **{summary['metrics']['regressions']}**",
+            f"No-Tugling average: **{display_number(metrics['control_average'])}**",
+            f"Released average: **{display_number(metrics['released_average'])}**",
+            f"Candidate average: **{display_number(metrics['candidate_average'])}**",
+            f"Candidate vs no Tugling: **{display_number(metrics['candidate_vs_control'], signed=True)}**",
+            f"Candidate vs released: **{display_number(metrics['candidate_vs_released'], signed=True)}**",
+            f"Candidate regressions vs released: **{metrics['released_regressions']}**",
             "",
             "## Gates",
             "",
@@ -952,9 +1143,10 @@ def report_markdown(summary: dict[str, Any], pairs: list[dict[str, Any]], result
             "",
             "## Run identity",
             "",
-            f"- Tugling revision: `{summary['tugling_identity']['revision']}`",
-            f"- Candidate content SHA-256: `{summary['tugling_identity']['content_sha256']}`",
-            f"- Candidate worktree dirty: `{str(summary['tugling_identity']['worktree_dirty']).lower()}`",
+            f"- Candidate Tugling revision: `{summary['candidate_identity']['revision']}`",
+            f"- Candidate content SHA-256: `{summary['candidate_identity']['content_sha256']}`",
+            f"- Candidate worktree dirty: `{str(summary['candidate_identity']['worktree_dirty']).lower()}`",
+            f"- Released Tugling revision: `{summary['released_identity']['revision'] if summary['released_identity'] else 'not run'}`",
             f"- Codex: `{summary['codex_version']}`",
             f"- Model: `{summary['model']}`",
             f"- Reasoning effort: `{summary['reasoning_effort']}`",
@@ -977,6 +1169,283 @@ def report_markdown(summary: dict[str, Any], pairs: list[dict[str, Any]], result
     return "\n".join(lines)
 
 
+def plugin_surface_changes(baseline: dict[str, Any]) -> dict[str, Any]:
+    baseline_manifest = read_json(
+        Path(baseline["plugin_root"]) / ".codex-plugin" / "plugin.json"
+    )
+    candidate_manifest = read_json(PLUGIN / ".codex-plugin" / "plugin.json")
+
+    def capabilities(value: Any) -> list[str]:
+        if not isinstance(value, dict) or not isinstance(value.get("interface"), dict):
+            return []
+        items = value["interface"].get("capabilities", [])
+        return sorted(str(item) for item in items) if isinstance(items, list) else []
+
+    def special_paths(root: Path, kind: str) -> list[str]:
+        paths: list[str] = []
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(root)
+            if kind == "hooks" and (
+                "hooks" in relative.parts or path.name in {"hooks.json", "hooks.yaml"}
+            ):
+                paths.append(relative.as_posix())
+            if kind == "permissions" and (
+                path.name in {".mcp.json", ".app.json", "mcp.json"}
+                or "mcpServers" in path.read_text(encoding="utf-8", errors="ignore")
+            ):
+                paths.append(relative.as_posix())
+        return sorted(paths)
+
+    baseline_root = Path(baseline["plugin_root"])
+    changed = git_output(
+        ROOT,
+        "diff",
+        "--name-only",
+        baseline["revision"],
+        "--",
+        "plugins/tugling",
+    ).splitlines()
+    before_capabilities = capabilities(baseline_manifest)
+    after_capabilities = capabilities(candidate_manifest)
+    before_hooks = special_paths(baseline_root, "hooks")
+    after_hooks = special_paths(PLUGIN, "hooks")
+    before_permission_files = special_paths(baseline_root, "permissions")
+    after_permission_files = special_paths(PLUGIN, "permissions")
+    return {
+        "changed_plugin_paths": changed,
+        "capabilities_before": before_capabilities,
+        "capabilities_after": after_capabilities,
+        "permissions_changed": (
+            before_capabilities != after_capabilities
+            or before_permission_files != after_permission_files
+        ),
+        "permission_files_before": before_permission_files,
+        "permission_files_after": after_permission_files,
+        "hooks_changed": before_hooks != after_hooks,
+        "hook_files_before": before_hooks,
+        "hook_files_after": after_hooks,
+    }
+
+
+def privacy_scan() -> dict[str, Any]:
+    tracked = git_output(ROOT, "ls-files").splitlines()
+    sensitive_names = {"auth.json", "credentials", "credentials.json", "id_rsa"}
+    findings: list[str] = []
+    for relative in tracked:
+        path = Path(relative)
+        lowered = [part.lower() for part in path.parts]
+        name = path.name.lower()
+        if relative.startswith(".tugling/local/"):
+            findings.append(relative)
+        elif name in sensitive_names or name.endswith((".pem", ".key", ".p12")):
+            findings.append(relative)
+        elif any(part == ".env" for part in lowered):
+            findings.append(relative)
+    return {
+        "passed": not findings,
+        "tracked_sensitive_paths": sorted(set(findings)),
+        "tracked_path_count": len(tracked),
+    }
+
+
+def policy_scan(pattern_file: Path | None) -> dict[str, Any]:
+    if pattern_file is None:
+        return {
+            "configured": False,
+            "passed": False,
+            "pattern_file_sha256": None,
+            "pattern_count": 0,
+            "current_tree_matches": [],
+            "history_matches": [],
+        }
+    try:
+        raw = pattern_file.read_bytes()
+    except OSError as exc:
+        raise EvalError(f"policy pattern file: {exc}") from exc
+    pattern_values = [
+        line.strip()
+        for line in raw.decode("utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not pattern_values:
+        raise EvalError("policy pattern file contains no patterns")
+    try:
+        compiled = [re.compile(value, re.IGNORECASE) for value in pattern_values]
+    except re.error as exc:
+        raise EvalError(f"invalid policy pattern: {exc}") from exc
+
+    current_matches: list[str] = []
+    for path in ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(ROOT)
+        if ".git" in relative.parts or "__pycache__" in relative.parts:
+            continue
+        if relative.parts[:2] == ("evals", "runs"):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if any(pattern.search(text) for pattern in compiled):
+            current_matches.append(relative.as_posix())
+
+    history_matches: list[dict[str, str]] = []
+    git_args = ["grep", "-I", "-l", "-i", "-E"]
+    for value in pattern_values:
+        git_args.extend(["-e", value])
+    for revision in git_output(ROOT, "rev-list", "--all").splitlines():
+        completed = run_command(
+            ["git", *git_args, revision, "--", "."],
+            cwd=ROOT,
+        )
+        if completed.returncode not in {0, 1}:
+            detail = completed.stderr.strip() or completed.stdout.strip()
+            raise EvalError(f"policy history scan failed for {revision}: {detail}")
+        for line in completed.stdout.splitlines():
+            path = line.split(":", 1)[-1]
+            history_matches.append({"revision": revision, "path": path})
+
+    return {
+        "configured": True,
+        "passed": not current_matches and not history_matches,
+        "pattern_file_sha256": hashlib.sha256(raw).hexdigest(),
+        "pattern_count": len(pattern_values),
+        "current_tree_matches": sorted(set(current_matches)),
+        "history_matches": [
+            {"revision": revision, "path": path}
+            for revision, path in sorted(
+                {(item["revision"], item["path"]) for item in history_matches}
+            )
+        ],
+    }
+
+
+def condition_totals(results: list[dict[str, Any]]) -> dict[str, Any]:
+    totals: dict[str, Any] = {}
+    for condition in ("control", "released", "candidate"):
+        selected = [result for result in results if result["condition"] == condition]
+        if not selected:
+            continue
+        totals[condition] = {
+            "runs": len(selected),
+            "input_tokens": sum(
+                int(result["events"]["usage"]["input_tokens"]) for result in selected
+            ),
+            "output_tokens": sum(
+                int(result["events"]["usage"]["output_tokens"]) for result in selected
+            ),
+            "elapsed_seconds": round(
+                sum(float(result["elapsed_seconds"]) for result in selected),
+                3,
+            ),
+            "average_effective_score": round(
+                sum(float(result["grade"]["effective_score"]) for result in selected)
+                / len(selected),
+                4,
+            ),
+        }
+    return totals
+
+
+def release_proof(
+    *,
+    summary: dict[str, Any],
+    comparisons: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+    policy: dict[str, Any],
+    privacy: dict[str, Any],
+    surface: dict[str, Any],
+) -> dict[str, Any]:
+    baseline = summary["released_identity"]
+    candidate = summary["candidate_identity"]
+    promotion = summary["metrics"]["gates"].get("promotion", {})
+    checks = {
+        "released_baseline_present": baseline is not None,
+        "distinct_revisions": bool(baseline) and baseline["revision"] != candidate["revision"],
+        "distinct_plugin_content": bool(baseline)
+        and baseline["plugin_content_sha256"] != candidate["plugin_content_sha256"],
+        "candidate_worktree_clean": not candidate["worktree_dirty"],
+        "promotion_gate": bool(promotion.get("passed")),
+        "privacy_scan": bool(privacy["passed"]),
+        "policy_scan_configured": bool(policy["configured"]),
+        "policy_scan": bool(policy["passed"]),
+    }
+    per_case = [
+        {
+            "case_id": item["case_id"],
+            "attempt": item["attempt"],
+            "control_score": item["control_score"],
+            "released_score": item["released_score"],
+            "candidate_score": item["candidate_score"],
+            "candidate_vs_control": item["candidate_vs_control"],
+            "candidate_vs_released": item["candidate_vs_released"],
+            "released_regression": item["released_regression"],
+            "candidate_critical_pass": item["candidate_critical_pass"],
+        }
+        for item in comparisons
+    ]
+    return {
+        "schema_version": 1,
+        "run_id": summary["run_id"],
+        "created_at": summary["created_at"],
+        "passed": all(checks.values()),
+        "checks": checks,
+        "candidate": candidate,
+        "released": baseline,
+        "reproducibility": {
+            "codex_version": summary["codex_version"],
+            "model": summary["model"],
+            "reasoning_effort": summary["reasoning_effort"],
+            "conditions": summary["conditions"],
+            "attempts": summary["attempts"],
+            "case_ids": summary["case_ids"],
+        },
+        "metrics": summary["metrics"],
+        "per_case": per_case,
+        "usage_and_latency": condition_totals(results),
+        "plugin_surface_changes": surface,
+        "privacy_scan": privacy,
+        "policy_scan": policy,
+    }
+
+
+def release_proof_markdown(proof: dict[str, Any]) -> str:
+    lines = [
+        "# Tugling release proof",
+        "",
+        f"Status: **{'PASS' if proof['passed'] else 'NOT READY'}**",
+        "",
+        f"Candidate: `{proof['candidate']['revision']}`",
+        f"Released baseline: `{proof['released']['revision'] if proof['released'] else 'missing'}`",
+        "",
+        "## Checks",
+        "",
+    ]
+    for name, passed in proof["checks"].items():
+        lines.append(f"- {name}: {'pass' if passed else 'not met'}")
+    lines.extend(
+        [
+            "",
+            "## Behavioral comparison",
+            "",
+            f"- Candidate average: {display_number(proof['metrics']['candidate_average'])}",
+            f"- Candidate vs no Tugling: {display_number(proof['metrics']['candidate_vs_control'], signed=True)}",
+            f"- Candidate vs released: {display_number(proof['metrics']['candidate_vs_released'], signed=True)}",
+            f"- Regressions vs released: {proof['metrics']['released_regressions']}",
+            "",
+            "## Change surface",
+            "",
+            f"- Permissions changed: {str(proof['plugin_surface_changes']['permissions_changed']).lower()}",
+            f"- Hooks changed: {str(proof['plugin_surface_changes']['hooks_changed']).lower()}",
+            f"- Changed plugin paths: {len(proof['plugin_surface_changes']['changed_plugin_paths'])}",
+            "",
+            "Exact model settings, tokens, latency, per-case scores, scan digests, and gates are in `release-proof.json`.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def select_cases(suite: dict[str, Any], requested: list[str]) -> list[dict[str, Any]]:
     cases = suite["cases"]
     if not requested or requested == ["all"]:
@@ -989,7 +1458,15 @@ def select_cases(suite: dict[str, Any], requested: list[str]) -> list[dict[str, 
 
 
 def conditions_for(value: str) -> list[str]:
-    return ["control", "treatment"] if value == "both" else [value]
+    aliases = {
+        "control": ["control"],
+        "released": ["released"],
+        "candidate": ["candidate"],
+        "treatment": ["candidate"],
+        "both": ["control", "candidate"],
+        "all": ["control", "released", "candidate"],
+    }
+    return aliases[value]
 
 
 def default_out_dir() -> Path:
@@ -1011,39 +1488,72 @@ def run_evaluation(
     out_dir.mkdir(parents=True, exist_ok=True)
     run_id = out_dir.name
     conditions = conditions_for(args.condition)
-    results: list[dict[str, Any]] = []
-    total = len(cases) * len(conditions) * args.attempts
-    completed_count = 0
-    for case in cases:
-        for attempt in range(1, args.attempts + 1):
-            for condition in conditions:
-                completed_count += 1
-                print(
-                    f"[{completed_count}/{total}] {case['id']} {condition} attempt {attempt}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                result = run_condition(
-                    case=case,
-                    condition=condition,
-                    attempt=attempt,
-                    out_dir=out_dir,
-                    codex_bin=codex_bin,
-                    codex_version=codex_version,
-                    model=args.model,
-                    reasoning_effort=args.reasoning_effort,
-                    timeout=args.timeout,
-                    keep_workspace=args.keep_workspaces,
-                    project_repo=project_repo,
-                )
-                results.append(result)
+    candidate_identity = repository_identity()
+    baseline_scratch: Path | None = None
+    baseline: dict[str, Any] | None = None
+    released_identity: dict[str, Any] | None = None
+    baseline_surface: dict[str, Any] | None = None
+    if "released" in conditions:
+        if not args.baseline_ref:
+            raise EvalError("--baseline-ref is required when running the released condition")
+        baseline_scratch = Path(tempfile.mkdtemp(prefix="tugling-released-baseline-"))
+        baseline = resolve_release_baseline(args.baseline_ref, baseline_scratch)
+        released_identity = {
+            key: value
+            for key, value in baseline.items()
+            if key not in {"skills", "plugin_root"}
+        }
+        baseline_surface = plugin_surface_changes(baseline)
 
-    pairs = pair_results(results)
-    metrics = evaluate_gates(suite["gates"], pairs)
+    sources: dict[str, tuple[Path | None, dict[str, Any] | None]] = {
+        "control": (None, None),
+        "released": (
+            Path(baseline["skills"]) if baseline else None,
+            released_identity,
+        ),
+        "candidate": (SKILLS, candidate_identity),
+    }
+    results: list[dict[str, Any]] = []
+    try:
+        total = len(cases) * len(conditions) * args.attempts
+        completed_count = 0
+        for case in cases:
+            for attempt in range(1, args.attempts + 1):
+                for condition in conditions:
+                    completed_count += 1
+                    print(
+                        f"[{completed_count}/{total}] {case['id']} {condition} attempt {attempt}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    skills_source, condition_identity = sources[condition]
+                    result = run_condition(
+                        case=case,
+                        condition=condition,
+                        attempt=attempt,
+                        out_dir=out_dir,
+                        codex_bin=codex_bin,
+                        codex_version=codex_version,
+                        model=args.model,
+                        reasoning_effort=args.reasoning_effort,
+                        timeout=args.timeout,
+                        keep_workspace=args.keep_workspaces,
+                        project_repo=project_repo,
+                        skills_source=skills_source,
+                        condition_identity=condition_identity,
+                    )
+                    results.append(result)
+    finally:
+        if baseline_scratch is not None:
+            shutil.rmtree(baseline_scratch, ignore_errors=True)
+
+    comparisons = comparison_results(results)
+    metrics = evaluate_gates(suite["gates"], comparisons)
     summary = {
         "run_id": run_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "tugling_identity": repository_identity(),
+        "candidate_identity": candidate_identity,
+        "released_identity": released_identity,
         "codex_version": codex_version,
         "model": args.model,
         "reasoning_effort": args.reasoning_effort,
@@ -1055,8 +1565,27 @@ def run_evaluation(
         "results": results,
     }
     write_json(out_dir / "summary.json", summary)
-    write_blinded(out_dir, run_id, pairs)
-    (out_dir / "report.md").write_text(report_markdown(summary, pairs, results), encoding="utf-8")
+    write_blinded(out_dir, run_id, comparisons)
+    (out_dir / "report.md").write_text(
+        report_markdown(summary, comparisons, results),
+        encoding="utf-8",
+    )
+    proof: dict[str, Any] | None = None
+    if baseline is not None:
+        policy_path = Path(args.policy_pattern_file).resolve() if args.policy_pattern_file else None
+        proof = release_proof(
+            summary=summary,
+            comparisons=comparisons,
+            results=results,
+            policy=policy_scan(policy_path),
+            privacy=privacy_scan(),
+            surface=baseline_surface or {},
+        )
+        write_json(out_dir / "release-proof.json", proof)
+        (out_dir / "release-proof.md").write_text(
+            release_proof_markdown(proof),
+            encoding="utf-8",
+        )
     print(f"report: {out_dir / 'report.md'}")
 
     exit_code = 0
@@ -1064,13 +1593,21 @@ def run_evaluation(
         gate = metrics["gates"].get(args.require_gate)
         if not gate or not gate["passed"]:
             exit_code = 2
+        if args.require_gate == "promotion" and (proof is None or not proof["passed"]):
+            exit_code = 2
     elif any(result["exit_code"] != 0 for result in results):
         exit_code = 1
     return summary, exit_code
 
 
 def add_run_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--condition", choices=("control", "treatment", "both"), default="both")
+    parser.add_argument(
+        "--condition",
+        choices=("control", "released", "candidate", "treatment", "both", "all"),
+        default="both",
+    )
+    parser.add_argument("--baseline-ref")
+    parser.add_argument("--policy-pattern-file")
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--model", required=True)
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), required=True)
@@ -1088,7 +1625,9 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate", help="validate the suite without calling a model")
     validate_parser.add_argument("--suite", default=str(DEFAULT_SUITE))
 
-    run_parser = subparsers.add_parser("run", help="run synthetic control/treatment cases")
+    run_parser = subparsers.add_parser(
+        "run", help="run synthetic no-Tugling, released, and candidate cases"
+    )
     run_parser.add_argument("--suite", default=str(DEFAULT_SUITE))
     run_parser.add_argument("--case", action="append", default=[])
     add_run_arguments(run_parser)
@@ -1139,16 +1678,20 @@ def main(argv: Iterable[str] | None = None) -> int:
             "schema_version": 1,
             "gates": {
                 "dogfood": {
+                    "comparison": "control",
                     "minimum_pairs": 1,
-                    "minimum_treatment_score": 0.85,
+                    "minimum_candidate_score": 0.85,
                     "maximum_regressions": 0,
-                    "minimum_lift": 0.0,
+                    "minimum_delta": 0.0,
+                    "minimum_control_lift": 0.0,
                 },
                 "promotion": {
+                    "comparison": "control",
                     "minimum_pairs": 1,
-                    "minimum_treatment_score": 0.9,
+                    "minimum_candidate_score": 0.9,
                     "maximum_regressions": 0,
-                    "minimum_lift": 0.02,
+                    "minimum_delta": 0.02,
+                    "minimum_control_lift": 0.02,
                 },
             },
             "cases": [case],

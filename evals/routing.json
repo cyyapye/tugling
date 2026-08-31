@@ -21,6 +21,20 @@
     "prompt": "Fix the spelling error in this one sentence and leave everything else untouched."
   },
   {
+    "id": "tugling-positive-project-setup",
+    "skill": "tugling",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Use Tugling to assess this repository and set up its project adapter and pinned CI contract."
+  },
+  {
+    "id": "tugling-holdout-local-correction",
+    "skill": "tugling",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "I corrected a repeatable engineering decision; record a local Tugling lesson only if this project opted in and no private data is needed."
+  },
+  {
     "id": "delivery-plan-positive",
     "skill": "delivery-plan",
     "kind": "positive",

@@ -1,6 +1,6 @@
 ---
 name: tugling
-description: Carry a non-trivial repository change or bounded tracked-queue task from intent through verified handoff. Use when explicitly invoked or when the user asks to design, implement, fix, refactor, optimize, ship multi-step work, or complete the next checklist or backlog item even when current evidence may produce a no-op. Do not use for a simple factual answer, read-only status request, or trivial edit that does not need orchestration.
+description: Set up Tugling for a repository or carry a non-trivial repository change or bounded tracked-queue task from intent through verified handoff. Use when explicitly invoked, when adopting Tugling, or when the user asks to design, implement, fix, refactor, optimize, ship multi-step work, or complete the next checklist or backlog item even when current evidence may produce a no-op. Do not use for a simple factual answer, read-only status request, or trivial edit that does not need orchestration.
 ---
 
 # Tugling
@@ -18,6 +18,14 @@ Resolve conflicts in this order:
 5. Tugling's defaults.
 
 Tugling never grants permission to merge, deploy, delete, spend, contact people, or mutate an external system.
+
+## Set up a project
+
+When the user asks to install, adopt, configure, or set up Tugling for a repository, read [references/project-setup.md](references/project-setup.md). Start with read-only discovery, preserve existing project instructions, and make the adapter and CI files the smallest reviewable delta. Setup is not permission to change product code.
+
+## Learn from a correction
+
+When the user explicitly corrects a repeatable engineering decision and the project has enabled local learning, read [references/learning-loop.md](references/learning-loop.md). Do not capture ordinary preferences, secrets, private data, full transcripts, or one-off product decisions. Nothing leaves the project automatically.
 
 ## Load the principles
 
