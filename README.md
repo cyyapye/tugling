@@ -94,7 +94,7 @@ Use this proof ladder for consequential instruction changes:
 1. **Structural:** run `make verify` on every change.
 2. **Synthetic dogfood:** run at least three no-Tugling/candidate comparisons and require the dogfood gate.
 3. **Project dogfood:** run an external case against a clean project checkout without committing project source or results here.
-4. **Promotion:** compare no Tugling, the exact released revision, and the candidate on all eight cases; require the release proof before making a broad quality claim.
+4. **Promotion:** compare no Tugling, the exact released revision, and the candidate on the full bundled suite; require the release proof before making a broad quality claim.
 
 The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, tokens, source identities, regressions, and plugin permission or hook changes, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
 

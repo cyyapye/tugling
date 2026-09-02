@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Require async repository reviews to inspect checked-in runtime rails before making retry or recovery claims.
+- Add a deterministic retry-versus-lease holdout that distinguishes mocked routing from proof through the real worker boundary.
+
 ## 0.3.0 - 2026-08-30
 
 - Add read-only-first project setup guidance, a pinned project contract, and a synthetic dogfood format.

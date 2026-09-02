@@ -98,6 +98,13 @@
     "prompt": "Two scheduler runs can overlap after a timeout; define the idempotency and recovery behavior."
   },
   {
+    "id": "async-holdout-proof-boundary",
+    "skill": "async-safety",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "A queue retry budget may expire before a durable lease can be reclaimed; identify the smallest deterministic test that proves the real worker converges."
+  },
+  {
     "id": "verify-positive-ready",
     "skill": "repo-verify",
     "kind": "positive",

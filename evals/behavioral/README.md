@@ -67,7 +67,7 @@ python3 scripts/behavioral_eval.py run \
   --require-gate promotion
 ```
 
-The promotion proof requires all eight cases, an average candidate score of at
+The promotion proof requires the full bundled suite, an average candidate score of at
 least 90%, measurable improvement over the released version, no candidate
 regression, a clean candidate worktree, distinct released/candidate revisions
 and plugin content, and passing privacy and configured policy scans. The output

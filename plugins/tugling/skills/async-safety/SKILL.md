@@ -11,12 +11,14 @@ Make duplicate and delayed delivery ordinary rather than exceptional.
 
 When the user asks what an async design needs, answer the concern buckets directly before exploring implementation details:
 
+For a repository review, inspect the real producer, consumer, durable transitions, and checked-in runtime configuration for every environment in scope before deciding the buckets. Generator code, examples, and mocks do not prove a configured runtime rail.
+
 1. **Trigger and envelope**: producer, transport, consumer, versioned message shape, correlation id, and delivery assumption.
 2. **State and idempotency**: canonical state owner, idempotency key, allowed transitions, duplicate behavior, and no-op behavior after an already-applied transition.
 3. **Ordering and staleness**: sequence or version rule, out-of-order stance, replay stance, and how current state wins over stale events.
 4. **Retry and terminal failure**: classification, budget, backoff, lock or visibility behavior, dead-letter destination, and poison-item handling.
 5. **Recovery and observability**: replay or redrive path, operator authority, partial-success semantics, logs, metrics, backlog, freshness, and alarms.
-6. **Proof**: tests for duplicate, stale, out-of-order, retryable, terminal, and recovery cases plus runtime evidence when infrastructure is real.
+6. **Proof**: choose the smallest deterministic test that crosses every boundary involved in the failure, then cover duplicate, stale, out-of-order, retryable, terminal, and recovery cases. A mocked processor proves routing, not convergence; use a controllable clock when retry or lease timing participates, plus runtime evidence when infrastructure is real.
 
 Say `Not applicable` for an irrelevant bucket instead of silently omitting it.
 
