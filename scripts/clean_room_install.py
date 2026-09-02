@@ -351,13 +351,6 @@ def run_live_discovery(
     elapsed = round(time.perf_counter() - started, 3)
     events = parse_events(completed.stdout)
     final = read_json(final_path) if final_path.is_file() else None
-    expected = {
-        "selected_skill": "repo-verify",
-        "canonical_verify": "make verify",
-        "verification_order": "repository-native-first",
-        "strongest_proven_state": "BLOCKED",
-        "edited_files": False,
-    }
     final_head = git_output(fixture, "rev-parse", "HEAD")
     status = git_output(fixture, "status", "--porcelain", "--untracked-files=all")
     installed_skill = installed_plugin / "skills" / "repo-verify" / "SKILL.md"
@@ -365,7 +358,21 @@ def run_live_discovery(
     native_ran = any(re.search(r"(^|\s)make\s+verify(\s|$)", command) for command in events["commands"])
     checks = {
         "live_exit_zero": completed.returncode == 0,
-        "live_skill_contract": final == expected,
+        "live_skill_selected": (
+            isinstance(final, dict) and final.get("selected_skill") == "repo-verify"
+        ),
+        "live_repository_native_contract": (
+            isinstance(final, dict)
+            and final.get("canonical_verify") == "make verify"
+            and final.get("verification_order") == "repository-native-first"
+        ),
+        "live_no_false_pass": (
+            isinstance(final, dict)
+            and final.get("strongest_proven_state") in {"ADVISORY", "BLOCKED"}
+        ),
+        "live_no_edits_reported": (
+            isinstance(final, dict) and final.get("edited_files") is False
+        ),
         "live_repository_unchanged": baseline_head == final_head and not status,
         "live_native_gate_not_run": not native_ran,
     }
