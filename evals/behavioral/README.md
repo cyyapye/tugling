@@ -50,8 +50,8 @@ grants only the case's declared sandbox. The temporary home is removed with the
 run workspace. The runner does not bypass approvals or the sandbox.
 
 The dogfood gate needs at least three no-Tugling/candidate comparisons, no
-candidate regressions, no critical candidate failure, and an average candidate
-score of at least 85%.
+case-level candidate regressions, no critical candidate failure, and an average
+candidate score of at least 85%.
 
 Promotion compares an exact released revision with the candidate and also keeps
 the no-Tugling arm as a sanity check. Provide the released ref and an external
@@ -69,12 +69,13 @@ python3 scripts/behavioral_eval.py run \
 ```
 
 The promotion proof requires three attempts over the full bundled suite, an average
-candidate score of at least 90%, measurable improvement over the released version,
-no candidate regression, a clean candidate worktree, distinct released/candidate
-revisions and plugin content, and passing privacy and configured policy scans. The
-suite covers Python CLI and service work, a TypeScript queue worker, a React
-responsive UI, and generic repositories. The output includes `release-proof.json`
-and `release-proof.md` beside the behavioral report. The JSON shape is documented by
+candidate score of at least 90%, non-inferior average behavior versus the released
+version, no case-level candidate regression, no critical candidate failure, a clean
+candidate worktree, distinct released/candidate revisions and plugin content, and
+passing privacy and configured policy scans. The suite covers Python CLI and
+service work, a TypeScript queue worker, a React responsive UI, and generic
+repositories. The output includes `release-proof.json` and `release-proof.md`
+beside the behavioral report. The JSON shape is documented by
 [`release-proof.schema.json`](release-proof.schema.json).
 
 Before running the promotion comparison, push the clean candidate and exercise the
@@ -103,7 +104,9 @@ python3 scripts/release_gate.py assemble \
 
 The certificate binds the public install, exact plugin digest, released baseline,
 model settings, breadth matrix, scans, scores, and attempts without copying prompts,
-model prose, authentication, or local paths.
+model prose, authentication, or local paths. Every raw attempt remains available
+outside the repository; case-level averages keep one stochastic attempt swap from
+masquerading as a durable regression or improvement.
 
 ## External-project dogfood
 

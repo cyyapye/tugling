@@ -212,6 +212,58 @@ class BehavioralEvalTest(unittest.TestCase):
         self.assertTrue(metrics["gates"]["dogfood"]["passed"])
         self.assertFalse(metrics["gates"]["promotion"]["passed"])
 
+    def test_release_regressions_are_aggregated_per_case(self) -> None:
+        comparisons = [
+            {
+                "case_id": "case-1",
+                "attempt": 1,
+                "control_score": 0.0,
+                "released_score": 1.0,
+                "candidate_score": 0.0,
+                "candidate_vs_control": 0.0,
+                "candidate_vs_released": -1.0,
+                "control_regression": False,
+                "released_regression": True,
+                "candidate_critical_pass": True,
+            },
+            {
+                "case_id": "case-1",
+                "attempt": 2,
+                "control_score": 0.0,
+                "released_score": 0.0,
+                "candidate_score": 1.0,
+                "candidate_vs_control": 1.0,
+                "candidate_vs_released": 1.0,
+                "control_regression": False,
+                "released_regression": False,
+                "candidate_critical_pass": True,
+            },
+        ]
+        metrics = harness.evaluate_gates(self.suite["gates"], comparisons)
+        self.assertEqual(metrics["released_attempt_regressions"], 1)
+        self.assertEqual(metrics["released_regressions"], 0)
+        self.assertEqual(metrics["released_case_aggregates"][0]["delta"], 0.0)
+
+    def test_promotion_allows_noninferior_behavior_with_no_critical_failures(self) -> None:
+        comparisons = []
+        for index in range(10):
+            comparisons.append(
+                {
+                    "case_id": f"case-{index}",
+                    "attempt": 1,
+                    "control_score": 0.0,
+                    "released_score": 1.0,
+                    "candidate_score": 1.0,
+                    "candidate_vs_control": 1.0,
+                    "candidate_vs_released": 0.0,
+                    "control_regression": False,
+                    "released_regression": False,
+                    "candidate_critical_pass": True,
+                }
+            )
+        metrics = harness.evaluate_gates(self.suite["gates"], comparisons)
+        self.assertTrue(metrics["gates"]["promotion"]["passed"])
+
     def test_conditions_preserve_legacy_alias_and_add_release_comparison(self) -> None:
         self.assertEqual(harness.conditions_for("treatment"), ["candidate"])
         self.assertEqual(harness.conditions_for("both"), ["control", "candidate"])

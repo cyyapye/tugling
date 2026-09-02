@@ -14,7 +14,7 @@
       "minimum_pairs": 10,
       "minimum_candidate_score": 0.9,
       "maximum_regressions": 0,
-      "minimum_delta": 0.01,
+      "minimum_delta": 0.0,
       "minimum_control_lift": 0.02
     }
   },

@@ -10,6 +10,7 @@
 - Require three released-versus-candidate attempts across ten behavioral cases spanning Python, TypeScript workers, React UI, and generic repositories.
 - Add sanitized release certificates and a manual exact-main workflow that fast-forwards `stable` and creates an immutable version tag only after the certificate passes.
 - Reconcile repository-readiness labels with blocked evidence and require setup advice to load its routed setup contract first.
+- Compare repeated behavioral attempts at the case level while retaining raw attempt regressions, and allow non-inferior behavior when deterministic release capabilities are the candidate improvement.
 
 ## 0.3.0 - 2026-08-30
 

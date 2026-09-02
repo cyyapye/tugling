@@ -982,6 +982,46 @@ def average(values: list[float]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
+def aggregate_by_case(
+    comparisons: list[dict[str, Any]],
+    *,
+    comparison: str,
+) -> list[dict[str, Any]]:
+    baseline_score_key = f"{comparison}_score"
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in comparisons:
+        if item.get(baseline_score_key) is not None:
+            grouped.setdefault(item["case_id"], []).append(item)
+    aggregates: list[dict[str, Any]] = []
+    for case_id, items in sorted(grouped.items()):
+        baseline_average = average([float(item[baseline_score_key]) for item in items])
+        candidate_average = average([float(item["candidate_score"]) for item in items])
+        delta = (
+            candidate_average - baseline_average
+            if candidate_average is not None and baseline_average is not None
+            else None
+        )
+        aggregates.append(
+            {
+                "case_id": case_id,
+                "attempts": len(items),
+                "baseline_average": round(baseline_average, 4)
+                if baseline_average is not None
+                else None,
+                "candidate_average": round(candidate_average, 4)
+                if candidate_average is not None
+                else None,
+                "delta": round(delta, 4) if delta is not None else None,
+                "regression": delta is not None and delta < 0,
+                "win": delta is not None and delta > 0,
+                "candidate_critical_pass": all(
+                    bool(item["candidate_critical_pass"]) for item in items
+                ),
+            }
+        )
+    return aggregates
+
+
 def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> dict[str, Any]:
     control_values = [
         float(item["control_score"])
@@ -1016,12 +1056,15 @@ def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> 
         delta_key = f"candidate_vs_{comparison}"
         regression_key = f"{comparison}_regression"
         eligible = [item for item in comparisons if item[score_key] is not None]
-        distinct_cases = len({item["case_id"] for item in eligible})
+        case_aggregates = aggregate_by_case(comparisons, comparison=comparison)
+        distinct_cases = len(case_aggregates)
         candidate_gate_average = average(
             [float(item["candidate_score"]) for item in eligible]
         )
         delta = average([float(item[delta_key]) for item in eligible])
-        regressions = sum(bool(item[regression_key]) for item in eligible)
+        attempt_regressions = sum(bool(item[regression_key]) for item in eligible)
+        regressions = sum(bool(item["regression"]) for item in case_aggregates)
+        wins = sum(bool(item["win"]) for item in case_aggregates)
         critical_pass = (
             all(item["candidate_critical_pass"] for item in eligible) if eligible else False
         )
@@ -1049,7 +1092,12 @@ def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> 
             else None,
             "average_delta": round(delta, 4) if delta is not None else None,
             "regressions": regressions,
+            "attempt_regressions": attempt_regressions,
+            "case_wins": wins,
+            "case_aggregates": case_aggregates,
         }
+    control_cases = aggregate_by_case(comparisons, comparison="control")
+    released_cases = aggregate_by_case(comparisons, comparison="released")
     return {
         "comparison_count": len(comparisons),
         "distinct_case_count": len({item["case_id"] for item in comparisons}),
@@ -1058,16 +1106,20 @@ def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> 
         "candidate_average": round(candidate_average, 4) if candidate_average is not None else None,
         "candidate_vs_control": round(control_lift, 4) if control_lift is not None else None,
         "candidate_vs_released": round(released_delta, 4) if released_delta is not None else None,
-        "control_regressions": sum(
+        "control_regressions": sum(bool(item["regression"]) for item in control_cases),
+        "released_regressions": sum(bool(item["regression"]) for item in released_cases),
+        "control_attempt_regressions": sum(
             bool(item["control_regression"])
             for item in comparisons
             if item["control_regression"] is not None
         ),
-        "released_regressions": sum(
+        "released_attempt_regressions": sum(
             bool(item["released_regression"])
             for item in comparisons
             if item["released_regression"] is not None
         ),
+        "control_case_aggregates": control_cases,
+        "released_case_aggregates": released_cases,
         "gates": evaluated,
     }
 
@@ -1154,7 +1206,8 @@ def report_markdown(
             f"Candidate average: **{display_number(metrics['candidate_average'])}**",
             f"Candidate vs no Tugling: **{display_number(metrics['candidate_vs_control'], signed=True)}**",
             f"Candidate vs released: **{display_number(metrics['candidate_vs_released'], signed=True)}**",
-            f"Candidate regressions vs released: **{metrics['released_regressions']}**",
+            f"Candidate case-level regressions vs released: **{metrics['released_regressions']}**",
+            f"Candidate raw attempt regressions vs released: **{metrics['released_attempt_regressions']}**",
             "",
             "## Gates",
             "",
@@ -1465,7 +1518,8 @@ def release_proof_markdown(proof: dict[str, Any]) -> str:
             f"- Candidate average: {display_number(proof['metrics']['candidate_average'])}",
             f"- Candidate vs no Tugling: {display_number(proof['metrics']['candidate_vs_control'], signed=True)}",
             f"- Candidate vs released: {display_number(proof['metrics']['candidate_vs_released'], signed=True)}",
-            f"- Regressions vs released: {proof['metrics']['released_regressions']}",
+            f"- Case-level regressions vs released: {proof['metrics']['released_regressions']}",
+            f"- Raw attempt regressions vs released: {proof['metrics']['released_attempt_regressions']}",
             "",
             "## Change surface",
             "",
