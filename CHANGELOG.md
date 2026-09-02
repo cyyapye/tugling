@@ -9,6 +9,7 @@
 - Add an isolated package smoke and an exact-revision public marketplace install with fresh-task skill discovery.
 - Require three released-versus-candidate attempts across ten behavioral cases spanning Python, TypeScript workers, React UI, and generic repositories.
 - Add sanitized release certificates and a manual exact-main workflow that fast-forwards `stable` and creates an immutable version tag only after the certificate passes.
+- Reconcile repository-readiness labels with blocked evidence and require setup advice to load its routed setup contract first.
 
 ## 0.3.0 - 2026-08-30
 

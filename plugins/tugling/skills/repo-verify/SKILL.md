@@ -62,6 +62,8 @@ Repositories may use stricter names or additional states. Never collapse a lower
 
 When readiness concerns a commit, `LOCAL_PASS` requires the files that made the local gate pass to exist in that commit. A test that succeeds only because of an ignored or untracked support file is evidence for `BLOCKED`, not `LOCAL_PASS`.
 
+Before handing off, reconcile the evidence-state field with every readiness decision and the prose summary. If any required boundary is blocked or a decisive commit-content check remains incomplete, emit `BLOCKED`; never describe the commit as blocked while labeling the overall state `LOCAL_PASS`.
+
 ## Guardrails
 
 - Do not skip a failure silently or weaken an assertion merely to get green.
