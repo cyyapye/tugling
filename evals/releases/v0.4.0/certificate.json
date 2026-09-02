@@ -1,0 +1,602 @@
+{
+  "behavioral": {
+    "attempts": 3,
+    "case_ids": [
+      "delivery-plan-api-migration",
+      "scale-cost-list-api",
+      "async-safety-webhook",
+      "async-safety-retry-lease-proof",
+      "async-safety-typescript-worker",
+      "repo-verify-ignored-support-file",
+      "tugling-bounded-noop",
+      "skill-delivery-overtrigger",
+      "screenshot-first-mobile-overflow",
+      "tugling-project-setup"
+    ],
+    "evaluated_revision": "dc900614b080295b8c377fbab7451d9130a10e30",
+    "metrics": {
+      "candidate_average": 1.0,
+      "candidate_vs_control": 0.7067,
+      "candidate_vs_released": 0.0667,
+      "comparison_count": 30,
+      "control_attempt_regressions": 0,
+      "control_average": 0.2933,
+      "control_case_aggregates": [
+        {
+          "attempts": 3,
+          "baseline_average": 0.3333,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "async-safety-retry-lease-proof",
+          "delta": 0.6667,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.3333,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "async-safety-typescript-worker",
+          "delta": 0.6667,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.3333,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "async-safety-webhook",
+          "delta": 0.6667,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.3333,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "delivery-plan-api-migration",
+          "delta": 0.6667,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "repo-verify-ignored-support-file",
+          "delta": 1.0,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "scale-cost-list-api",
+          "delta": 1.0,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.6667,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "screenshot-first-mobile-overflow",
+          "delta": 0.3333,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.9333,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "skill-delivery-overtrigger",
+          "delta": 0.0667,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "tugling-bounded-noop",
+          "delta": 1.0,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "tugling-project-setup",
+          "delta": 1.0,
+          "regression": false,
+          "win": true
+        }
+      ],
+      "control_regressions": 0,
+      "distinct_case_count": 10,
+      "gates": {
+        "dogfood": {
+          "attempt_regressions": 0,
+          "average_delta": 0.7067,
+          "candidate_average": 1.0,
+          "case_aggregates": [
+            {
+              "attempts": 3,
+              "baseline_average": 0.3333,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "async-safety-retry-lease-proof",
+              "delta": 0.6667,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.3333,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "async-safety-typescript-worker",
+              "delta": 0.6667,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.3333,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "async-safety-webhook",
+              "delta": 0.6667,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.3333,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "delivery-plan-api-migration",
+              "delta": 0.6667,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "repo-verify-ignored-support-file",
+              "delta": 1.0,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "scale-cost-list-api",
+              "delta": 1.0,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.6667,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "screenshot-first-mobile-overflow",
+              "delta": 0.3333,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.9333,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "skill-delivery-overtrigger",
+              "delta": 0.0667,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "tugling-bounded-noop",
+              "delta": 1.0,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "tugling-project-setup",
+              "delta": 1.0,
+              "regression": false,
+              "win": true
+            }
+          ],
+          "case_wins": 10,
+          "checks": {
+            "critical_candidate_checks": true,
+            "maximum_regressions": true,
+            "minimum_candidate_score": true,
+            "minimum_control_lift": true,
+            "minimum_delta": true,
+            "minimum_distinct_pairs": true
+          },
+          "comparison": "control",
+          "distinct_case_count": 10,
+          "passed": true,
+          "regressions": 0,
+          "thresholds": {
+            "comparison": "control",
+            "maximum_regressions": 0,
+            "minimum_candidate_score": 0.85,
+            "minimum_control_lift": 0.0,
+            "minimum_delta": 0.0,
+            "minimum_pairs": 3
+          }
+        },
+        "promotion": {
+          "attempt_regressions": 0,
+          "average_delta": 0.0667,
+          "candidate_average": 1.0,
+          "case_aggregates": [
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "async-safety-retry-lease-proof",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "async-safety-typescript-worker",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "async-safety-webhook",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "delivery-plan-api-migration",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.6667,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "repo-verify-ignored-support-file",
+              "delta": 0.3333,
+              "regression": false,
+              "win": true
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "scale-cost-list-api",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "screenshot-first-mobile-overflow",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "skill-delivery-overtrigger",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 1.0,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "tugling-bounded-noop",
+              "delta": 0.0,
+              "regression": false,
+              "win": false
+            },
+            {
+              "attempts": 3,
+              "baseline_average": 0.6667,
+              "candidate_average": 1.0,
+              "candidate_critical_pass": true,
+              "case_id": "tugling-project-setup",
+              "delta": 0.3333,
+              "regression": false,
+              "win": true
+            }
+          ],
+          "case_wins": 2,
+          "checks": {
+            "critical_candidate_checks": true,
+            "maximum_regressions": true,
+            "minimum_candidate_score": true,
+            "minimum_control_lift": true,
+            "minimum_delta": true,
+            "minimum_distinct_pairs": true
+          },
+          "comparison": "released",
+          "distinct_case_count": 10,
+          "passed": true,
+          "regressions": 0,
+          "thresholds": {
+            "comparison": "released",
+            "maximum_regressions": 0,
+            "minimum_candidate_score": 0.9,
+            "minimum_control_lift": 0.02,
+            "minimum_delta": 0.0,
+            "minimum_pairs": 10
+          }
+        }
+      },
+      "released_attempt_regressions": 0,
+      "released_average": 0.9333,
+      "released_case_aggregates": [
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "async-safety-retry-lease-proof",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "async-safety-typescript-worker",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "async-safety-webhook",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "delivery-plan-api-migration",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.6667,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "repo-verify-ignored-support-file",
+          "delta": 0.3333,
+          "regression": false,
+          "win": true
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "scale-cost-list-api",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "screenshot-first-mobile-overflow",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "skill-delivery-overtrigger",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 1.0,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "tugling-bounded-noop",
+          "delta": 0.0,
+          "regression": false,
+          "win": false
+        },
+        {
+          "attempts": 3,
+          "baseline_average": 0.6667,
+          "candidate_average": 1.0,
+          "candidate_critical_pass": true,
+          "case_id": "tugling-project-setup",
+          "delta": 0.3333,
+          "regression": false,
+          "win": true
+        }
+      ],
+      "released_regressions": 0
+    },
+    "model": "gpt-5.4-mini",
+    "policy_pattern_file_sha256": "3ce2f60962bfb96ebffd59c97b9504fe17ca429ba3c2d61e6329c70bf728f818",
+    "proof_sha256": "17606b0b5108e727288900b03e25fbebdc5ffdf78a8e0e22b6c8437e83a325cc",
+    "reasoning_effort": "medium",
+    "released_revision": "5daa3ade1f6168a9cf85bac3c7f40217ad04574a"
+  },
+  "checks": {
+    "behavioral_candidate_version": true,
+    "behavioral_plugin_matches": true,
+    "behavioral_proof_passed": true,
+    "candidate_revision_present": true,
+    "clean_room_exact_candidate": true,
+    "clean_room_fresh_task": true,
+    "clean_room_live_mode": true,
+    "clean_room_plugin_matches": true,
+    "clean_room_proof_passed": true,
+    "complete_attempt_pairs": true,
+    "full_case_matrix": true,
+    "minimum_attempts": true,
+    "no_released_regressions": true,
+    "policy_scan": true,
+    "privacy_scan": true,
+    "promotion_gate": true,
+    "released_baseline_present": true,
+    "required_conditions": true,
+    "skills_only_surface": true,
+    "version_matches_manifest": true
+  },
+  "clean_room": {
+    "codex_version": "codex-cli 0.151.0-alpha.7.2",
+    "installed_skill_read_observed": true,
+    "mode": "public-cli-live",
+    "model": "gpt-5.4-mini",
+    "proof_sha256": "8924b567da7cd125bb056c3d8a6c45589e6aa0bea81037a945821202bdcfd548",
+    "reasoning_effort": "medium",
+    "repository": "https://github.com/cyyapye/tugling.git",
+    "repository_unchanged": true,
+    "revision": "dc900614b080295b8c377fbab7451d9130a10e30",
+    "selected_skill": "repo-verify",
+    "verification_order": "repository-native-first"
+  },
+  "created_at": "2026-09-02T06:45:55.731636+00:00",
+  "matrix": {
+    "conditions": [
+      "control",
+      "released",
+      "candidate"
+    ],
+    "minimum_attempts": 3,
+    "project_types": {
+      "generic-repository": [
+        "tugling-bounded-noop",
+        "skill-delivery-overtrigger"
+      ],
+      "python-cli": [
+        "delivery-plan-api-migration",
+        "tugling-project-setup"
+      ],
+      "python-service": [
+        "scale-cost-list-api",
+        "async-safety-webhook",
+        "async-safety-retry-lease-proof",
+        "repo-verify-ignored-support-file"
+      ],
+      "react-ui": [
+        "screenshot-first-mobile-overflow"
+      ],
+      "typescript-worker": [
+        "async-safety-typescript-worker"
+      ]
+    },
+    "required_case_ids": [
+      "delivery-plan-api-migration",
+      "scale-cost-list-api",
+      "async-safety-webhook",
+      "async-safety-retry-lease-proof",
+      "async-safety-typescript-worker",
+      "repo-verify-ignored-support-file",
+      "tugling-bounded-noop",
+      "skill-delivery-overtrigger",
+      "screenshot-first-mobile-overflow",
+      "tugling-project-setup"
+    ],
+    "required_skills": [
+      "async-safety",
+      "delivery-plan",
+      "repo-verify",
+      "scale-cost-review",
+      "screenshot-first-ui",
+      "skill-delivery",
+      "tugling"
+    ]
+  },
+  "passed": true,
+  "plugin": {
+    "content_sha256": "658050f0fc355dac79753ff77ae43fe2bd1155d51234d26ae37ab633efcb6a51",
+    "name": "tugling",
+    "skills": [
+      "async-safety",
+      "delivery-plan",
+      "repo-verify",
+      "scale-cost-review",
+      "screenshot-first-ui",
+      "skill-delivery",
+      "tugling"
+    ],
+    "version": "0.4.0"
+  },
+  "schema_version": 1,
+  "version": "0.4.0"
+}

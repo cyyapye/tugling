@@ -89,14 +89,19 @@ make verify
 
 `make verify` checks the marketplace and plugin manifests, skill frontmatter and UI metadata, the generic/project boundary, routing-fixture coverage, behavioral fixtures, and the dependency-free grader tests.
 
+It also reconstructs the marketplace package in an empty directory and validates the release matrix and any committed release certificate. It never calls a model or requires credentials.
+
 Use this proof ladder for consequential instruction changes:
 
 1. **Structural:** run `make verify` on every change.
 2. **Synthetic dogfood:** run at least three no-Tugling/candidate comparisons and require the dogfood gate.
 3. **Project dogfood:** run an external case against a clean project checkout without committing project source or results here.
-4. **Promotion:** compare no Tugling, the exact released revision, and the candidate on the full bundled suite; require the release proof before making a broad quality claim.
+4. **Public install:** install the exact pushed revision from GitHub into an empty Codex home and confirm a fresh read-only task loads the installed skill.
+5. **Promotion:** compare no Tugling, the exact released revision, and the candidate three times on the full bundled suite; require a sanitized release certificate before moving `stable`.
 
 The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, tokens, source identities, regressions, and plugin permission or hook changes, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
+
+Stable promotion is intentionally separate from ordinary CI. A maintainer runs the live evidence locally, reviews the blinded artifacts, commits only the sanitized certificate, merges the exact tested plugin content, and manually dispatches the stable-promotion workflow for that exact `main` SHA. Adopter repositories keep deterministic, model-free CI.
 
 Tugling does not hard-code a model per skill. Pin models in comparable evaluations first; add a recommendation only after repeated evidence shows a meaningful quality, latency, or cost tradeoff for that skill.
 

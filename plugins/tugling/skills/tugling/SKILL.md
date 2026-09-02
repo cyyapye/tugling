@@ -21,7 +21,7 @@ Tugling never grants permission to merge, deploy, delete, spend, contact people,
 
 ## Set up a project
 
-When the user asks to install, adopt, configure, or set up Tugling for a repository, read [references/project-setup.md](references/project-setup.md). Start with read-only discovery, preserve existing project instructions, and make the adapter and CI files the smallest reviewable delta. Setup is not permission to change product code.
+When the user asks to install, adopt, configure, or set up Tugling for a repository, open and read [references/project-setup.md](references/project-setup.md) before giving setup advice. Do not reconstruct that contract from project files or general memory. Start with read-only discovery, preserve existing project instructions, and make the adapter and CI files the smallest reviewable delta. Setup is not permission to change product code.
 
 ## Learn from a correction
 

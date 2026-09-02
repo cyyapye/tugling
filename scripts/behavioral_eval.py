@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -21,11 +22,19 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "evals" / "behavioral" / "cases.json"
+RELEASE_MATRIX = ROOT / "evals" / "behavioral" / "release-matrix.json"
 OUTPUT_SCHEMA = ROOT / "evals" / "behavioral" / "output.schema.json"
 FIXTURES = ROOT / "evals" / "behavioral" / "fixtures"
 SKILLS = ROOT / "plugins" / "tugling" / "skills"
 PLUGIN = ROOT / "plugins" / "tugling"
 VALID_SANDBOXES = {"read-only", "workspace-write"}
+VALID_PROJECT_TYPES = {
+    "generic-repository",
+    "python-cli",
+    "python-service",
+    "react-ui",
+    "typescript-worker",
+}
 VALID_STATES = {
     "ADVISORY",
     "NOOP",
@@ -136,8 +145,10 @@ def content_digest(root: Path) -> str:
 
 def repository_identity() -> dict[str, Any]:
     status = git_output(ROOT, "status", "--porcelain", "--untracked-files=all")
+    manifest = read_json(PLUGIN / ".codex-plugin" / "plugin.json")
     return {
         "revision": git_output(ROOT, "rev-parse", "HEAD"),
+        "version": manifest.get("version") if isinstance(manifest, dict) else None,
         "worktree_dirty": bool(status),
         "content_sha256": content_digest(ROOT),
         "plugin_content_sha256": content_digest(PLUGIN),
@@ -218,6 +229,8 @@ def validate_case(case: Any, *, require_fixture: bool = True) -> list[str]:
 
     if case.get("skill") not in skill_names():
         errors.append(f"{case_id}: unknown skill {case.get('skill')!r}")
+    if case.get("project_type") not in VALID_PROJECT_TYPES:
+        errors.append(f"{case_id}: invalid project_type")
     if require_fixture:
         fixture = case.get("fixture")
         if not isinstance(fixture, str) or not (FIXTURES / fixture / "repo").is_dir():
@@ -341,6 +354,19 @@ def validate_suite(suite: Any) -> list[str]:
                     errors.append(f"{name} gate {field} must be numeric")
     if not OUTPUT_SCHEMA.is_file():
         errors.append("behavioral output schema is missing")
+    if not RELEASE_MATRIX.is_file():
+        errors.append("behavioral release matrix is missing")
+    else:
+        matrix = read_json(RELEASE_MATRIX)
+        if not isinstance(matrix, dict):
+            errors.append("behavioral release matrix must be an object")
+        else:
+            if matrix.get("required_case_ids") != [case.get("id") for case in cases]:
+                errors.append("behavioral release matrix must list every case in suite order")
+            if matrix.get("minimum_attempts", 0) < 3:
+                errors.append("behavioral release matrix must require at least three attempts")
+            if matrix.get("conditions") != ["control", "released", "candidate"]:
+                errors.append("behavioral release matrix conditions are invalid")
     return errors
 
 
@@ -956,6 +982,46 @@ def average(values: list[float]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
+def aggregate_by_case(
+    comparisons: list[dict[str, Any]],
+    *,
+    comparison: str,
+) -> list[dict[str, Any]]:
+    baseline_score_key = f"{comparison}_score"
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in comparisons:
+        if item.get(baseline_score_key) is not None:
+            grouped.setdefault(item["case_id"], []).append(item)
+    aggregates: list[dict[str, Any]] = []
+    for case_id, items in sorted(grouped.items()):
+        baseline_average = average([float(item[baseline_score_key]) for item in items])
+        candidate_average = average([float(item["candidate_score"]) for item in items])
+        delta = (
+            candidate_average - baseline_average
+            if candidate_average is not None and baseline_average is not None
+            else None
+        )
+        aggregates.append(
+            {
+                "case_id": case_id,
+                "attempts": len(items),
+                "baseline_average": round(baseline_average, 4)
+                if baseline_average is not None
+                else None,
+                "candidate_average": round(candidate_average, 4)
+                if candidate_average is not None
+                else None,
+                "delta": round(delta, 4) if delta is not None else None,
+                "regression": delta is not None and delta < 0,
+                "win": delta is not None and delta > 0,
+                "candidate_critical_pass": all(
+                    bool(item["candidate_critical_pass"]) for item in items
+                ),
+            }
+        )
+    return aggregates
+
+
 def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> dict[str, Any]:
     control_values = [
         float(item["control_score"])
@@ -990,12 +1056,15 @@ def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> 
         delta_key = f"candidate_vs_{comparison}"
         regression_key = f"{comparison}_regression"
         eligible = [item for item in comparisons if item[score_key] is not None]
-        distinct_cases = len({item["case_id"] for item in eligible})
+        case_aggregates = aggregate_by_case(comparisons, comparison=comparison)
+        distinct_cases = len(case_aggregates)
         candidate_gate_average = average(
             [float(item["candidate_score"]) for item in eligible]
         )
         delta = average([float(item[delta_key]) for item in eligible])
-        regressions = sum(bool(item[regression_key]) for item in eligible)
+        attempt_regressions = sum(bool(item[regression_key]) for item in eligible)
+        regressions = sum(bool(item["regression"]) for item in case_aggregates)
+        wins = sum(bool(item["win"]) for item in case_aggregates)
         critical_pass = (
             all(item["candidate_critical_pass"] for item in eligible) if eligible else False
         )
@@ -1023,7 +1092,12 @@ def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> 
             else None,
             "average_delta": round(delta, 4) if delta is not None else None,
             "regressions": regressions,
+            "attempt_regressions": attempt_regressions,
+            "case_wins": wins,
+            "case_aggregates": case_aggregates,
         }
+    control_cases = aggregate_by_case(comparisons, comparison="control")
+    released_cases = aggregate_by_case(comparisons, comparison="released")
     return {
         "comparison_count": len(comparisons),
         "distinct_case_count": len({item["case_id"] for item in comparisons}),
@@ -1032,16 +1106,20 @@ def evaluate_gates(gates: dict[str, Any], comparisons: list[dict[str, Any]]) -> 
         "candidate_average": round(candidate_average, 4) if candidate_average is not None else None,
         "candidate_vs_control": round(control_lift, 4) if control_lift is not None else None,
         "candidate_vs_released": round(released_delta, 4) if released_delta is not None else None,
-        "control_regressions": sum(
+        "control_regressions": sum(bool(item["regression"]) for item in control_cases),
+        "released_regressions": sum(bool(item["regression"]) for item in released_cases),
+        "control_attempt_regressions": sum(
             bool(item["control_regression"])
             for item in comparisons
             if item["control_regression"] is not None
         ),
-        "released_regressions": sum(
+        "released_attempt_regressions": sum(
             bool(item["released_regression"])
             for item in comparisons
             if item["released_regression"] is not None
         ),
+        "control_case_aggregates": control_cases,
+        "released_case_aggregates": released_cases,
         "gates": evaluated,
     }
 
@@ -1128,7 +1206,8 @@ def report_markdown(
             f"Candidate average: **{display_number(metrics['candidate_average'])}**",
             f"Candidate vs no Tugling: **{display_number(metrics['candidate_vs_control'], signed=True)}**",
             f"Candidate vs released: **{display_number(metrics['candidate_vs_released'], signed=True)}**",
-            f"Candidate regressions vs released: **{metrics['released_regressions']}**",
+            f"Candidate case-level regressions vs released: **{metrics['released_regressions']}**",
+            f"Candidate raw attempt regressions vs released: **{metrics['released_attempt_regressions']}**",
             "",
             "## Gates",
             "",
@@ -1359,12 +1438,19 @@ def release_proof(
     baseline = summary["released_identity"]
     candidate = summary["candidate_identity"]
     promotion = summary["metrics"]["gates"].get("promotion", {})
+    matrix = read_json(RELEASE_MATRIX)
+    required_cases = matrix.get("required_case_ids", []) if isinstance(matrix, dict) else []
+    minimum_attempts = matrix.get("minimum_attempts", 0) if isinstance(matrix, dict) else 0
+    required_conditions = matrix.get("conditions", []) if isinstance(matrix, dict) else []
     checks = {
         "released_baseline_present": baseline is not None,
         "distinct_revisions": bool(baseline) and baseline["revision"] != candidate["revision"],
         "distinct_plugin_content": bool(baseline)
         and baseline["plugin_content_sha256"] != candidate["plugin_content_sha256"],
         "candidate_worktree_clean": not candidate["worktree_dirty"],
+        "full_release_case_matrix": summary.get("case_ids") == required_cases,
+        "minimum_release_attempts": summary.get("attempts", 0) >= minimum_attempts,
+        "release_conditions": summary.get("conditions") == required_conditions,
         "promotion_gate": bool(promotion.get("passed")),
         "privacy_scan": bool(privacy["passed"]),
         "policy_scan_configured": bool(policy["configured"]),
@@ -1398,6 +1484,7 @@ def release_proof(
             "reasoning_effort": summary["reasoning_effort"],
             "conditions": summary["conditions"],
             "attempts": summary["attempts"],
+            "jobs": summary.get("jobs", 1),
             "case_ids": summary["case_ids"],
         },
         "metrics": summary["metrics"],
@@ -1431,7 +1518,8 @@ def release_proof_markdown(proof: dict[str, Any]) -> str:
             f"- Candidate average: {display_number(proof['metrics']['candidate_average'])}",
             f"- Candidate vs no Tugling: {display_number(proof['metrics']['candidate_vs_control'], signed=True)}",
             f"- Candidate vs released: {display_number(proof['metrics']['candidate_vs_released'], signed=True)}",
-            f"- Regressions vs released: {proof['metrics']['released_regressions']}",
+            f"- Case-level regressions vs released: {proof['metrics']['released_regressions']}",
+            f"- Raw attempt regressions vs released: {proof['metrics']['released_attempt_regressions']}",
             "",
             "## Change surface",
             "",
@@ -1516,33 +1604,40 @@ def run_evaluation(
     results: list[dict[str, Any]] = []
     try:
         total = len(cases) * len(conditions) * args.attempts
-        completed_count = 0
+        tasks: list[tuple[int, dict[str, Any], int, str]] = []
+        task_index = 0
         for case in cases:
             for attempt in range(1, args.attempts + 1):
                 for condition in conditions:
-                    completed_count += 1
-                    print(
-                        f"[{completed_count}/{total}] {case['id']} {condition} attempt {attempt}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    skills_source, condition_identity = sources[condition]
-                    result = run_condition(
-                        case=case,
-                        condition=condition,
-                        attempt=attempt,
-                        out_dir=out_dir,
-                        codex_bin=codex_bin,
-                        codex_version=codex_version,
-                        model=args.model,
-                        reasoning_effort=args.reasoning_effort,
-                        timeout=args.timeout,
-                        keep_workspace=args.keep_workspaces,
-                        project_repo=project_repo,
-                        skills_source=skills_source,
-                        condition_identity=condition_identity,
-                    )
-                    results.append(result)
+                    task_index += 1
+                    tasks.append((task_index, case, attempt, condition))
+
+        def execute(task: tuple[int, dict[str, Any], int, str]) -> dict[str, Any]:
+            index, case, attempt, condition = task
+            print(
+                f"[{index}/{total}] {case['id']} {condition} attempt {attempt}",
+                file=sys.stderr,
+                flush=True,
+            )
+            skills_source, condition_identity = sources[condition]
+            return run_condition(
+                case=case,
+                condition=condition,
+                attempt=attempt,
+                out_dir=out_dir,
+                codex_bin=codex_bin,
+                codex_version=codex_version,
+                model=args.model,
+                reasoning_effort=args.reasoning_effort,
+                timeout=args.timeout,
+                keep_workspace=args.keep_workspaces,
+                project_repo=project_repo,
+                skills_source=skills_source,
+                condition_identity=condition_identity,
+            )
+
+        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+            results = list(executor.map(execute, tasks))
     finally:
         if baseline_scratch is not None:
             shutil.rmtree(baseline_scratch, ignore_errors=True)
@@ -1559,6 +1654,7 @@ def run_evaluation(
         "reasoning_effort": args.reasoning_effort,
         "conditions": conditions,
         "attempts": args.attempts,
+        "jobs": args.jobs,
         "case_ids": [case["id"] for case in cases],
         "project_revision": git_output(project_repo, "rev-parse", "HEAD") if project_repo else None,
         "metrics": metrics,
@@ -1609,6 +1705,7 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--baseline-ref")
     parser.add_argument("--policy-pattern-file")
     parser.add_argument("--attempts", type=int, default=1)
+    parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--model", required=True)
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), required=True)
     parser.add_argument("--codex-bin")
@@ -1655,6 +1752,8 @@ def main(argv: Iterable[str] | None = None) -> int:
 
         if args.attempts < 1:
             raise EvalError("--attempts must be at least one")
+        if args.jobs < 1 or args.jobs > 8:
+            raise EvalError("--jobs must be between one and eight")
         if args.timeout < 30:
             raise EvalError("--timeout must be at least 30 seconds")
         if args.command == "run":

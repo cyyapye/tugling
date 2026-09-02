@@ -1,6 +1,6 @@
-.PHONY: verify validate test eval-validate
+.PHONY: verify validate test eval-validate clean-room-validate release-validate
 
-verify: validate test eval-validate
+verify: validate test eval-validate clean-room-validate release-validate
 
 validate:
 	python3 scripts/validate.py
@@ -10,3 +10,9 @@ test:
 
 eval-validate:
 	python3 scripts/behavioral_eval.py validate
+
+clean-room-validate:
+	python3 scripts/clean_room_install.py validate
+
+release-validate:
+	python3 scripts/release_gate.py validate

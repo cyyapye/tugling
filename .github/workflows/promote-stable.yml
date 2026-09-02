@@ -1,0 +1,63 @@
+name: Promote stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact current main SHA to promote
+        required: true
+        type: string
+      version:
+        description: Semantic version without the v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tugling-stable-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch promotion refs
+        run: git fetch origin main stable --tags
+      - name: Require exact current main and valid inputs
+        shell: bash
+        run: |
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git rev-parse origin/main)" = "$CANDIDATE_SHA"
+      - name: Verify repository and release certificate
+        run: make verify
+      - name: Verify promotion ancestry and stable baseline
+        run: >-
+          python3 scripts/release_gate.py verify
+          --certificate "evals/releases/v${RELEASE_VERSION}/certificate.json"
+          --stable-ref origin/stable
+          --require-ancestry
+      - name: Atomically promote stable and tag
+        shell: bash
+        run: |
+          if git show-ref --verify --quiet "refs/tags/v${RELEASE_VERSION}"; then
+            echo "tag v${RELEASE_VERSION} already exists" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "v${RELEASE_VERSION}" --message "Tugling v${RELEASE_VERSION}" HEAD
+          git push --atomic origin HEAD:refs/heads/stable "refs/tags/v${RELEASE_VERSION}"

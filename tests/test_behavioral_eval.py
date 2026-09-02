@@ -29,6 +29,25 @@ class BehavioralEvalTest(unittest.TestCase):
             installed = {path.name for path in (workspace / ".agents" / "skills").iterdir()}
             self.assertEqual(installed, harness.skill_names())
 
+    def test_fixture_preparation_and_independent_post_commands_are_green(self) -> None:
+        fixture_integrity_cases = {
+            "async-safety-typescript-worker",
+            "screenshot-first-mobile-overflow",
+        }
+        for case in (
+            candidate
+            for candidate in self.suite["cases"]
+            if candidate["id"] in fixture_integrity_cases
+        ):
+            with self.subTest(case=case["id"]), tempfile.TemporaryDirectory() as directory:
+                workspace = Path(directory) / "workspace"
+                harness.initialize_fixture(case, workspace)
+                results = harness.run_post_commands(case, workspace)
+                self.assertTrue(
+                    all(result["exit_code"] == 0 for result in results),
+                    results,
+                )
+
     def test_changed_files_preserves_first_modified_path(self) -> None:
         case = self.by_id["skill-delivery-overtrigger"]
         with tempfile.TemporaryDirectory() as directory:
@@ -193,6 +212,58 @@ class BehavioralEvalTest(unittest.TestCase):
         self.assertTrue(metrics["gates"]["dogfood"]["passed"])
         self.assertFalse(metrics["gates"]["promotion"]["passed"])
 
+    def test_release_regressions_are_aggregated_per_case(self) -> None:
+        comparisons = [
+            {
+                "case_id": "case-1",
+                "attempt": 1,
+                "control_score": 0.0,
+                "released_score": 1.0,
+                "candidate_score": 0.0,
+                "candidate_vs_control": 0.0,
+                "candidate_vs_released": -1.0,
+                "control_regression": False,
+                "released_regression": True,
+                "candidate_critical_pass": True,
+            },
+            {
+                "case_id": "case-1",
+                "attempt": 2,
+                "control_score": 0.0,
+                "released_score": 0.0,
+                "candidate_score": 1.0,
+                "candidate_vs_control": 1.0,
+                "candidate_vs_released": 1.0,
+                "control_regression": False,
+                "released_regression": False,
+                "candidate_critical_pass": True,
+            },
+        ]
+        metrics = harness.evaluate_gates(self.suite["gates"], comparisons)
+        self.assertEqual(metrics["released_attempt_regressions"], 1)
+        self.assertEqual(metrics["released_regressions"], 0)
+        self.assertEqual(metrics["released_case_aggregates"][0]["delta"], 0.0)
+
+    def test_promotion_allows_noninferior_behavior_with_no_critical_failures(self) -> None:
+        comparisons = []
+        for index in range(10):
+            comparisons.append(
+                {
+                    "case_id": f"case-{index}",
+                    "attempt": 1,
+                    "control_score": 0.0,
+                    "released_score": 1.0,
+                    "candidate_score": 1.0,
+                    "candidate_vs_control": 1.0,
+                    "candidate_vs_released": 0.0,
+                    "control_regression": False,
+                    "released_regression": False,
+                    "candidate_critical_pass": True,
+                }
+            )
+        metrics = harness.evaluate_gates(self.suite["gates"], comparisons)
+        self.assertTrue(metrics["gates"]["promotion"]["passed"])
+
     def test_conditions_preserve_legacy_alias_and_add_release_comparison(self) -> None:
         self.assertEqual(harness.conditions_for("treatment"), ["candidate"])
         self.assertEqual(harness.conditions_for("both"), ["control", "candidate"])
@@ -200,6 +271,22 @@ class BehavioralEvalTest(unittest.TestCase):
             harness.conditions_for("all"),
             ["control", "released", "candidate"],
         )
+
+    def test_parser_accepts_bounded_parallel_jobs(self) -> None:
+        args = harness.build_parser().parse_args(
+            [
+                "run",
+                "--case",
+                "delivery-plan-api-migration",
+                "--jobs",
+                "3",
+                "--model",
+                "model-test",
+                "--reasoning-effort",
+                "medium",
+            ]
+        )
+        self.assertEqual(args.jobs, 3)
 
     def test_released_baseline_cannot_resolve_to_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -241,6 +328,7 @@ class BehavioralEvalTest(unittest.TestCase):
     def test_release_proof_requires_clean_distinct_source_and_scans(self) -> None:
         candidate = {
             "revision": "b" * 40,
+            "version": "0.4.0",
             "worktree_dirty": False,
             "content_sha256": "c" * 64,
             "plugin_content_sha256": "d" * 64,
@@ -261,8 +349,8 @@ class BehavioralEvalTest(unittest.TestCase):
             "model": "model-test",
             "reasoning_effort": "medium",
             "conditions": ["control", "released", "candidate"],
-            "attempts": 1,
-            "case_ids": ["case-1"],
+            "attempts": 3,
+            "case_ids": harness.read_json(harness.RELEASE_MATRIX)["required_case_ids"],
             "metrics": {
                 "candidate_average": 1.0,
                 "candidate_vs_control": 0.5,

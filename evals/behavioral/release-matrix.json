@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "minimum_attempts": 3,
+  "conditions": [
+    "control",
+    "released",
+    "candidate"
+  ],
+  "required_case_ids": [
+    "delivery-plan-api-migration",
+    "scale-cost-list-api",
+    "async-safety-webhook",
+    "async-safety-retry-lease-proof",
+    "async-safety-typescript-worker",
+    "repo-verify-ignored-support-file",
+    "tugling-bounded-noop",
+    "skill-delivery-overtrigger",
+    "screenshot-first-mobile-overflow",
+    "tugling-project-setup"
+  ],
+  "required_skills": [
+    "async-safety",
+    "delivery-plan",
+    "repo-verify",
+    "scale-cost-review",
+    "screenshot-first-ui",
+    "skill-delivery",
+    "tugling"
+  ],
+  "project_types": {
+    "python-cli": [
+      "delivery-plan-api-migration",
+      "tugling-project-setup"
+    ],
+    "python-service": [
+      "scale-cost-list-api",
+      "async-safety-webhook",
+      "async-safety-retry-lease-proof",
+      "repo-verify-ignored-support-file"
+    ],
+    "typescript-worker": [
+      "async-safety-typescript-worker"
+    ],
+    "generic-repository": [
+      "tugling-bounded-noop",
+      "skill-delivery-overtrigger"
+    ],
+    "react-ui": [
+      "screenshot-first-mobile-overflow"
+    ]
+  }
+}

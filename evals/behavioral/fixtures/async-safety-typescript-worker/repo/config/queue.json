@@ -1,0 +1,7 @@
+{
+  "visibility_timeout_seconds": 30,
+  "max_receive_count": 3,
+  "retry_delays_seconds": [1, 2, 4],
+  "dead_letter_queue": "export-failures",
+  "lease_ttl_seconds": 60
+}

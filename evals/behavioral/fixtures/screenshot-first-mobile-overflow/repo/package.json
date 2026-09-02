@@ -1,0 +1,7 @@
+{
+  "name": "synthetic-responsive-holdings",
+  "private": true,
+  "scripts": {
+    "verify": "python3 scripts/verify_fixture.py"
+  }
+}
