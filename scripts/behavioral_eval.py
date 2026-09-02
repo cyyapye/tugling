@@ -21,11 +21,19 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "evals" / "behavioral" / "cases.json"
+RELEASE_MATRIX = ROOT / "evals" / "behavioral" / "release-matrix.json"
 OUTPUT_SCHEMA = ROOT / "evals" / "behavioral" / "output.schema.json"
 FIXTURES = ROOT / "evals" / "behavioral" / "fixtures"
 SKILLS = ROOT / "plugins" / "tugling" / "skills"
 PLUGIN = ROOT / "plugins" / "tugling"
 VALID_SANDBOXES = {"read-only", "workspace-write"}
+VALID_PROJECT_TYPES = {
+    "generic-repository",
+    "python-cli",
+    "python-service",
+    "react-ui",
+    "typescript-worker",
+}
 VALID_STATES = {
     "ADVISORY",
     "NOOP",
@@ -136,8 +144,10 @@ def content_digest(root: Path) -> str:
 
 def repository_identity() -> dict[str, Any]:
     status = git_output(ROOT, "status", "--porcelain", "--untracked-files=all")
+    manifest = read_json(PLUGIN / ".codex-plugin" / "plugin.json")
     return {
         "revision": git_output(ROOT, "rev-parse", "HEAD"),
+        "version": manifest.get("version") if isinstance(manifest, dict) else None,
         "worktree_dirty": bool(status),
         "content_sha256": content_digest(ROOT),
         "plugin_content_sha256": content_digest(PLUGIN),
@@ -218,6 +228,8 @@ def validate_case(case: Any, *, require_fixture: bool = True) -> list[str]:
 
     if case.get("skill") not in skill_names():
         errors.append(f"{case_id}: unknown skill {case.get('skill')!r}")
+    if case.get("project_type") not in VALID_PROJECT_TYPES:
+        errors.append(f"{case_id}: invalid project_type")
     if require_fixture:
         fixture = case.get("fixture")
         if not isinstance(fixture, str) or not (FIXTURES / fixture / "repo").is_dir():
@@ -341,6 +353,19 @@ def validate_suite(suite: Any) -> list[str]:
                     errors.append(f"{name} gate {field} must be numeric")
     if not OUTPUT_SCHEMA.is_file():
         errors.append("behavioral output schema is missing")
+    if not RELEASE_MATRIX.is_file():
+        errors.append("behavioral release matrix is missing")
+    else:
+        matrix = read_json(RELEASE_MATRIX)
+        if not isinstance(matrix, dict):
+            errors.append("behavioral release matrix must be an object")
+        else:
+            if matrix.get("required_case_ids") != [case.get("id") for case in cases]:
+                errors.append("behavioral release matrix must list every case in suite order")
+            if matrix.get("minimum_attempts", 0) < 3:
+                errors.append("behavioral release matrix must require at least three attempts")
+            if matrix.get("conditions") != ["control", "released", "candidate"]:
+                errors.append("behavioral release matrix conditions are invalid")
     return errors
 
 
@@ -1359,12 +1384,19 @@ def release_proof(
     baseline = summary["released_identity"]
     candidate = summary["candidate_identity"]
     promotion = summary["metrics"]["gates"].get("promotion", {})
+    matrix = read_json(RELEASE_MATRIX)
+    required_cases = matrix.get("required_case_ids", []) if isinstance(matrix, dict) else []
+    minimum_attempts = matrix.get("minimum_attempts", 0) if isinstance(matrix, dict) else 0
+    required_conditions = matrix.get("conditions", []) if isinstance(matrix, dict) else []
     checks = {
         "released_baseline_present": baseline is not None,
         "distinct_revisions": bool(baseline) and baseline["revision"] != candidate["revision"],
         "distinct_plugin_content": bool(baseline)
         and baseline["plugin_content_sha256"] != candidate["plugin_content_sha256"],
         "candidate_worktree_clean": not candidate["worktree_dirty"],
+        "full_release_case_matrix": summary.get("case_ids") == required_cases,
+        "minimum_release_attempts": summary.get("attempts", 0) >= minimum_attempts,
+        "release_conditions": summary.get("conditions") == required_conditions,
         "promotion_gate": bool(promotion.get("passed")),
         "privacy_scan": bool(privacy["passed"]),
         "policy_scan_configured": bool(policy["configured"]),

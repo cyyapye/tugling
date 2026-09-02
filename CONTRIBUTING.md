@@ -8,6 +8,8 @@ Keep Tugling small, portable, and evidence-led.
 4. Add positive and negative routing fixtures for changed trigger behavior.
 5. Run `make verify`.
 6. For consequential instruction changes, run the no-Tugling versus candidate dogfood gate.
-7. Before a broad quality claim, dogfood on a clean external project and pass the full released-versus-candidate promotion gate with a configured public-policy scan.
+7. Before a broad quality claim, dogfood on a clean external project and pass the three-attempt, full-matrix released-versus-candidate promotion gate with a configured public-policy scan.
+8. Install the exact public candidate through a fresh Codex home and prove a new read-only task loads the installed skill.
+9. Commit only the sanitized release certificate. Keep raw runs, authentication, local paths, and project prompts outside the repository.
 
 A longer skill is not automatically a better skill. Prefer one instruction that changes a decision over a catalog of generic advice.

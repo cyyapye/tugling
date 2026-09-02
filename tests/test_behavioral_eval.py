@@ -29,6 +29,25 @@ class BehavioralEvalTest(unittest.TestCase):
             installed = {path.name for path in (workspace / ".agents" / "skills").iterdir()}
             self.assertEqual(installed, harness.skill_names())
 
+    def test_fixture_preparation_and_independent_post_commands_are_green(self) -> None:
+        fixture_integrity_cases = {
+            "async-safety-typescript-worker",
+            "screenshot-first-mobile-overflow",
+        }
+        for case in (
+            candidate
+            for candidate in self.suite["cases"]
+            if candidate["id"] in fixture_integrity_cases
+        ):
+            with self.subTest(case=case["id"]), tempfile.TemporaryDirectory() as directory:
+                workspace = Path(directory) / "workspace"
+                harness.initialize_fixture(case, workspace)
+                results = harness.run_post_commands(case, workspace)
+                self.assertTrue(
+                    all(result["exit_code"] == 0 for result in results),
+                    results,
+                )
+
     def test_changed_files_preserves_first_modified_path(self) -> None:
         case = self.by_id["skill-delivery-overtrigger"]
         with tempfile.TemporaryDirectory() as directory:
@@ -241,6 +260,7 @@ class BehavioralEvalTest(unittest.TestCase):
     def test_release_proof_requires_clean_distinct_source_and_scans(self) -> None:
         candidate = {
             "revision": "b" * 40,
+            "version": "0.4.0",
             "worktree_dirty": False,
             "content_sha256": "c" * 64,
             "plugin_content_sha256": "d" * 64,
@@ -261,8 +281,8 @@ class BehavioralEvalTest(unittest.TestCase):
             "model": "model-test",
             "reasoning_effort": "medium",
             "conditions": ["control", "released", "candidate"],
-            "attempts": 1,
-            "case_ids": ["case-1"],
+            "attempts": 3,
+            "case_ids": harness.read_json(harness.RELEASE_MATRIX)["required_case_ids"],
             "metrics": {
                 "candidate_average": 1.0,
                 "candidate_vs_control": 0.5,

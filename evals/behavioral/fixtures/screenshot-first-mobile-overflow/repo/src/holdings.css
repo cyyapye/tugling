@@ -1,0 +1,13 @@
+.holdings {
+  margin-inline: auto;
+  max-width: 45rem;
+}
+
+.holdingsTable {
+  min-width: 32.5rem;
+}
+
+.holdingRow {
+  display: grid;
+  grid-template-columns: 1fr 8rem 5rem;
+}

@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-09-01
+
 - Require async repository reviews to inspect checked-in runtime rails before making retry or recovery claims.
 - Add a deterministic retry-versus-lease holdout that distinguishes mocked routing from proof through the real worker boundary.
+- Add an isolated package smoke and an exact-revision public marketplace install with fresh-task skill discovery.
+- Require three released-versus-candidate attempts across ten behavioral cases spanning Python, TypeScript workers, React UI, and generic repositories.
+- Add sanitized release certificates and a manual exact-main workflow that fast-forwards `stable` and creates an immutable version tag only after the certificate passes.
 
 ## 0.3.0 - 2026-08-30
 

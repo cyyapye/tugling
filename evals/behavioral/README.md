@@ -67,13 +67,42 @@ python3 scripts/behavioral_eval.py run \
   --require-gate promotion
 ```
 
-The promotion proof requires the full bundled suite, an average candidate score of at
-least 90%, measurable improvement over the released version, no candidate
-regression, a clean candidate worktree, distinct released/candidate revisions
-and plugin content, and passing privacy and configured policy scans. The output
-includes `release-proof.json` and `release-proof.md` beside the behavioral
-report. The JSON shape is documented by
+The promotion proof requires three attempts over the full bundled suite, an average
+candidate score of at least 90%, measurable improvement over the released version,
+no candidate regression, a clean candidate worktree, distinct released/candidate
+revisions and plugin content, and passing privacy and configured policy scans. The
+suite covers Python CLI and service work, a TypeScript queue worker, a React
+responsive UI, and generic repositories. The output includes `release-proof.json`
+and `release-proof.md` beside the behavioral report. The JSON shape is documented by
 [`release-proof.schema.json`](release-proof.schema.json).
+
+Before running the promotion comparison, push the clean candidate and exercise the
+actual public marketplace path in an empty Codex home:
+
+```bash
+python3 scripts/clean_room_install.py public \
+  --ref <full-candidate-sha> \
+  --codex-bin /path/to/codex \
+  --live \
+  --model gpt-5.4-mini \
+  --reasoning-effort medium \
+  --out /private/path/clean-room-proof.json
+```
+
+Then run the full comparison with `--attempts 3` and assemble the sanitized
+certificate. Raw reports stay outside the repository:
+
+```bash
+python3 scripts/release_gate.py assemble \
+  --version <version> \
+  --behavioral-proof /private/path/release-proof.json \
+  --clean-room-proof /private/path/clean-room-proof.json \
+  --out evals/releases/v<version>/certificate.json
+```
+
+The certificate binds the public install, exact plugin digest, released baseline,
+model settings, breadth matrix, scans, scores, and attempts without copying prompts,
+model prose, authentication, or local paths.
 
 ## External-project dogfood
 

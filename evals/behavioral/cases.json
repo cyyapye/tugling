@@ -11,7 +11,7 @@
     },
     "promotion": {
       "comparison": "released",
-      "minimum_pairs": 8,
+      "minimum_pairs": 10,
       "minimum_candidate_score": 0.9,
       "maximum_regressions": 0,
       "minimum_delta": 0.01,
@@ -23,6 +23,7 @@
       "id": "delivery-plan-api-migration",
       "skill": "delivery-plan",
       "fixture": "delivery-plan-api-migration",
+      "project_type": "python-cli",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "ADVISORY",
@@ -87,6 +88,7 @@
       "id": "scale-cost-list-api",
       "skill": "scale-cost-review",
       "fixture": "scale-cost-list-api",
+      "project_type": "python-service",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "BLOCKED",
@@ -164,6 +166,7 @@
       "id": "async-safety-webhook",
       "skill": "async-safety",
       "fixture": "async-safety-webhook",
+      "project_type": "python-service",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "ADVISORY",
@@ -238,6 +241,7 @@
       "id": "async-safety-retry-lease-proof",
       "skill": "async-safety",
       "fixture": "async-safety-retry-lease-proof",
+      "project_type": "python-service",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "ADVISORY",
@@ -307,9 +311,103 @@
       ]
     },
     {
+      "id": "async-safety-typescript-worker",
+      "skill": "async-safety",
+      "fixture": "async-safety-typescript-worker",
+      "project_type": "typescript-worker",
+      "sandbox": "read-only",
+      "minimum_score": 0.83,
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "required_command_groups": [
+        [
+          "config/queue.json"
+        ],
+        [
+          "src/worker.ts"
+        ]
+      ],
+      "post_run_commands": [
+        [
+          "make",
+          "verify"
+        ]
+      ],
+      "prompt": "Review whether this TypeScript queue worker has a complete deterministic crash-recovery proof. Do not edit files. A worker may crash after acquiring the durable lease and before completion. Relate the checked-in retry horizon to lease reclamation, distinguish the current unit tests from composed worker proof, and identify the smallest honest verification boundary.",
+      "decision_questions": [
+        {
+          "id": "retry_lease_relation",
+          "question": "How does the configured retry horizon compare with lease reclamation?",
+          "options": [
+            "retry_horizon_outlives_lease",
+            "retry_exhausts_before_lease_reclaim",
+            "timing_is_unrelated"
+          ],
+          "expected": "retry_exhausts_before_lease_reclaim",
+          "critical": true
+        },
+        {
+          "id": "worker_test_scope",
+          "question": "What does the mocked TypeScript worker test prove?",
+          "options": [
+            "full_recovery_convergence",
+            "routing_only",
+            "durable_lease_reclamation"
+          ],
+          "expected": "routing_only",
+          "critical": false
+        },
+        {
+          "id": "store_test_gap",
+          "question": "What does the isolated store test leave unproven?",
+          "options": [
+            "message_schema",
+            "consumer_retry_and_store_composition",
+            "lease_expiration_math"
+          ],
+          "expected": "consumer_retry_and_store_composition",
+          "critical": false
+        },
+        {
+          "id": "smallest_proof",
+          "question": "What is the smallest useful deterministic proof?",
+          "options": [
+            "mocked_processor_test",
+            "actual_worker_fake_clock_test",
+            "manual_wait_in_production"
+          ],
+          "expected": "actual_worker_fake_clock_test",
+          "critical": true
+        },
+        {
+          "id": "recovery_claim",
+          "question": "What is the strongest recovery conclusion supported now?",
+          "options": [
+            "recovery_proven",
+            "duplicate_execution_impossible",
+            "operational_convergence_incomplete"
+          ],
+          "expected": "operational_convergence_incomplete",
+          "critical": true
+        },
+        {
+          "id": "language_transfer",
+          "question": "How should the proof rule change because this worker is TypeScript?",
+          "options": [
+            "skip_runtime_proof",
+            "same_state_machine_contract",
+            "trust_types_only"
+          ],
+          "expected": "same_state_machine_contract",
+          "critical": true
+        }
+      ]
+    },
+    {
       "id": "repo-verify-ignored-support-file",
       "skill": "repo-verify",
       "fixture": "repo-verify-ignored-support-file",
+      "project_type": "python-service",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "BLOCKED",
@@ -385,6 +483,7 @@
       "id": "tugling-bounded-noop",
       "skill": "tugling",
       "fixture": "tugling-bounded-noop",
+      "project_type": "generic-repository",
       "sandbox": "workspace-write",
       "minimum_score": 1.0,
       "expected_state": "NOOP",
@@ -440,6 +539,7 @@
       "id": "skill-delivery-overtrigger",
       "skill": "skill-delivery",
       "fixture": "skill-delivery-overtrigger",
+      "project_type": "generic-repository",
       "sandbox": "workspace-write",
       "minimum_score": 0.8,
       "expected_state": "LOCAL_PASS",
@@ -519,6 +619,7 @@
       "id": "screenshot-first-mobile-overflow",
       "skill": "screenshot-first-ui",
       "fixture": "screenshot-first-mobile-overflow",
+      "project_type": "react-ui",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "ADVISORY",
@@ -532,6 +633,12 @@
       "images": [
         "desktop.png",
         "mobile.png"
+      ],
+      "post_run_commands": [
+        [
+          "make",
+          "verify"
+        ]
       ],
       "prompt": "Diagnose the supplied desktop and mobile screenshots against the repository's UI contract and reference screen. Do not edit files. Identify the primary defect and the correct order of repair and proof.",
       "decision_questions": [
@@ -598,6 +705,7 @@
       "id": "tugling-project-setup",
       "skill": "tugling",
       "fixture": "tugling-project-setup",
+      "project_type": "python-cli",
       "sandbox": "read-only",
       "minimum_score": 0.8,
       "expected_state": "ADVISORY",
