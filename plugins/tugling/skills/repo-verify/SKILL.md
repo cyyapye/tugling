@@ -1,6 +1,6 @@
 ---
 name: repo-verify
-description: Verify a repository change with its native commands, review the integrity of changed tests and CI, fix in-scope failures when authorized, and report the strongest proven state. Use when the user asks to run checks, validate readiness, make a change merge-ready, investigate failing local verification, or confirm work is complete. Do not use a generic gate when the repository already defines one.
+description: Verify a repository change with its native commands, review the integrity of changed tests and CI, fix in-scope failures when authorized, and report the strongest proven state. Use when the user asks to run checks, validate readiness, make a change merge-ready, investigate failing local verification, reconcile local results with CI or committed files, or confirm work is complete. Do not use a generic gate when the repository already defines one.
 ---
 
 # Repo Verify

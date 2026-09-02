@@ -421,7 +421,8 @@
         ],
     [
       "git check-ignore",
-      "git status --short --ignored"
+      "git status --short --ignored",
+      "--ignored"
     ]
       ],
       "prompt": "CI reports that src/generated_helper.py is missing, but the module exists on this machine and the local test command appears green. Diagnose repository truth, run the appropriate checks, and decide whether the current commit is merge-ready. Do not edit files.",
