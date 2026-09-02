@@ -235,6 +235,78 @@
       ]
     },
     {
+      "id": "async-safety-retry-lease-proof",
+      "skill": "async-safety",
+      "fixture": "async-safety-retry-lease-proof",
+      "sandbox": "read-only",
+      "minimum_score": 0.8,
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "required_command_groups": [
+        [
+          "config/queue.json"
+        ]
+      ],
+      "prompt": "Review whether this queued export worker has a complete deterministic crash-recovery proof. Do not edit files. A worker may crash after acquiring the durable job lease and before marking the job complete. Determine how the configured retry horizon relates to lease reclamation, what the existing tests actually prove, and the smallest useful proof of convergence.",
+      "decision_questions": [
+        {
+          "id": "retry_lease_relation",
+          "question": "How does the configured retry horizon compare with lease reclamation?",
+          "options": [
+            "retry_horizon_outlives_lease",
+            "retry_exhausts_before_lease_reclaim",
+            "timing_is_unrelated"
+          ],
+          "expected": "retry_exhausts_before_lease_reclaim",
+          "critical": true
+        },
+        {
+          "id": "existing_worker_test",
+          "question": "What does the mocked worker test prove?",
+          "options": [
+            "full_recovery_convergence",
+            "routing_only",
+            "durable_lease_reclamation"
+          ],
+          "expected": "routing_only",
+          "critical": false
+        },
+        {
+          "id": "existing_lease_test",
+          "question": "What does the isolated lease test leave unproven?",
+          "options": [
+            "message_schema",
+            "consumer_retry_and_store_composition",
+            "lease_expiration_math"
+          ],
+          "expected": "consumer_retry_and_store_composition",
+          "critical": false
+        },
+        {
+          "id": "smallest_proof",
+          "question": "What is the smallest useful deterministic proof?",
+          "options": [
+            "mocked_processor_test",
+            "actual_worker_fake_clock_test",
+            "manual_wait_in_production"
+          ],
+          "expected": "actual_worker_fake_clock_test",
+          "critical": true
+        },
+        {
+          "id": "recovery_claim",
+          "question": "What is the strongest recovery conclusion supported now?",
+          "options": [
+            "recovery_proven",
+            "duplicate_execution_impossible",
+            "operational_convergence_incomplete"
+          ],
+          "expected": "operational_convergence_incomplete",
+          "critical": true
+        }
+      ]
+    },
+    {
       "id": "repo-verify-ignored-support-file",
       "skill": "repo-verify",
       "fixture": "repo-verify-ignored-support-file",

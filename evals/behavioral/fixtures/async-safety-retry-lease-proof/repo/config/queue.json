@@ -1,0 +1,5 @@
+{
+  "retry_delay_seconds": 60,
+  "max_retries": 3,
+  "dead_letter_queue": "synthetic-export-dead"
+}
