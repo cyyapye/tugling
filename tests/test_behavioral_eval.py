@@ -220,6 +220,22 @@ class BehavioralEvalTest(unittest.TestCase):
             ["control", "released", "candidate"],
         )
 
+    def test_parser_accepts_bounded_parallel_jobs(self) -> None:
+        args = harness.build_parser().parse_args(
+            [
+                "run",
+                "--case",
+                "delivery-plan-api-migration",
+                "--jobs",
+                "3",
+                "--model",
+                "model-test",
+                "--reasoning-effort",
+                "medium",
+            ]
+        )
+        self.assertEqual(args.jobs, 3)
+
     def test_released_baseline_cannot_resolve_to_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(harness.EvalError, "candidate revision"):

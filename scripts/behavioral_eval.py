@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -1430,6 +1431,7 @@ def release_proof(
             "reasoning_effort": summary["reasoning_effort"],
             "conditions": summary["conditions"],
             "attempts": summary["attempts"],
+            "jobs": summary.get("jobs", 1),
             "case_ids": summary["case_ids"],
         },
         "metrics": summary["metrics"],
@@ -1548,33 +1550,40 @@ def run_evaluation(
     results: list[dict[str, Any]] = []
     try:
         total = len(cases) * len(conditions) * args.attempts
-        completed_count = 0
+        tasks: list[tuple[int, dict[str, Any], int, str]] = []
+        task_index = 0
         for case in cases:
             for attempt in range(1, args.attempts + 1):
                 for condition in conditions:
-                    completed_count += 1
-                    print(
-                        f"[{completed_count}/{total}] {case['id']} {condition} attempt {attempt}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    skills_source, condition_identity = sources[condition]
-                    result = run_condition(
-                        case=case,
-                        condition=condition,
-                        attempt=attempt,
-                        out_dir=out_dir,
-                        codex_bin=codex_bin,
-                        codex_version=codex_version,
-                        model=args.model,
-                        reasoning_effort=args.reasoning_effort,
-                        timeout=args.timeout,
-                        keep_workspace=args.keep_workspaces,
-                        project_repo=project_repo,
-                        skills_source=skills_source,
-                        condition_identity=condition_identity,
-                    )
-                    results.append(result)
+                    task_index += 1
+                    tasks.append((task_index, case, attempt, condition))
+
+        def execute(task: tuple[int, dict[str, Any], int, str]) -> dict[str, Any]:
+            index, case, attempt, condition = task
+            print(
+                f"[{index}/{total}] {case['id']} {condition} attempt {attempt}",
+                file=sys.stderr,
+                flush=True,
+            )
+            skills_source, condition_identity = sources[condition]
+            return run_condition(
+                case=case,
+                condition=condition,
+                attempt=attempt,
+                out_dir=out_dir,
+                codex_bin=codex_bin,
+                codex_version=codex_version,
+                model=args.model,
+                reasoning_effort=args.reasoning_effort,
+                timeout=args.timeout,
+                keep_workspace=args.keep_workspaces,
+                project_repo=project_repo,
+                skills_source=skills_source,
+                condition_identity=condition_identity,
+            )
+
+        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+            results = list(executor.map(execute, tasks))
     finally:
         if baseline_scratch is not None:
             shutil.rmtree(baseline_scratch, ignore_errors=True)
@@ -1591,6 +1600,7 @@ def run_evaluation(
         "reasoning_effort": args.reasoning_effort,
         "conditions": conditions,
         "attempts": args.attempts,
+        "jobs": args.jobs,
         "case_ids": [case["id"] for case in cases],
         "project_revision": git_output(project_repo, "rev-parse", "HEAD") if project_repo else None,
         "metrics": metrics,
@@ -1641,6 +1651,7 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--baseline-ref")
     parser.add_argument("--policy-pattern-file")
     parser.add_argument("--attempts", type=int, default=1)
+    parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--model", required=True)
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), required=True)
     parser.add_argument("--codex-bin")
@@ -1687,6 +1698,8 @@ def main(argv: Iterable[str] | None = None) -> int:
 
         if args.attempts < 1:
             raise EvalError("--attempts must be at least one")
+        if args.jobs < 1 or args.jobs > 8:
+            raise EvalError("--jobs must be between one and eight")
         if args.timeout < 30:
             raise EvalError("--timeout must be at least 30 seconds")
         if args.command == "run":

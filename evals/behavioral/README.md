@@ -36,6 +36,7 @@ python3 scripts/behavioral_eval.py run \
   --case scale-cost-list-api \
   --case async-safety-webhook \
   --condition both \
+  --jobs 3 \
   --model gpt-5.4-mini \
   --reasoning-effort medium \
   --require-gate dogfood
@@ -89,7 +90,7 @@ python3 scripts/clean_room_install.py public \
   --out /private/path/clean-room-proof.json
 ```
 
-Then run the full comparison with `--attempts 3` and assemble the sanitized
+Then run the full comparison with `--attempts 3 --jobs 3` and assemble the sanitized
 certificate. Raw reports stay outside the repository:
 
 ```bash
