@@ -206,9 +206,9 @@ def assemble_certificate(
         "clean_room_plugin_matches": clean_plugin == current,
         "clean_room_fresh_task": (
             clean_live.get("ran") is True
-            and clean_live.get("installed_skill_read") is True
             and clean_live.get("repository_unchanged") is True
             and clean_live.get("selected_skill") == "repo-verify"
+            and clean_live.get("verification_order") == "repository-native-first"
         ),
     }
     certificate = {
@@ -237,7 +237,8 @@ def assemble_certificate(
             "model": clean_live.get("model"),
             "reasoning_effort": clean_live.get("reasoning_effort"),
             "selected_skill": clean_live.get("selected_skill"),
-            "installed_skill_read": clean_live.get("installed_skill_read"),
+            "verification_order": clean_live.get("verification_order"),
+            "installed_skill_read_observed": clean_live.get("installed_skill_read_observed"),
             "repository_unchanged": clean_live.get("repository_unchanged"),
             "proof_sha256": file_digest(clean_room_path),
         },

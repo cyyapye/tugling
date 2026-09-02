@@ -242,14 +242,28 @@ def write_live_schema(path: Path) -> None:
             "required": [
                 "selected_skill",
                 "canonical_verify",
+                "verification_order",
                 "strongest_proven_state",
                 "edited_files",
             ],
             "properties": {
-                "selected_skill": {"type": "string", "enum": ["repo-verify"]},
-                "canonical_verify": {"type": "string", "enum": ["make verify"]},
-                "strongest_proven_state": {"type": "string", "enum": ["ADVISORY"]},
-                "edited_files": {"type": "boolean", "enum": [False]},
+                "selected_skill": {
+                    "type": "string",
+                    "enum": ["repo-verify", "generic-checklist", "none"],
+                },
+                "canonical_verify": {
+                    "type": "string",
+                    "enum": ["make verify", "universal checklist", "unknown"],
+                },
+                "verification_order": {
+                    "type": "string",
+                    "enum": ["repository-native-first", "generic-gate-first", "unknown"],
+                },
+                "strongest_proven_state": {
+                    "type": "string",
+                    "enum": ["ADVISORY", "LOCAL_PASS", "BLOCKED"],
+                },
+                "edited_files": {"type": "boolean"},
             },
         },
     )
@@ -340,6 +354,7 @@ def run_live_discovery(
     expected = {
         "selected_skill": "repo-verify",
         "canonical_verify": "make verify",
+        "verification_order": "repository-native-first",
         "strongest_proven_state": "ADVISORY",
         "edited_files": False,
     }
@@ -350,8 +365,7 @@ def run_live_discovery(
     native_ran = any(re.search(r"(^|\s)make\s+verify(\s|$)", command) for command in events["commands"])
     checks = {
         "live_exit_zero": completed.returncode == 0,
-        "live_structured_decision": final == expected,
-        "live_installed_skill_read": skill_read,
+        "live_skill_contract": final == expected,
         "live_repository_unchanged": baseline_head == final_head and not status,
         "live_native_gate_not_run": not native_ran,
     }
@@ -364,10 +378,13 @@ def run_live_discovery(
             "usage": events["usage"],
             "selected_skill": final.get("selected_skill") if isinstance(final, dict) else None,
             "canonical_verify": final.get("canonical_verify") if isinstance(final, dict) else None,
+            "verification_order": (
+                final.get("verification_order") if isinstance(final, dict) else None
+            ),
             "strongest_proven_state": (
                 final.get("strongest_proven_state") if isinstance(final, dict) else None
             ),
-            "installed_skill_read": skill_read,
+            "installed_skill_read_observed": skill_read,
             "repository_unchanged": baseline_head == final_head and not status,
         },
         checks,

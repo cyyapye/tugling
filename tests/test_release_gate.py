@@ -63,7 +63,8 @@ class ReleaseGateTest(unittest.TestCase):
                 "model": "model-test",
                 "reasoning_effort": "medium",
                 "selected_skill": "repo-verify",
-                "installed_skill_read": True,
+                "verification_order": "repository-native-first",
+                "installed_skill_read_observed": False,
                 "repository_unchanged": True,
             },
         }
