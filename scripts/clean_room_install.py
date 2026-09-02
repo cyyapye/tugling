@@ -355,7 +355,7 @@ def run_live_discovery(
         "selected_skill": "repo-verify",
         "canonical_verify": "make verify",
         "verification_order": "repository-native-first",
-        "strongest_proven_state": "ADVISORY",
+        "strongest_proven_state": "BLOCKED",
         "edited_files": False,
     }
     final_head = git_output(fixture, "rev-parse", "HEAD")
