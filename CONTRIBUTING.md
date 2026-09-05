@@ -11,5 +11,6 @@ Keep Tugling small, portable, and evidence-led.
 7. Before a broad quality claim, dogfood on a clean external project and pass the three-attempt, full-matrix released-versus-candidate promotion gate with a configured public-policy scan.
 8. Install the exact public candidate through a fresh Codex home and prove a new read-only task loads the installed skill.
 9. Commit only the sanitized release certificate. Keep raw runs, authentication, local paths, and project prompts outside the repository.
+10. Follow the [release-controller review procedure](docs/release-controller.md) before changing grading, tests, packaging policy, or release machinery. A candidate cannot authorize its own controller update.
 
 A longer skill is not automatically a better skill. Prefer one instruction that changes a decision over a catalog of generic advice.
