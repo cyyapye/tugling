@@ -83,6 +83,10 @@ Tugling does not grant permission to merge, deploy, delete, contact people, spen
 
 ## Develop
 
+Select the checked-in [`tugling` local environment](.codex/environments/environment.toml) when creating a Codex worktree. Its setup checks that `python3`, Git, and Make are on `PATH`, then runs `make verify`. The environment also provides **Verify** (`make verify`) and **Test** (`make test`) actions in the app.
+
+You can run the same verification from a terminal:
+
 ```bash
 make verify
 ```

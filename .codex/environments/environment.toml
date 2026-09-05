@@ -1,0 +1,27 @@
+# Shared setup and actions for developing Tugling in Codex worktrees.
+version = 1
+name = "tugling"
+
+[setup]
+script = '''
+set -eu
+
+for tugling_tool in python3 git make; do
+  if ! command -v "$tugling_tool" >/dev/null 2>&1; then
+    printf 'Tugling setup requires %s on PATH.\n' "$tugling_tool" >&2
+    exit 1
+  fi
+done
+
+make verify
+'''
+
+[[actions]]
+name = "Verify"
+icon = "test"
+command = "make verify"
+
+[[actions]]
+name = "Test"
+icon = "test"
+command = "make test"
