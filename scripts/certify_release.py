@@ -56,6 +56,10 @@ def authorize(env: dict[str, str]) -> dict[str, Any]:
     pin = env.get("CONTROLLER_SHA", "")
     if not controller.SHA.fullmatch(pin) or env.get("WORKFLOW_SHA") != pin:
         raise CertificationError("workflow is not the separately approved certification controller")
+    if (env.get("GITHUB_SHA") != pin
+            or not controller.CONTROLLER_TAG.fullmatch(env.get("GITHUB_REF_NAME", ""))
+            or env.get("GITHUB_REF") != f"refs/tags/{env.get('GITHUB_REF_NAME')}"):
+        raise CertificationError("certification must use the approved controller tag before spending")
     candidate, baseline = env.get("CANDIDATE_SHA", ""), env.get("BASELINE_SHA", "")
     if not controller.SHA.fullmatch(candidate) or not controller.SHA.fullmatch(baseline):
         raise CertificationError("candidate and baseline must be full lowercase commit SHAs")

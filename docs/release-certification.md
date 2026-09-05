@@ -118,13 +118,17 @@ cyyapye/tugling/.github/workflows/certify-release.yml --signer-digest
 candidate/baseline/run values with the intended release. Review the complete
 workflow conclusion as well as the certificate's scores, checks, and usage.
 
-The existing `promote-stable.yml` still consumes the manually reviewed certificate
-committed in the candidate. It does **not** consume these new CI attestations.
-Do not commit an external certificate and pretend its original candidate SHA
-certifies that new commit. The next hardening slice must connect promotion to
-verified attested artifacts, configure protected release refs and approval, and
-add the inline post-promotion installation canary. Leave promotion disabled until
-that boundary is implemented and reviewed.
+The [promotion controller](release-controller.md) downloads and verifies both
+attested files independently in its preflight and write jobs. Supply the successful
+certification run ID, exact candidate, version, and reviewed certificate digest
+when dispatching from the approved promotion controller tag. It requires the
+protected release environment's explicit maintainer approval and runs a free
+stable-alias installation canary after publication. No certificate is committed
+back into the candidate, and no promotion phase calls a model.
+
+Leave the controller pins unset until the merged machinery and GitHub protections
+have been independently reviewed. Certification spending still requires the
+separate configuration and per-dispatch approval described above.
 
 ## Verification
 

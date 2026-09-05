@@ -23,6 +23,8 @@ def approved_environment() -> dict[str, str]:
         "GITHUB_RUN_ATTEMPT": "1", "GITHUB_RUN_ID": "12345",
         "CERTIFICATION_ENABLED": "true", "APPROVE_PAID_RUN": "true",
         "CONTROLLER_SHA": "a" * 40, "WORKFLOW_SHA": "a" * 40,
+        "GITHUB_SHA": "a" * 40, "GITHUB_REF": "refs/tags/controller-test",
+        "GITHUB_REF_NAME": "controller-test",
         "CANDIDATE_SHA": "b" * 40, "BASELINE_SHA": "c" * 40,
         "MAX_INPUT_TOKENS": "2000", "MAX_OUTPUT_TOKENS": "2000",
         "APPROVED_INPUT_TOKENS": "1000", "APPROVED_OUTPUT_TOKENS": "1000",
@@ -41,6 +43,8 @@ class CertificationRuntimeTest(unittest.TestCase):
             ("APPROVED_INPUT_TOKENS", "2001"), ("MAX_OUTPUT_TOKENS", ""),
             ("APPROVED_OUTPUT_TOKENS", "0"), ("APPROVED_INPUT_TOKENS", "-1"),
             ("APPROVED_INPUT_TOKENS", "1e3"), ("GITHUB_RUN_ID", "123\nanything"),
+            ("GITHUB_SHA", "d" * 40), ("GITHUB_REF", "refs/heads/main"),
+            ("GITHUB_REF_NAME", "main"),
         ):
             with self.subTest(key=key, value=value), self.assertRaises(cert.CertificationError):
                 cert.authorize({**env, key: value})

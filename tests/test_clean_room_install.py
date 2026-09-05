@@ -4,11 +4,23 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import clean_room_install as clean_room
 
 
 class CleanRoomInstallTest(unittest.TestCase):
+    def test_moving_alias_requires_an_exact_expected_commit_and_no_live_task(self) -> None:
+        for ref, revision, live in (("stable", None, False), ("main", "a" * 40, False),
+                                    ("stable", "a" * 40, True), ("a" * 40, "b" * 40, False)):
+            with self.subTest(ref=ref, revision=revision, live=live), \
+                 mock.patch.object(clean_room, "run") as run:
+                with self.assertRaisesRegex(clean_room.CleanRoomError, "exact SHA"):
+                    clean_room.public_install(source="cyyapye/tugling", ref=ref, expected_revision=revision,
+                        expected_root=clean_room.ROOT, codex_bin="synthetic", codex_version="synthetic",
+                        auth_home=Path("/synthetic/no-auth"), live=live, model="", reasoning_effort="", timeout=120)
+                run.assert_not_called()
+
     def test_isolated_package_contains_the_complete_discoverable_plugin(self) -> None:
         direct = clean_room.package_report(clean_room.ROOT)
         isolated = clean_room.isolated_package_report(clean_room.ROOT)
