@@ -101,7 +101,7 @@ Use this proof ladder for consequential instruction changes:
 
 The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, tokens, source identities, regressions, and plugin permission or hook changes, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
 
-Stable promotion is intentionally separate from ordinary CI. A maintainer runs the live evidence locally, reviews the blinded artifacts, commits only the sanitized certificate, merges the exact tested plugin content, and manually dispatches the stable-promotion workflow for that exact `main` SHA. Adopter repositories keep deterministic, model-free CI.
+Stable promotion is intentionally separate from ordinary CI. A maintainer runs the live evidence locally, reviews the blinded artifacts, commits only the sanitized certificate, and merges the exact tested plugin content. Promotion is manually dispatched from a separately reviewed controller revision with the exact `main` SHA and reviewed certificate digest. Candidate verification has read-only repository permission; the write-enabled job executes only the pinned controller and treats the candidate as Git data. See [Release controller](docs/release-controller.md) for the required bootstrap, review boundary, and recovery procedure. Adopter repositories keep deterministic, model-free CI.
 
 Tugling does not hard-code a model per skill. Pin models in comparable evaluations first; add a recommendation only after repeated evidence shows a meaningful quality, latency, or cost tradeoff for that skill.
 
