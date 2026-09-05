@@ -1,0 +1,7 @@
+# GitHub must separately require this review; this file alone is not a gate.
+/Makefile @cyyapye
+/.github/ @cyyapye
+/.agents/ @cyyapye
+/scripts/ @cyyapye
+/tests/ @cyyapye
+/evals/ @cyyapye

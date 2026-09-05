@@ -15,8 +15,6 @@ from typing import Any, Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "tugling"
-MANIFEST = PLUGIN / ".codex-plugin" / "plugin.json"
 SUITE = ROOT / "evals" / "behavioral" / "cases.json"
 MATRIX = ROOT / "evals" / "behavioral" / "release-matrix.json"
 RELEASES = ROOT / "evals" / "releases"
@@ -58,18 +56,19 @@ def tree_digest(root: Path) -> str:
     return digest.hexdigest()
 
 
-def plugin_identity() -> dict[str, Any]:
-    manifest = read_json(MANIFEST)
+def plugin_identity(source_root: Path = ROOT) -> dict[str, Any]:
+    plugin = source_root / "plugins" / "tugling"
+    manifest = read_json(plugin / ".codex-plugin" / "plugin.json")
     if not isinstance(manifest, dict):
         raise ReleaseGateError("plugin manifest must be an object")
     version = manifest.get("version")
     if not isinstance(version, str):
         raise ReleaseGateError("plugin manifest version is missing")
-    skills = sorted(path.parent.name for path in (PLUGIN / "skills").glob("*/SKILL.md"))
+    skills = sorted(path.parent.name for path in (plugin / "skills").glob("*/SKILL.md"))
     return {
         "name": manifest.get("name"),
         "version": version,
-        "content_sha256": tree_digest(PLUGIN),
+        "content_sha256": tree_digest(plugin),
         "skills": skills,
     }
 
@@ -276,7 +275,10 @@ def verify_certificate(
     path: Path,
     stable_ref: str | None = None,
     require_ancestry: bool = False,
+    package_source_root: Path = ROOT,
 ) -> dict[str, Any]:
+    if package_source_root != ROOT and (stable_ref or require_ancestry):
+        raise ReleaseGateError("package-only verification cannot check checkout ancestry")
     certificate = read_json(path)
     if not isinstance(certificate, dict):
         raise ReleaseGateError("release certificate must be an object")
@@ -297,7 +299,9 @@ def verify_certificate(
     if certificate.get("passed") is not True or not isinstance(checks, dict) or not all(checks.values()):
         raise ReleaseGateError("release certificate did not pass every recorded check")
     matrix = validate_matrix()
-    current = plugin_identity()
+    # Only package data comes from this root. The matrix and verifier remain
+    # owned by the invoking controller, even for a different candidate tree.
+    current = plugin_identity(package_source_root)
     if certificate.get("plugin") != current:
         raise ReleaseGateError("release certificate does not match the current plugin content")
     if certificate.get("version") != current["version"]:
