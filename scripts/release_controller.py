@@ -8,10 +8,8 @@ transaction against disposable local bare remotes.
 
 from __future__ import annotations
 
-import argparse
 import base64
 import hashlib
-import json
 import os
 import re
 import subprocess
@@ -31,6 +29,7 @@ REMOTE = "https://github.com/cyyapye/tugling.git"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}")
+CONTROLLER_TAG = re.compile(r"controller-[A-Za-z0-9][A-Za-z0-9._-]{0,100}")
 MAX_DATA_BYTES = 16 * 1024 * 1024
 MAX_DATA_FILES = 2000
 
@@ -91,14 +90,13 @@ def require_reviewed_ruler(root: Path, controller: str, candidate: str) -> None:
         raise ControllerError("grading or release machinery changed; separately review and pin a new controller")
 
 
-def materialize_data(root: Path, candidate: str, version: str, destination: Path) -> Path:
-    certificate_name = f"evals/releases/v{version}/certificate.json"
+def materialize_data(root: Path, candidate: str, destination: Path) -> None:
     entries = {
         name: value for name, value in tree(root, candidate).items()
-        if name.startswith("plugins/tugling/") or name in {".agents/plugins/marketplace.json", certificate_name}
+        if name.startswith("plugins/tugling/") or name == ".agents/plugins/marketplace.json"
     }
-    if certificate_name not in entries or len(entries) > MAX_DATA_FILES:
-        raise ControllerError("certificate missing or candidate data file limit exceeded")
+    if not entries or len(entries) > MAX_DATA_FILES:
+        raise ControllerError("candidate package missing or data file limit exceeded")
     total = 0
     for name, (mode, oid) in entries.items():
         relative = PurePosixPath(name)
@@ -110,7 +108,6 @@ def materialize_data(root: Path, candidate: str, version: str, destination: Path
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(git(root, "cat-file", "blob", oid))
-    return destination / certificate_name
 
 
 def remote_refs(root: Path, version: str, env: dict[str, str]) -> dict[str, str]:
@@ -128,9 +125,20 @@ def validate_request(controller: str, candidate: str, version: str, certificate_
 
 def promote(
     *, remote: str, controller: str, candidate: str, version: str,
-    certificate_digest: str, apply: bool = False, token: str = "",
+    certificate_path: Path, certificate_digest: str, certification_controller: str,
+    apply: bool = False, token: str = "",
 ) -> dict[str, Any]:
+    """Publish using evidence already authenticated by promote_release.py.
+
+    This transaction helper is deliberately not a command-line entrypoint. The
+    production caller verifies CI provenance before supplying certificate bytes.
+    """
     validate_request(controller, candidate, version, certificate_digest)
+    if not SHA.fullmatch(certification_controller):
+        raise ControllerError("certification controller must be a full lowercase commit SHA")
+    if (certificate_path.is_symlink() or not certificate_path.is_file()
+            or certificate_path.stat().st_size > 256 * 1024):
+        raise ControllerError("certificate must be bounded regular JSON")
     env = git_env(token)
     with tempfile.TemporaryDirectory(prefix="tugling-controller-") as directory:
         scratch = Path(directory)
@@ -138,15 +146,18 @@ def promote(
         repository.mkdir()
         git(repository, "init", "--bare", "--template=", ".")
         git(repository, "remote", "add", "origin", remote)
-        git(repository, "fetch", "--no-tags", "origin", controller,
+        git(repository, "fetch", "--no-tags", "origin", controller, certification_controller,
             "refs/heads/main:refs/heads/main", "refs/heads/stable:refs/heads/stable", env=env)
         if text_git(repository, "rev-parse", "refs/heads/main") != candidate:
             raise ControllerError("candidate is no longer exact current main")
         require_reviewed_ruler(repository, controller, candidate)
+        require_reviewed_ruler(repository, certification_controller, candidate)
+        git(repository, "merge-base", "--is-ancestor", controller, candidate)
+        git(repository, "merge-base", "--is-ancestor", certification_controller, candidate)
         source = scratch / "candidate-data"
-        certificate_path = materialize_data(repository, candidate, version, source)
+        materialize_data(repository, candidate, source)
         if hashlib.sha256(certificate_path.read_bytes()).hexdigest() != certificate_digest:
-            raise ControllerError("certificate differs from the manually reviewed digest")
+            raise ControllerError("certificate differs from the reviewed attested digest")
         # Both helpers and their matrix come from the trusted controller, never
         # from candidate-data. The candidate's scripts are not even extracted.
         clean_room.package_report(source)
@@ -157,9 +168,8 @@ def promote(
         evaluated = certificate["behavioral"].get("evaluated_revision", "")
         if not isinstance(baseline, str) or not SHA.fullmatch(baseline):
             raise ControllerError("certificate stable baseline is invalid")
-        if not isinstance(evaluated, str) or not SHA.fullmatch(evaluated):
-            raise ControllerError("certificate evaluated revision is invalid")
-        git(repository, "merge-base", "--is-ancestor", evaluated, candidate)
+        if evaluated != candidate or certificate["clean_room"].get("revision") != candidate:
+            raise ControllerError("certificate must evaluate this exact candidate commit")
         git(repository, "merge-base", "--is-ancestor", baseline, candidate)
         tag = f"refs/tags/v{version}"
         refs = remote_refs(repository, version, env)
@@ -167,9 +177,10 @@ def promote(
             raise ControllerError("main moved during verification; certify and review the new candidate")
         tag_target = refs.get(f"{tag}^{{}}", refs.get(tag))
         report = {"candidate_sha": candidate, "controller_sha": controller, "version": version,
+                  "certification_controller_sha": certification_controller,
                   "certificate_sha256": certificate_digest, "stable_baseline": baseline}
         if tag_target is not None:
-            if tag_target == candidate and refs.get("refs/heads/stable") == candidate:
+            if refs.get(f"{tag}^{{}}") == candidate and refs.get("refs/heads/stable") == candidate:
                 return {**report, "state": "ALREADY_PROMOTED"}
             raise ControllerError("version tag already exists in a conflicting or superseded release")
         if refs.get("refs/heads/stable") != baseline:
@@ -190,30 +201,5 @@ def promote(
         return {**report, "state": "PROMOTED"}
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--controller-sha", required=True)
-    parser.add_argument("--candidate-sha", required=True)
-    parser.add_argument("--version", required=True)
-    parser.add_argument("--certificate-sha256", required=True)
-    parser.add_argument("--apply", action="store_true")
-    args = parser.parse_args()
-    try:
-        validate_request(args.controller_sha, args.candidate_sha, args.version, args.certificate_sha256)
-        if text_git(ROOT, "rev-parse", "HEAD") != args.controller_sha:
-            raise ControllerError("running checkout is not the approved controller SHA")
-        if text_git(ROOT, "status", "--porcelain", "--untracked-files=all"):
-            raise ControllerError("approved controller checkout must be clean")
-        result = promote(remote=REMOTE, controller=args.controller_sha, candidate=args.candidate_sha,
-                         version=args.version, certificate_digest=args.certificate_sha256,
-                         apply=args.apply, token=os.environ.get("GITHUB_TOKEN", ""))
-        print(json.dumps(result, sort_keys=True))
-    except (ControllerError, gate.ReleaseGateError, clean_room.CleanRoomError, OSError,
-            ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
-    return 0
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit("Use python3 -I scripts/promote_release.py; CI attestation verification is required")

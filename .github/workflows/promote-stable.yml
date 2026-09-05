@@ -4,15 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       candidate_sha:
-        description: Exact current main SHA to promote
+        description: Exact current main SHA covered by certification
         required: true
         type: string
       version:
         description: Semantic version without the v prefix
         required: true
         type: string
+      certification_run_id:
+        description: Successful first-attempt Certify release run ID
+        required: true
+        type: string
       certificate_sha256:
-        description: SHA256 of the manually reviewed certificate at candidate_sha
+        description: SHA256 of the reviewed attested certificate.json
         required: true
         type: string
 
@@ -23,28 +27,58 @@ concurrency:
   group: tugling-stable-promotion
   cancel-in-progress: false
 
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  CONTROLLER_SHA: ${{ vars.TUGLING_RELEASE_CONTROLLER_SHA }}
+  CERTIFICATION_CONTROLLER_SHA: ${{ vars.TUGLING_CERTIFICATION_CONTROLLER_SHA }}
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+  RELEASE_VERSION: ${{ inputs.version }}
+  CERTIFICATION_RUN_ID: ${{ inputs.certification_run_id }}
+  CERTIFICATE_SHA256: ${{ inputs.certificate_sha256 }}
+
 jobs:
-  authorize-controller:
+  preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
     steps:
-      - name: Require the separately approved workflow revision
-        env:
-          CONTROLLER_SHA: ${{ vars.TUGLING_RELEASE_CONTROLLER_SHA }}
-          WORKFLOW_SHA: ${{ github.workflow_sha }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-          RELEASE_VERSION: ${{ inputs.version }}
-          CERTIFICATE_SHA256: ${{ inputs.certificate_sha256 }}
+      - name: Require the separately approved controller tag before checkout
         shell: bash
         run: |
+          test "$GITHUB_REPOSITORY" = cyyapye/tugling
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
           [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CERTIFICATION_CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$WORKFLOW_SHA" = "$CONTROLLER_SHA"
-          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          [[ "$CERTIFICATE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          test "$GITHUB_SHA" = "$CONTROLLER_SHA"
+          [[ "$GITHUB_REF" == refs/tags/controller-* ]]
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Verify CI attestations, release policy, and exact candidate data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/promote_release.py verify --out "$RUNNER_TEMP/promotion-review.json"
+      - name: Show the exact release evidence for environment review
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$RUNNER_TEMP/promotion-review.json"; then
+            printf 'Release evidence and observed state\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/promotion-review.json" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   verify-candidate:
-    needs: authorize-controller
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -64,12 +98,17 @@ jobs:
   promote:
     needs: verify-candidate
     if: vars.TUGLING_RELEASE_CONTROLLER_SHA != '' && github.workflow_sha == vars.TUGLING_RELEASE_CONTROLLER_SHA
+    environment:
+      name: tugling-stable
+      url: https://github.com/cyyapye/tugling/actions/runs/${{ github.run_id }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: read
+      attestations: read
     steps:
-      - name: Check out only the approved controller
+      - name: Check out only the approved controller after maintainer approval
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.workflow_sha }}
@@ -77,17 +116,52 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - name: Verify candidate data and atomically promote refs
+      - name: Reverify provenance, recorded approval, policy, and refs before atomic publication
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          CONTROLLER_SHA: ${{ github.workflow_sha }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-          RELEASE_VERSION: ${{ inputs.version }}
-          CERTIFICATE_SHA256: ${{ inputs.certificate_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/promote_release.py promote --out "$RUNNER_TEMP/promotion.json"
+      - name: Report publication state separately from installation
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$RUNNER_TEMP/promotion.json"; then
+            printf 'Publication state\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/promotion.json" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  canary:
+    needs: promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+      - name: Install the pinned CLI without account or model setup
+        run: npm install --prefix "$RUNNER_TEMP/tugling-codex" --ignore-scripts --no-audit --no-fund @openai/codex@0.153.4
+      - name: Install through the public stable alias in a fresh credential-free home
         run: >-
-          python3 -I scripts/release_controller.py
-          --controller-sha "$CONTROLLER_SHA"
-          --candidate-sha "$CANDIDATE_SHA"
-          --version "$RELEASE_VERSION"
-          --certificate-sha256 "$CERTIFICATE_SHA256"
-          --apply
+          python3 -I scripts/promote_release.py canary
+          --codex-bin "$RUNNER_TEMP/tugling-codex/node_modules/.bin/codex"
+          --out "$RUNNER_TEMP/stable-install.json"
+      - name: Report installation failure without rolling back published refs
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$RUNNER_TEMP/stable-install.json"; then
+            printf 'Post-publication installation state\n\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/stable-install.json" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Canary did not finish; inspect published stable and version refs. No automatic rollback.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi

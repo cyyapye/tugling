@@ -1,0 +1,37 @@
+{
+  "rulesets": [
+    {
+      "name": "Tugling stable integrity",
+      "target": "branch",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {"ref_name": {"include": ["refs/heads/stable"], "exclude": []}},
+      "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}]
+    },
+    {
+      "name": "Tugling immutable release refs",
+      "target": "tag",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {"ref_name": {"include": ["refs/tags/v*", "refs/tags/controller-*"], "exclude": []}},
+      "rules": [{"type": "update"}, {"type": "deletion"}]
+    },
+    {
+      "name": "Tugling controller approval",
+      "target": "tag",
+      "enforcement": "active",
+      "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+      "conditions": {"ref_name": {"include": ["refs/tags/controller-*"], "exclude": []}},
+      "rules": [{"type": "creation"}]
+    }
+  ],
+  "environment_name": "tugling-stable",
+  "environment": {
+    "wait_timer": 0,
+    "prevent_self_review": false,
+    "can_admins_bypass": false,
+    "reviewers": [{"type": "User", "id": 4515813}],
+    "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}
+  },
+  "deployment_policy": {"name": "controller-*", "type": "tag"}
+}

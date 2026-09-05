@@ -426,15 +426,26 @@ def public_install(
     model: str,
     reasoning_effort: str,
     timeout: int,
+    expected_revision: str | None = None,
 ) -> dict[str, Any]:
-    if not REVISION_RE.fullmatch(ref):
-        raise CleanRoomError("--ref must be a full 40-character commit SHA")
+    expected_revision = expected_revision or ref
+    if (not REVISION_RE.fullmatch(expected_revision)
+            or (ref != expected_revision and (ref != "stable" or live))):
+        raise CleanRoomError("--ref must be an exact SHA, or stable with an expected SHA and no live task")
     expected = package_report(expected_root)
     with tempfile.TemporaryDirectory(prefix="tugling-public-install-") as directory:
         scratch = Path(directory)
         codex_home = scratch / "codex-home"
         codex_home.mkdir(mode=0o700)
         env = command_env({"CODEX_HOME": str(codex_home)})
+        if ref == "stable":
+            # The post-publication canary uses neither account credentials nor
+            # inherited user Git/config settings, and never starts a model task.
+            env = {key: value for key, value in env.items()
+                   if key in {"PATH", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "NO_COLOR"}}
+            env.update(HOME=str(scratch), CODEX_HOME=str(codex_home),
+                       GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+                       GIT_TERMINAL_PROMPT="0")
         added = run(
             [codex_bin, "plugin", "marketplace", "add", source, "--ref", ref],
             cwd=scratch,
@@ -482,7 +493,7 @@ def public_install(
         checks = {
             "marketplace_add": added.returncode == 0,
             "plugin_add": installed.returncode == 0,
-            "exact_public_revision": resolved == ref,
+            "exact_public_revision": resolved == expected_revision,
             "isolated_install_path": installed_inside_home,
             "marketplace_package_matches_candidate": installed_report == expected,
             "installed_plugin_matches_candidate": installed_plugin_report == expected,
@@ -509,6 +520,7 @@ def public_install(
                 "repository": source,
                 "requested_revision": ref,
                 "resolved_revision": resolved,
+                "expected_revision": expected_revision,
             },
             "codex": {"version": codex_version},
             "plugin": expected,
@@ -529,6 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
     public = subparsers.add_parser("public", help="install an exact public Git revision")
     public.add_argument("--source", default="cyyapye/tugling")
     public.add_argument("--ref", required=True)
+    public.add_argument("--expected-revision", help="Expected full SHA when checking the stable alias without --live")
     public.add_argument("--expected-root", default=str(ROOT))
     public.add_argument("--codex-bin")
     public.add_argument("--auth-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
@@ -563,6 +576,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         proof = public_install(
             source=args.source,
             ref=args.ref,
+            expected_revision=args.expected_revision,
             expected_root=Path(args.expected_root),
             codex_bin=codex_bin,
             codex_version=codex_version,

@@ -62,6 +62,8 @@ jobs:
           test "$APPROVE_PAID_RUN" = true
           [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$WORKFLOW_SHA" = "$CONTROLLER_SHA"
+          test "$GITHUB_SHA" = "$CONTROLLER_SHA"
+          [[ "$GITHUB_REF" == refs/tags/controller-* ]]
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.workflow_sha }}

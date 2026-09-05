@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from scripts import release_controller as controller
+from scripts import promote_release as promotion
 
 
 class ReleaseControllerTest(unittest.TestCase):
@@ -35,21 +36,22 @@ class ReleaseControllerTest(unittest.TestCase):
         self.git(self.repo, "branch", "stable", self.baseline)
         (self.repo / "operator-note.md").write_text("synthetic intermediate commit")
         self.intermediate = self.commit("synthetic intermediate revision")
+        (self.repo / "release-note.md").write_text("synthetic exact release candidate")
+        self.candidate = self.commit("synthetic release candidate")
         value = json.loads((controller.ROOT / "evals/releases/v0.4.0/certificate.json").read_text())
         # Synthetic provenance is used only on a disposable local Git remote.
         self.version = controller.gate.plugin_identity(self.repo)["version"]
         self.tag = f"v{self.version}"
-        self.certificate = self.repo / f"evals/releases/v{self.version}/certificate.json"
+        self.certificate = self.root / "external-evidence/certificate.json"
         self.certificate.parent.mkdir(parents=True, exist_ok=True)
         value["version"] = self.version
         value["plugin"] = controller.gate.plugin_identity(self.repo)
         value["matrix"] = {key: item for key, item in controller.gate.validate_matrix().items()
                            if key != "schema_version"}
         value["behavioral"]["released_revision"] = self.baseline
-        value["behavioral"]["evaluated_revision"] = self.approved
-        value["clean_room"]["revision"] = self.approved
+        value["behavioral"]["evaluated_revision"] = self.candidate
+        value["clean_room"]["revision"] = self.candidate
         self.certificate.write_text(json.dumps(value))
-        self.candidate = self.commit("synthetic reviewed certificate")
         self.remote = self.root / "remote.git"
         self.git(self.root, "clone", "--bare", str(self.repo), str(self.remote))
         self.digest = hashlib.sha256(self.certificate.read_bytes()).hexdigest()
@@ -71,7 +73,8 @@ class ReleaseControllerTest(unittest.TestCase):
 
     def run_promotion(self, **changes: object) -> dict:
         args = dict(remote=str(self.remote), controller=self.approved, candidate=self.candidate,
-                    version=self.version, certificate_digest=self.digest, apply=True)
+                    version=self.version, certificate_digest=self.digest, apply=True,
+                    certificate_path=self.certificate, certification_controller=self.approved)
         args.update(changes)
         return controller.promote(**args)
 
@@ -117,8 +120,12 @@ class ReleaseControllerTest(unittest.TestCase):
         value = json.loads(self.certificate.read_text())
         value["created_at"] = "2099-01-01T00:00:00Z"
         self.certificate.write_text(json.dumps(value))
+        self.assert_rejected_without_writes("reviewed attested digest")
+
+    def test_ancestor_certificate_cannot_certify_a_later_commit(self) -> None:
+        (self.repo / "later-note.md").write_text("same plugin, different commit")
         self.update_main()
-        self.assert_rejected_without_writes("manually reviewed digest")
+        self.assert_rejected_without_writes("exact candidate commit")
 
     def test_stale_candidate_and_invalid_input_are_rejected(self) -> None:
         self.assert_rejected_without_writes("exact current main", candidate=self.baseline)
@@ -133,6 +140,11 @@ class ReleaseControllerTest(unittest.TestCase):
         self.git(self.remote, "update-ref", f"refs/tags/{self.tag}", self.baseline)
         self.assert_rejected_without_writes("version tag already exists")
 
+    def test_lightweight_tag_cannot_claim_a_completed_annotated_release(self) -> None:
+        self.git(self.remote, "update-ref", "refs/heads/stable", self.candidate)
+        self.git(self.remote, "update-ref", f"refs/tags/{self.tag}", self.candidate)
+        self.assert_rejected_without_writes("version tag already exists")
+
     def test_non_fast_forward_cannot_use_the_stable_lease(self) -> None:
         unrelated = self.git(
             self.remote, "-c", "user.name=Synthetic test", "-c", "user.email=test@example.invalid",
@@ -144,7 +156,6 @@ class ReleaseControllerTest(unittest.TestCase):
         value["behavioral"]["released_revision"] = unrelated
         self.certificate.write_text(json.dumps(value))
         self.digest = hashlib.sha256(self.certificate.read_bytes()).hexdigest()
-        self.update_main()
         self.assert_rejected_without_writes("git merge-base failed")
 
     def test_main_movement_after_verification_prevents_publication(self) -> None:
@@ -227,14 +238,57 @@ class ReleaseControllerTest(unittest.TestCase):
         marker = self.root / "untrusted-import"
         (poison / "json.py").write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\n")
         result = subprocess.run(
-            [sys.executable, "-I", str(self.repo / "scripts/release_controller.py"),
-             "--controller-sha", "0" * 40, "--candidate-sha", self.candidate,
-             "--version", self.version, "--certificate-sha256", self.digest],
-            env={**os.environ, "PYTHONPATH": str(poison)}, text=True, capture_output=True, check=False,
+            [sys.executable, "-I", str(self.repo / "scripts/promote_release.py"), "promote",
+             "--out", str(self.root / "result.json")],
+            env={**os.environ, "PYTHONPATH": str(poison), "CONTROLLER_SHA": "0" * 40,
+                 "CERTIFICATION_CONTROLLER_SHA": self.approved, "WORKFLOW_SHA": "0" * 40,
+                 "GITHUB_REPOSITORY": "cyyapye/tugling", "GITHUB_EVENT_NAME": "workflow_dispatch",
+                 "GITHUB_SHA": "0" * 40, "GITHUB_REF": "refs/tags/controller-test",
+                 "GITHUB_REF_NAME": "controller-test", "CANDIDATE_SHA": self.candidate,
+                 "RELEASE_VERSION": self.version, "CERTIFICATE_SHA256": self.digest,
+                 "CERTIFICATION_RUN_ID": "123"}, text=True, capture_output=True, check=False,
         )
         self.assertEqual(result.returncode, 1)
-        self.assertIn("not the approved controller SHA", result.stderr)
+        self.assertIn("not the approved controller SHA", result.stdout)
         self.assertFalse(marker.exists())
+
+    def test_legacy_cli_cannot_bypass_attestation_verification(self) -> None:
+        result = subprocess.run([sys.executable, "-I", str(self.repo / "scripts/release_controller.py")],
+                                capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("CI attestation verification is required", result.stderr)
+
+    def test_failed_canary_keeps_published_refs_and_same_request_retries_without_writes(self) -> None:
+        self.run_promotion()
+        before = self.refs()
+        request = {"controller": self.approved, "candidate": self.candidate, "version": self.version}
+        with mock.patch.object(promotion.clean_room, "resolve_codex",
+                               return_value=("synthetic", f"codex-cli {promotion.certification.CODEX_VERSION}")), \
+             mock.patch.object(promotion.clean_room, "public_install",
+                               side_effect=[{"passed": False}, {"passed": True, "live": {"ran": False}}]) as install:
+            with self.assertRaisesRegex(promotion.clean_room.CleanRoomError, "installation failed"):
+                promotion.canary(request, remote=str(self.remote))
+            self.assertEqual(self.refs(), before)
+            self.assertEqual(self.run_promotion()["state"], "ALREADY_PROMOTED")
+            result = promotion.canary(request, remote=str(self.remote))
+            self.assertEqual(result["state"], "PROMOTED_AND_INSTALL_VERIFIED")
+            self.assertEqual(install.call_args.kwargs["ref"], "stable")
+            self.assertEqual(install.call_args.kwargs["expected_revision"], self.candidate)
+            self.assertIs(install.call_args.kwargs["live"], False)
+        self.assertEqual(self.refs(), before)
+
+    def test_canary_rejects_moved_stable_and_preserves_newer_release(self) -> None:
+        self.run_promotion()
+        self.git(self.remote, "update-ref", "refs/heads/stable", self.intermediate)
+        before = self.refs()
+        request = {"controller": self.approved, "candidate": self.candidate, "version": self.version}
+        with mock.patch.object(promotion.clean_room, "resolve_codex",
+                               return_value=("synthetic", f"codex-cli {promotion.certification.CODEX_VERSION}")), \
+             mock.patch.object(promotion.clean_room, "public_install") as install:
+            with self.assertRaisesRegex(promotion.controller.ControllerError, "do not match"):
+                promotion.canary(request, remote=str(self.remote))
+            install.assert_not_called()
+        self.assertEqual(self.refs(), before)
 
 
 if __name__ == "__main__":
