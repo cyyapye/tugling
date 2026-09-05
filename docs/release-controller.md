@@ -1,10 +1,12 @@
 # Reviewed release controller
 
 The release workflow separates candidate execution from repository write authority.
-This is the first release-hardening slice: live model evidence is still produced
-and reviewed manually. CI-generated attestations, protected release refs, an
-environment approval gate, and post-promotion installation canaries remain separate
-work. Do not enable unattended promotion based on this change.
+The optional [certification workflow](release-certification.md) now produces
+CI evidence and attestations after an explicit paid-run approval. This promotion
+workflow still consumes manually reviewed, committed certificates. Connecting
+promotion to verified CI attestations, protecting release refs, an environment
+approval gate, and post-promotion installation canaries remain separate work.
+Do not enable unattended promotion based on these changes.
 
 ## Execution and ownership
 
@@ -116,10 +118,10 @@ updates, and server-side tag rejection. No test pushes to GitHub or calls a mode
 An independent `actionlint` pass should also check the changed workflow syntax.
 
 Jobs are bounded to 2/10/10 minutes. Extracted candidate data is limited to 2,000
-files and 16 MiB; individual Git commands time out after 120 seconds. No workflow
-artifacts, shared caches, larger runners, paid GitHub features, or live model runs
-are added by this slice. Later certification remains promotion-only and needs a
-separate model usage budget and short artifact retention within free storage.
+files and 16 MiB; individual Git commands time out after 120 seconds. This
+promotion workflow uses no shared caches, larger runners, paid GitHub features,
+or live model calls. The separate [certification workflow](release-certification.md)
+has explicit API usage approval and short artifact retention within free storage.
 
 GitHub references: [workflow security](https://docs.github.com/en/actions/reference/security/secure-use),
 [branch and tag rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository),

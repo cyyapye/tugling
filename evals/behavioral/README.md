@@ -18,6 +18,11 @@ evidence, not a statistically stable model claim.
 
 ## CI-safe checks
 
+Ordinary PR and push CI never calls a model. An optional, separately enabled
+[maintainer certification workflow](../../docs/release-certification.md) uses this
+same full matrix only after explicit commit and usage approval. Its evaluators
+come from an independently pinned controller; contributor PRs receive no API key.
+
 ```bash
 make verify
 ```

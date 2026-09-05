@@ -150,9 +150,10 @@ def assemble_certificate(
     version: str,
     behavioral_path: Path,
     clean_room_path: Path,
+    package_source_root: Path = ROOT,
 ) -> dict[str, Any]:
     matrix = validate_matrix()
-    current = plugin_identity()
+    current = plugin_identity(package_source_root)
     behavioral = read_json(behavioral_path)
     clean_room = read_json(clean_room_path)
     if not isinstance(behavioral, dict) or not isinstance(clean_room, dict):

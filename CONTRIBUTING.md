@@ -13,4 +13,9 @@ Keep Tugling small, portable, and evidence-led.
 9. Commit only the sanitized release certificate. Keep raw runs, authentication, local paths, and project prompts outside the repository.
 10. Follow the [release-controller review procedure](docs/release-controller.md) before changing grading, tests, packaging policy, or release machinery. A candidate cannot authorize its own controller update.
 
+PR checks need no API key and spend no model tokens. Maintainers may use the
+separately enabled [certification workflow](docs/release-certification.md) for the
+full release evaluation; each run needs explicit commit and usage approval.
+Contributors running the live suite locally use their own model allowance.
+
 A longer skill is not automatically a better skill. Prefer one instruction that changes a decision over a catalog of generic advice.
