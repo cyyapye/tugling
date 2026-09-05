@@ -19,6 +19,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+if __package__:
+    from . import codex_runtime
+else:
+    import codex_runtime
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "evals" / "behavioral" / "cases.json"
@@ -84,6 +89,8 @@ def prepare_isolated_codex_home(destination: Path, source: Path | None = None) -
     source = source or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     destination.mkdir(parents=True, mode=0o700)
     destination.chmod(0o700)
+    if codex_runtime.proxy_arguments():
+        return
     auth_source = source / "auth.json"
     if auth_source.is_file():
         auth_destination = destination / "auth.json"
@@ -787,6 +794,7 @@ def run_codex(
         if not image_path.is_file():
             raise EvalError(f"declared image does not exist after fixture preparation: {image_path}")
         image_paths.append(image_path)
+    argv.extend(codex_runtime.proxy_arguments())
     append_prompt_and_images(argv, image_paths, build_prompt(case))
 
     started = time.perf_counter()
@@ -794,10 +802,12 @@ def run_codex(
     try:
         child_env = command_env()
         child_env["CODEX_HOME"] = str(codex_home)
-        completed = subprocess.run(
+        if codex_runtime.proxy_arguments() and case["sandbox"] == "workspace-write":
+            child_env["TMPDIR"] = str(workspace)
+        completed = codex_runtime.run_process(
             argv,
             cwd=workspace,
-            env=child_env,
+            env=codex_runtime.child_environment(child_env),
             stdin=subprocess.DEVNULL,
             text=True,
             capture_output=True,
@@ -1568,7 +1578,10 @@ def run_evaluation(
     cases: list[dict[str, Any]],
     args: argparse.Namespace,
     project_repo: Path | None = None,
+    budget: codex_runtime.RunBudget | None = None,
 ) -> tuple[dict[str, Any], int]:
+    if budget is not None and args.jobs != 1:
+        raise EvalError("budgeted certification must run one task at a time")
     codex_bin, codex_version = resolve_codex(args.codex_bin)
     out_dir = Path(args.out).resolve() if args.out else default_out_dir()
     if out_dir.exists() and any(out_dir.iterdir()):
@@ -1620,7 +1633,9 @@ def run_evaluation(
                 flush=True,
             )
             skills_source, condition_identity = sources[condition]
-            return run_condition(
+            if budget is not None:
+                budget.begin()
+            result = run_condition(
                 case=case,
                 condition=condition,
                 attempt=attempt,
@@ -1635,9 +1650,17 @@ def run_evaluation(
                 skills_source=skills_source,
                 condition_identity=condition_identity,
             )
+            if budget is not None:
+                if result["exit_code"] != 0:
+                    raise EvalError("model task failed; usage may be incomplete and certification stops")
+                budget.record(result["events"]["usage"])
+            return result
 
-        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
-            results = list(executor.map(execute, tasks))
+        if budget is not None:
+            results = [execute(task) for task in tasks]
+        else:
+            with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+                results = list(executor.map(execute, tasks))
     finally:
         if baseline_scratch is not None:
             shutil.rmtree(baseline_scratch, ignore_errors=True)

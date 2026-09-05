@@ -17,6 +17,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+if __package__:
+    from . import codex_runtime
+else:
+    import codex_runtime
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKETPLACE = Path(".agents/plugins/marketplace.json")
@@ -303,7 +308,9 @@ def run_live_discovery(
     scratch: Path,
 ) -> tuple[dict[str, Any], dict[str, bool]]:
     auth_source = auth_home / "auth.json"
-    if auth_source.is_file():
+    if codex_runtime.proxy_arguments():
+        pass
+    elif auth_source.is_file():
         auth_destination = codex_home / "auth.json"
         shutil.copy2(auth_source, auth_destination)
         auth_destination.chmod(0o600)
@@ -339,15 +346,24 @@ def run_live_discovery(
         str(schema),
         "--output-last-message",
         str(final_path),
-        prompt,
     ]
+    if codex_runtime.proxy_arguments():
+        # This fresh home's plugin registration must remain discoverable.
+        # It contains no copied user configuration or personal authentication.
+        argv.append("--ignore-rules")
+        argv.extend(codex_runtime.proxy_arguments())
+    argv.append(prompt)
     started = time.perf_counter()
-    completed = run(
-        argv,
-        cwd=fixture,
-        timeout=timeout,
-        env=command_env({"CODEX_HOME": str(codex_home)}),
-    )
+    try:
+        completed = codex_runtime.run_process(
+            argv,
+            cwd=fixture,
+            timeout=timeout,
+            env=codex_runtime.child_environment(command_env({"CODEX_HOME": str(codex_home)})),
+            stdin=subprocess.DEVNULL, text=True, capture_output=True,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CleanRoomError("live discovery did not complete; model usage may be incomplete") from exc
     elapsed = round(time.perf_counter() - started, 3)
     events = parse_events(completed.stdout)
     final = read_json(final_path) if final_path.is_file() else None
