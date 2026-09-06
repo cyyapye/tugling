@@ -111,6 +111,18 @@ class CertificationRuntimeTest(unittest.TestCase):
             time.sleep(1.1)
             self.assertFalse(marker.exists())
 
+    def test_successful_process_stops_background_descendants_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "late-write"
+            child = f"import time; from pathlib import Path; time.sleep(1); Path({str(marker)!r}).touch()"
+            parent = (f"import subprocess,sys; subprocess.Popen([sys.executable,'-c',{child!r}], "
+                      "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)")
+            result = cert.runtime.run_process([sys.executable, "-c", parent], text=True,
+                                              capture_output=True, timeout=5)
+            self.assertEqual(result.returncode, 0)
+            time.sleep(1.1)
+            self.assertFalse(marker.exists())
+
     def test_candidate_source_cannot_replace_the_ruler(self):
         harness = cert.behavioral
         before = harness.ROOT, harness.FIXTURES, harness.OUTPUT_SCHEMA, harness.RELEASE_MATRIX

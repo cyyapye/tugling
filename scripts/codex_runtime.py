@@ -52,7 +52,7 @@ def child_environment(env: dict[str, str]) -> dict[str, str]:
 
 
 def run_process(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-    """Kill the whole Codex/tool process group when an attempt times out."""
+    """Stop background descendants before scratch cleanup on every POSIX exit."""
     timeout = kwargs.pop("timeout")
     kwargs.pop("check", None)
     capture = kwargs.pop("capture_output", False)
@@ -61,15 +61,17 @@ def run_process(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[s
     if os.name != "posix":
         return subprocess.run(argv, timeout=timeout, check=False, **kwargs)
     with subprocess.Popen(argv, start_new_session=True, **kwargs) as process:
+        communicated = False
         try:
             stdout, stderr = process.communicate(timeout=timeout)
-        except BaseException:
+            communicated = True
+        finally:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            process.communicate()
-            raise
+            if not communicated:
+                process.communicate()
         return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
 
 

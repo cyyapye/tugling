@@ -26,7 +26,7 @@ def write_state(path: Path, state: dict) -> None:
 
 
 def serve(path: Path) -> None:
-    state = {"pid": os.getpid(), "requests": [], "port": 0}
+    state = {"pid": os.getpid(), "requests": [], "port": 0, "tool_read_observed": False}
 
     class FakeAPI(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -38,6 +38,10 @@ def serve(path: Path) -> None:
                 self.send_error(413)
                 return
             body = json.loads(self.rfile.read(length))
+            state["tool_read_observed"] = state["tool_read_observed"] or any(
+                item.get("type") in {"custom_tool_call_output", "function_call_output"}
+                and "Synthetic fixture instructions" in json.dumps(item.get("output", ""))
+                for item in body.get("input", []) if isinstance(item, dict))
             state["requests"].append({
                 "path_matches": self.path == "/v1/responses",
                 "model_matches": body.get("model") == certification.MODEL,
@@ -65,6 +69,16 @@ def serve(path: Path) -> None:
                 {"type": "response.output_item.done", "output_index": 0, "item": item},
                 {"type": "response.completed", "response": response},
             ]
+            if len(state["requests"]) == 1:
+                tool = {"id": "ctc_synthetic", "type": "custom_tool_call", "call_id": "call_synthetic",
+                        "name": "exec", "namespace": "functions",
+                        "input": 'const result = await tools.exec_command({cmd: "cat AGENTS.md", max_output_tokens: 300}); text(result.output);'}
+                response["output"] = [tool]
+                events = [
+                    {"type": "response.created", "response": {**response, "status": "in_progress", "output": []}},
+                    {"type": "response.output_item.done", "output_index": 0, "item": tool},
+                    {"type": "response.completed", "response": response},
+                ]
             payload = "".join("event: " + event["type"] + "\ndata: " + json.dumps(
                 {**event, "sequence_number": index}) + "\n\n" for index, event in enumerate(events)).encode()
             self.send_response(200)
@@ -108,9 +122,13 @@ def check(args: argparse.Namespace) -> None:
             codex_version=version, auth_home=Path(directory) / "no-auth", live=True,
             model=certification.MODEL, reasoning_effort=certification.EFFORT, timeout=45)
     state = json.loads(args.state.read_text())
-    if result["passed"] is not True or len(state["requests"]) != 1 or not all(state["requests"][0].values()):
+    print(json.dumps({"checks": result["checks"], "fake_requests": state["requests"],
+                      "tool_read_observed": state["tool_read_observed"]}, sort_keys=True))
+    if (result["passed"] is not True or len(state["requests"]) != 2
+            or not all(all(request.values()) for request in state["requests"])
+            or state["tool_read_observed"] is not True):
         raise RuntimeError("Installation or synthetic-provider contract failed")
-    if result["live"]["usage"] != {"input_tokens": 100, "output_tokens": 50, "cached_input_tokens": 0}:
+    if result["live"]["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}:
         raise RuntimeError("Synthetic completion usage did not reach the installation report")
     print("Public-install task passed through the official proxy and a local fake API; no provider calls or behavioral proof.")
 

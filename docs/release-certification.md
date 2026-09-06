@@ -7,7 +7,7 @@ credentials. Fork contributions can run these checks on standard public runners.
 Another free job exercises the full public-install discovery path through the
 same pinned Codex Action and privilege removal as certification. Its credential
 is a fixed synthetic string and its upstream is a local fake API. It checks a
-synthetic successful response and reported usage, not live model quality.
+synthetic tool call, successful response, and reported usage, not live model quality.
 
 `certify-release.yml` is a separate, manually dispatched workflow. It produces
 sanitized, attested evidence for a reviewed release candidate. It cannot merge,
@@ -101,9 +101,11 @@ task may have consumed unreported tokens; the run reports incomplete accounting
 rather than treating missing usage as zero. Provider billing is authoritative.
 
 There is one task at a time, at most 91 tasks, a 180-second timeout per model task,
-and a 330-minute evaluation-job timeout. Timeout cleanup kills the Codex process
-group, including its tool descendants. HTTP/stream retries are disabled for the
-configured proxy provider. Missing usage, task failure, threshold overshoot,
+and a 330-minute evaluation-job timeout. Process cleanup kills remaining members
+of the Codex process group after success, failure, or timeout, before scratch
+directories are removed. Public plugin commands use the same cleanup.
+HTTP/stream retries are disabled for the configured proxy provider.
+Missing usage, task failure, threshold overshoot,
 changed refs, or a failed gate stops certification without a signed success.
 
 Workflow reruns (`run_attempt > 1`) are rejected, including a rerun of only the
