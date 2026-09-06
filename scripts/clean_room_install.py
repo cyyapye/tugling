@@ -83,7 +83,7 @@ def run(
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     try:
-        completed = subprocess.run(
+        completed = codex_runtime.run_process(
             argv,
             cwd=cwd,
             env=env or command_env(),

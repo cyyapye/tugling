@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 from contextlib import redirect_stdout, redirect_stderr
 import io
 import json
@@ -32,6 +33,20 @@ def approved_environment() -> dict[str, str]:
 
 
 class CertificationRuntimeTest(unittest.TestCase):
+    def test_failure_diagnostics_keep_os_categories_but_never_private_details(self):
+        private = "synthetic-private-message-and-path"
+        try:
+            try:
+                raise PermissionError(errno.EACCES, private, "/" + private)
+            except OSError as cause:
+                raise cert.clean_room.CleanRoomError(private) from cause
+        except cert.clean_room.CleanRoomError as failure:
+            detail = cert.safe_failure_detail(failure)
+        self.assertEqual(detail, "CleanRoomError <- PermissionError[EACCES]")
+        self.assertNotIn(private, detail)
+        self.assertEqual(cert.safe_failure_detail(OSError(errno.ENOTEMPTY, private, private)),
+                         "OSError[ENOTEMPTY]")
+
     def test_dispatch_approval_is_explicit_bounded_and_not_reusable(self):
         env = approved_environment()
         self.assertEqual(cert.authorize(env)["input_limit"], 1000)
@@ -93,6 +108,18 @@ class CertificationRuntimeTest(unittest.TestCase):
             with self.assertRaises(subprocess.TimeoutExpired):
                 cert.runtime.run_process([sys.executable, "-c", parent], text=True,
                                          capture_output=True, timeout=0.25)
+            time.sleep(1.1)
+            self.assertFalse(marker.exists())
+
+    def test_successful_process_stops_background_descendants_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "late-write"
+            child = f"import time; from pathlib import Path; time.sleep(1); Path({str(marker)!r}).touch()"
+            parent = (f"import subprocess,sys; subprocess.Popen([sys.executable,'-c',{child!r}], "
+                      "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)")
+            result = cert.runtime.run_process([sys.executable, "-c", parent], text=True,
+                                              capture_output=True, timeout=5)
+            self.assertEqual(result.returncode, 0)
             time.sleep(1.1)
             self.assertFalse(marker.exists())
 
