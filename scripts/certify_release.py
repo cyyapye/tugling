@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager, redirect_stdout
 from datetime import datetime, timezone
+import errno
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -38,6 +39,22 @@ MAX_CERTIFICATE_BYTES = 256 * 1024
 
 class CertificationError(RuntimeError):
     pass
+
+
+def safe_failure_detail(exc: BaseException) -> str:
+    if isinstance(exc, (CertificationError, runtime.BudgetError)):
+        return str(exc)
+    # Preserve OS categories without private messages, filenames, or cause text.
+    details = []
+    seen = set()
+    while exc is not None and id(exc) not in seen and len(details) < 3:
+        seen.add(id(exc))
+        label = type(exc).__name__
+        if isinstance(exc, OSError) and type(exc.errno) is int:
+            label += "[" + errno.errorcode.get(exc.errno, "UNKNOWN_ERRNO") + "]"
+        details.append(label)
+        exc = exc.__cause__ or exc.__context__
+    return " <- ".join(details)
 
 
 def positive_integer(value: str, ceiling: int) -> int:
@@ -318,7 +335,7 @@ def main() -> int:
             KeyError, TypeError, subprocess.TimeoutExpired) as exc:
         # Model diagnostics, candidate prose, private paths and policy patterns
         # must never escape into a public workflow log or artifact on failure.
-        detail = str(exc) if isinstance(exc, (CertificationError, runtime.BudgetError)) else type(exc).__name__
+        detail = safe_failure_detail(exc)
         print(f"CERTIFICATION_FAILED: {detail}; no attested certificate", file=sys.stderr)
         if budget is not None:
             print(json.dumps(budget.report(), sort_keys=True), file=sys.stderr)

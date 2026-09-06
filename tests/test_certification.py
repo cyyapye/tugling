@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 from contextlib import redirect_stdout, redirect_stderr
 import io
 import json
@@ -32,6 +33,20 @@ def approved_environment() -> dict[str, str]:
 
 
 class CertificationRuntimeTest(unittest.TestCase):
+    def test_failure_diagnostics_keep_os_categories_but_never_private_details(self):
+        private = "synthetic-private-message-and-path"
+        try:
+            try:
+                raise PermissionError(errno.EACCES, private, "/" + private)
+            except OSError as cause:
+                raise cert.clean_room.CleanRoomError(private) from cause
+        except cert.clean_room.CleanRoomError as failure:
+            detail = cert.safe_failure_detail(failure)
+        self.assertEqual(detail, "CleanRoomError <- PermissionError[EACCES]")
+        self.assertNotIn(private, detail)
+        self.assertEqual(cert.safe_failure_detail(OSError(errno.ENOTEMPTY, private, private)),
+                         "OSError[ENOTEMPTY]")
+
     def test_dispatch_approval_is_explicit_bounded_and_not_reusable(self):
         env = approved_environment()
         self.assertEqual(cert.authorize(env)["input_limit"], 1000)

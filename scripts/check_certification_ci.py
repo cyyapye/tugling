@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""Exercise the public-install task and official proxy with a synthetic provider."""
+from __future__ import annotations
+
+import argparse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import time
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import certify_release as certification
+
+FAKE_CREDENTIAL = "tugling-synthetic-credential-not-a-secret"
+
+
+def write_state(path: Path, state: dict) -> None:
+    temporary = path.with_suffix(".pending")
+    temporary.write_text(json.dumps(state))
+    temporary.replace(path)
+
+
+def serve(path: Path) -> None:
+    state = {"pid": os.getpid(), "requests": [], "port": 0}
+
+    class FakeAPI(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 2 * 1024 * 1024:
+                self.send_error(413)
+                return
+            body = json.loads(self.rfile.read(length))
+            state["requests"].append({
+                "path_matches": self.path == "/v1/responses",
+                "model_matches": body.get("model") == certification.MODEL,
+                "effort_matches": body.get("reasoning", {}).get("effort") == certification.EFFORT,
+                "synthetic_auth": self.headers.get("Authorization") == "Bearer " + FAKE_CREDENTIAL,
+            })
+            write_state(path, state)
+            answer = json.dumps({"selected_skill": "repo-verify", "canonical_verify": "make verify",
+                                 "verification_order": "repository-native-first",
+                                 "strongest_proven_state": "ADVISORY", "edited_files": False})
+            item = {"id": "msg_synthetic", "type": "message", "role": "assistant", "status": "completed",
+                    "content": [{"type": "output_text", "text": answer, "annotations": []}]}
+            response = {"id": "resp_synthetic", "object": "response", "status": "completed",
+                        "output": [item], "usage": {"input_tokens": 100, "output_tokens": 50,
+                        "total_tokens": 150, "input_tokens_details": {"cached_tokens": 0},
+                        "output_tokens_details": {"reasoning_tokens": 0}}}
+            events = [
+                {"type": "response.created", "response": {**response, "status": "in_progress", "output": []}},
+                {"type": "response.output_item.added", "output_index": 0,
+                 "item": {**item, "status": "in_progress", "content": []}},
+                {"type": "response.output_text.delta", "item_id": item["id"], "output_index": 0,
+                 "content_index": 0, "delta": answer},
+                {"type": "response.output_text.done", "item_id": item["id"], "output_index": 0,
+                 "content_index": 0, "text": answer},
+                {"type": "response.output_item.done", "output_index": 0, "item": item},
+                {"type": "response.completed", "response": response},
+            ]
+            payload = "".join("event: " + event["type"] + "\ndata: " + json.dumps(
+                {**event, "sequence_number": index}) + "\n\n" for index, event in enumerate(events)).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+    with HTTPServer(("127.0.0.1", 0), FakeAPI) as server:
+        state["port"] = server.server_port
+        write_state(path, state)
+        server.serve_forever()
+
+
+def ready(path: Path) -> None:
+    for _ in range(100):
+        if path.is_file():
+            state = json.loads(path.read_text())
+            print(f"endpoint=http://127.0.0.1:{state['port']}/v1/responses")
+            return
+        time.sleep(0.1)
+    raise RuntimeError("Synthetic provider did not start")
+
+
+def check(args: argparse.Namespace) -> None:
+    initial = json.loads(args.state.read_text())
+    info = json.loads(args.proxy_info.read_text())
+    port = info.get("port")
+    if type(port) is not int or not 1 <= port <= 65535 or port == initial["port"] or initial["requests"]:
+        raise RuntimeError("Check requires a fresh synthetic provider behind the official proxy")
+    allowed = {"PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "RUNNER_TRACKING_ID"}
+    env = {key: value for key, value in os.environ.items() if key in allowed}
+    env["TUGLING_CODEX_PROXY_URL"] = f"http://127.0.0.1:{port}/v1"
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    with patch.dict(os.environ, env, clear=True), tempfile.TemporaryDirectory(prefix="tugling-fake-certification-") as directory:
+        binary, version = certification.clean_room.resolve_codex(args.codex_bin)
+        if version != f"codex-cli {certification.CODEX_VERSION}":
+            raise RuntimeError("CLI differs from the reviewed pin")
+        result = certification.clean_room.public_install(
+            source=args.source, ref=args.ref, expected_root=ROOT, codex_bin=binary,
+            codex_version=version, auth_home=Path(directory) / "no-auth", live=True,
+            model=certification.MODEL, reasoning_effort=certification.EFFORT, timeout=45)
+    state = json.loads(args.state.read_text())
+    if result["passed"] is not True or len(state["requests"]) != 1 or not all(state["requests"][0].values()):
+        raise RuntimeError("Installation or synthetic-provider contract failed")
+    if result["live"]["usage"] != {"input_tokens": 100, "output_tokens": 50, "cached_input_tokens": 0}:
+        raise RuntimeError("Synthetic completion usage did not reach the installation report")
+    print("Public-install task passed through the official proxy and a local fake API; no provider calls or behavioral proof.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=("serve", "ready", "check"))
+    parser.add_argument("--state", required=True, type=Path)
+    parser.add_argument("--proxy-info", type=Path)
+    parser.add_argument("--codex-bin")
+    parser.add_argument("--source")
+    parser.add_argument("--ref")
+    args = parser.parse_args()
+    if args.command == "serve":
+        serve(args.state)
+    elif args.command == "ready":
+        ready(args.state)
+    else:
+        try:
+            check(args)
+        except Exception as exc:
+            print("CERTIFICATION_RUNTIME_FAILED: " + certification.safe_failure_detail(exc), file=sys.stderr)
+            raise SystemExit(1)

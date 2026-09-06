@@ -4,6 +4,10 @@ Ordinary pushes, pull requests, and merges run deterministic checks. They never
 receive the certification API key or call a model. The additional runtime check
 installs the pinned CLI and sends one request to a local fake API, without account
 credentials. Fork contributions can run these checks on standard public runners.
+Another free job exercises the full public-install discovery path through the
+same pinned Codex Action and privilege removal as certification. Its credential
+is a fixed synthetic string and its upstream is a local fake API. It checks a
+synthetic successful response and reported usage, not live model quality.
 
 `certify-release.yml` is a separate, manually dispatched workflow. It produces
 sanitized, attested evidence for a reviewed release candidate. It cannot merge,
