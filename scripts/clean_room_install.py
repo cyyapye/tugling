@@ -546,7 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     public.add_argument("--codex-bin")
     public.add_argument("--auth-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
     public.add_argument("--live", action="store_true")
-    public.add_argument("--model", default="gpt-5.4-mini")
+    public.add_argument("--model", default="gpt-5.6-luna")
     public.add_argument(
         "--reasoning-effort",
         choices=("low", "medium", "high", "xhigh"),

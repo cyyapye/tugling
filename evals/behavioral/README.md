@@ -42,7 +42,7 @@ python3 scripts/behavioral_eval.py run \
   --case async-safety-webhook \
   --condition both \
   --jobs 3 \
-  --model gpt-5.4-mini \
+  --model gpt-5.6-luna \
   --reasoning-effort medium \
   --require-gate dogfood
 ```
@@ -68,7 +68,7 @@ python3 scripts/behavioral_eval.py run \
   --condition all \
   --baseline-ref <released-tag-or-full-sha> \
   --policy-pattern-file /path/outside/tugling/public-policy-patterns.txt \
-  --model gpt-5.4-mini \
+  --model gpt-5.6-luna \
   --reasoning-effort medium \
   --require-gate promotion
 ```
@@ -91,7 +91,7 @@ python3 scripts/clean_room_install.py public \
   --ref <full-candidate-sha> \
   --codex-bin /path/to/codex \
   --live \
-  --model gpt-5.4-mini \
+  --model gpt-5.6-luna \
   --reasoning-effort medium \
   --out /private/path/clean-room-proof.json
 ```
@@ -123,7 +123,7 @@ python3 scripts/behavioral_eval.py project \
   --repo /path/to/project \
   --case-file /path/to/project-case.json \
   --condition candidate \
-  --model gpt-5.4-mini \
+  --model gpt-5.6-luna \
   --reasoning-effort medium
 ```
 

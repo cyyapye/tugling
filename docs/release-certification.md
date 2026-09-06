@@ -62,7 +62,7 @@ deliberately replacing it. Protect those controls before activation.
    existing read-only discovery task. Run all 10 synthetic cases under control,
    released, and candidate conditions, with three attempts per condition.
    This is 90 behavioral tasks plus one installation task, run serially with
-   `gpt-5.4-mini` and medium reasoning. The model name is an API alias, not an
+   `gpt-5.6-luna` and medium reasoning. The model name is an API alias, not an
    immutable backend snapshot; all three arms use the same configured name.
 5. Use controller-owned fixtures, schemas, Python graders, scans, thresholds,
    and certificate assembly. The candidate provides plugin content and Git
@@ -80,6 +80,12 @@ deliberately replacing it. Protect those controls before activation.
 An attestation establishes where those bytes were produced. The reviewed graders
 and their evidence establish what was checked; a signature alone does not prove
 behavioral quality or authorize promotion.
+
+Changing the certification model requires a separately reviewed controller commit,
+protected controller tag, and updated controller pins before dispatch. Historical
+certificates retain the model they actually used. The first approved live Luna
+certification must pass this same full matrix and every existing promotion gate;
+local checks and the fake API transport check do not establish live model quality.
 
 ## Cost, failure, and recovery
 

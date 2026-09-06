@@ -29,7 +29,7 @@ import release_controller as controller
 import release_gate as gate
 
 REPOSITORY = "cyyapye/tugling"
-MODEL = "gpt-5.4-mini"
+MODEL = "gpt-5.6-luna"
 EFFORT = "medium"
 CODEX_VERSION = "0.153.4"
 TASK_TIMEOUT = 180
