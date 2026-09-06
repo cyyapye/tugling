@@ -8,6 +8,8 @@ Another free job exercises the full public-install discovery path through the
 same pinned Codex Action and privilege removal as certification. Its credential
 is a fixed synthetic string and its upstream is a local fake API. It checks a
 synthetic tool call, successful response, and reported usage, not live model quality.
+For pull requests, this installation check uses the contributor's exact public
+head revision, including contributions from forks.
 
 `certify-release.yml` is a separate, manually dispatched workflow. It produces
 sanitized, attested evidence for a reviewed release candidate. It cannot merge,
