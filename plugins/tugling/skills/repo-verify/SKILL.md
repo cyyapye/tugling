@@ -14,6 +14,11 @@ Prefer repository truth over a universal checklist.
 3. Find the canonical commands in the build files, test docs, package scripts, and CI workflows.
 4. Use the narrowest relevant check while iterating, then return to the canonical completion gate unless the repository or task justifies a narrower final gate.
 
+When the project declares a verification map or the user asks to map real user
+flows to native checks, read [references/project-flows.md](references/project-flows.md).
+Treat a map as routing to existing tests. Its validation is not a flow run, and a
+selected-flow receipt is not a canonical, remote, or deployed pass.
+
 ## Review verification integrity
 
 Inspect any changed judging machinery before trusting its result:

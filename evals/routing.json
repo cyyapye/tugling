@@ -126,6 +126,27 @@
     "prompt": "CI reports a missing module that exists on my disk; diagnose the repository state and rerun the right gate."
   },
   {
+    "id": "verify-positive-native-flow-map",
+    "skill": "repo-verify",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Map this dashboard flow to the existing browser tests, run its native lifecycle, and record which committed revision passed."
+  },
+  {
+    "id": "verify-negative-flow-explanation",
+    "skill": "repo-verify",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Explain the flow names in this JSON map without validating it, starting the app, or running checks."
+  },
+  {
+    "id": "verify-holdout-stale-flow-receipt",
+    "skill": "repo-verify",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "This receipt passed two commits ago, but only a focused flow ran. Verify whether it supports calling the current commit ready."
+  },
+  {
     "id": "ui-positive-off",
     "skill": "screenshot-first-ui",
     "kind": "positive",

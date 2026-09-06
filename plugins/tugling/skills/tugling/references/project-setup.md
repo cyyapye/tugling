@@ -71,6 +71,12 @@ python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
 
 The project's native CI remains responsible for its build and test gates. The Tugling check verifies the adapter, source pin, dogfood case, instruction paths, and local-learning privacy boundary without calling a model or using the network.
 
+When setup includes real user-flow verification, use the optional
+[native flow map](../../repo-verify/references/project-flows.md). Map existing
+tests and their native launch, health, and cleanup lifecycle; keep ordinary
+adapter CI on validation only. This is optional and does not replace the
+canonical verification command or require enabling local learning.
+
 Run live model dogfood upstream or as an explicit maintainer action, not on every adopter pull request. The external case can be passed to `scripts/behavioral_eval.py project` from a clean local checkout.
 
 ## 4. Verify setup

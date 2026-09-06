@@ -65,6 +65,13 @@ python3 /path/to/tugling/plugins/tugling/scripts/project_contract.py \
 
 [`templates/PROJECT_ADAPTER.md`](templates/PROJECT_ADAPTER.md) remains useful when a repository needs a fuller domain adapter. The setup workflow preserves existing project rules and commands instead of replacing them.
 
+Projects can optionally [map user flows to native checks](plugins/tugling/skills/repo-verify/references/project-flows.md),
+including where their existing test runner defines launch, readiness, and
+cleanup. The same helper validates the map without executing it. Explicit
+`--run-flow` selections produce local receipts tied to the clean project commit;
+they reuse native tests and make no model calls. A selected-flow pass has narrower
+scope than the repository's canonical completion gate.
+
 ## Learn locally, by choice
 
 Learning is off by default. A project may opt into `local` mode, where explicit reusable corrections can be summarized into an ignored, permission-restricted JSONL ledger. Tugling installs no capture hook, records no full transcript, sends no telemetry, and uploads nothing.
