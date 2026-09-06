@@ -4,11 +4,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -62,14 +67,242 @@ def read_json(path: Path) -> Any:
         raise ContractError(f"{path}: {exc}") from exc
 
 
-def require_object(value: Any, *, label: str, keys: set[str]) -> dict[str, Any]:
+def require_object(
+    value: Any, *, label: str, keys: set[str], optional: set[str] | None = None,
+) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ContractError(f"{label} must be an object")
-    if set(value) != keys:
+    if not keys.issubset(value) or set(value) - keys - (optional or set()):
         raise ContractError(
             f"{label} fields differ: expected {sorted(keys)}, found {sorted(value)}"
         )
     return value
+
+
+def committed_file(root: Path, value: Any, *, label: str) -> tuple[Path, str]:
+    path, relative = relative_path(root, value, label=label)
+    if path.resolve() != path or not path.is_file():
+        raise ContractError(f"{label} must be a regular project file without symlinks: {relative}")
+    require_tracked(root, relative, label=label)
+    return path, relative
+
+
+def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
+    """Map user flows onto native checks; never start a second runtime harness."""
+    path, relative = committed_file(root, value, label="project.verification")
+    mapping = require_object(
+        read_json(path), label="verification map", keys={"schema_version", "flows"},
+    )
+    assert_no_embedded_secrets(mapping)
+    if type(mapping["schema_version"]) is not int or mapping["schema_version"] != 1:
+        raise ContractError("verification map schema_version must be 1")
+    flows = mapping["flows"]
+    if not isinstance(flows, list) or not 1 <= len(flows) <= 32:
+        raise ContractError("verification map needs 1 to 32 flows")
+    seen: set[str] = set()
+    for flow in flows:
+        require_object(flow, label="verification flow", keys={
+            "id", "description", "argv", "timeout_seconds", "sources", "runtime",
+        })
+        flow_id = flow["id"]
+        if (not isinstance(flow_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", flow_id)
+                or flow_id in seen):
+            raise ContractError("verification flow ids must be unique lowercase names")
+        seen.add(flow_id)
+        if not isinstance(flow["description"], str) or not flow["description"].strip():
+            raise ContractError(f"flow {flow_id}: describe the user behavior being checked")
+        argv = flow["argv"]
+        if (not isinstance(argv, list) or not argv
+                or not all(isinstance(part, str) and part.strip() and "\0" not in part for part in argv)):
+            raise ContractError(f"flow {flow_id}: argv must be a non-empty argument array")
+        timeout = flow["timeout_seconds"]
+        if type(timeout) is not int or not 1 <= timeout <= 3600:
+            raise ContractError(f"flow {flow_id}: timeout_seconds must be between 1 and 3600")
+        sources = flow["sources"]
+        if not isinstance(sources, list) or not sources:
+            raise ContractError(f"flow {flow_id}: name the native tests and lifecycle source files")
+        for source in sources:
+            committed_file(root, source, label=f"flow {flow_id} source")
+        runtime = flow["runtime"]
+        if runtime is not None:
+            require_object(runtime, label=f"flow {flow_id} runtime", keys={
+                "owner", "launch", "health", "cleanup",
+            })
+            if runtime["owner"] != "native-command":
+                raise ContractError(f"flow {flow_id}: runtime owner must be native-command")
+            for key in ("launch", "health", "cleanup"):
+                if not isinstance(runtime[key], str) or not runtime[key].strip():
+                    raise ContractError(f"flow {flow_id}: document native runtime {key}")
+    return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "flows": flows}
+
+
+def clean_revision(root: Path) -> str:
+    if Path(git_output(root, "rev-parse", "--show-toplevel")).resolve() != root:
+        raise ContractError("flow evidence requires the project repository root")
+    if git_output(root, "status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none"):
+        raise ContractError("flow evidence requires a clean committed project, including untracked files")
+    flags = git_output(root, "ls-files", "-v", "-z").split("\0")
+    if any(entry and (entry[0].islower() or entry[0] == "S") for entry in flags):
+        raise ContractError("flow evidence requires no assume-unchanged or skip-worktree files")
+    return git_output(root, "rev-parse", "HEAD")
+
+
+def stop_process_group(process: subprocess.Popen[Any]) -> bool:
+    """Reap only the process group created for this command, including on timeout."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return False
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        process.poll()
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            # Darwin can briefly return EPERM while a signalled group is being
+            # reaped. Keep waiting within the same deadline; never infer success.
+            pass
+        time.sleep(0.05)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait(timeout=5)
+    return True
+
+
+def run_flow(root: Path, flow: dict[str, Any]) -> dict[str, Any]:
+    started = time.monotonic()
+    result: dict[str, Any] = {"id": flow["id"], "argv": flow["argv"], "exit_code": None,
+                              "failure": None, "forced_cleanup": False}
+    process = None
+    try:
+        # Stream native output to stderr: JSON stdout stays usable and no logs or secrets
+        # are copied into the evidence file. Native commands own service readiness/teardown.
+        process = subprocess.Popen(
+            flow["argv"], cwd=root, stdin=subprocess.DEVNULL, stdout=sys.stderr,
+            stderr=sys.stderr, start_new_session=True,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1"},
+        )
+        result["exit_code"] = process.wait(timeout=flow["timeout_seconds"])
+        if result["exit_code"] != 0:
+            result["failure"] = "command-failed"
+    except subprocess.TimeoutExpired:
+        result["failure"] = "timeout"
+    except KeyboardInterrupt:
+        result["failure"] = "interrupted"
+    except OSError:
+        result["failure"] = "could-not-start"
+    finally:
+        if process is not None:
+            try:
+                result["forced_cleanup"] = stop_process_group(process)
+                if result["forced_cleanup"] and result["failure"] is None:
+                    result["failure"] = "native-cleanup-incomplete"
+            except (OSError, subprocess.TimeoutExpired):
+                result["forced_cleanup"] = True
+                result["failure"] = "cleanup-failed"
+        result["duration_seconds"] = round(time.monotonic() - started, 3)
+    return result
+
+
+def evidence_file(root: Path, value: str) -> Path:
+    path, relative = relative_path(root, value, label="flow evidence")
+    if not relative.startswith(".tugling/local/verification/") or path.suffix != ".json":
+        raise ContractError("flow evidence must be a JSON file under .tugling/local/verification/")
+    if path.resolve() != path:
+        raise ContractError("flow evidence must not follow symlinks")
+    require_ignored(root, relative, label="flow evidence")
+    return path
+
+
+def verification_identity(root: Path, config_path: Path, mapping: dict[str, Any]) -> dict[str, str]:
+    if not config_path.is_relative_to(root):
+        raise ContractError("flow execution requires a committed project config inside the repository")
+    config_file, _ = committed_file(root, str(config_path.relative_to(root)), label="project config")
+    return {"project_revision": clean_revision(root),
+            "config_sha256": hashlib.sha256(config_file.read_bytes()).hexdigest(),
+            "map_sha256": mapping["sha256"],
+            "helper_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+
+
+def execute_flows(
+    root: Path, config_path: Path, report: dict[str, Any], selected: list[str],
+) -> dict[str, Any]:
+    if os.name != "posix":
+        raise ContractError("flow execution requires POSIX process-group cleanup (macOS or Linux)")
+    mapping = report["verification"]
+    if mapping is None:
+        raise ContractError("--run-flow requires project.verification")
+    by_id = {flow["id"]: flow for flow in mapping["flows"]}
+    if len(set(selected)) != len(selected) or any(flow_id not in by_id for flow_id in selected):
+        raise ContractError("--run-flow requires distinct ids present in the verification map")
+    if sum(by_id[flow_id]["timeout_seconds"] for flow_id in selected) > 7200:
+        raise ContractError("selected flow timeout budget must not exceed 7200 seconds")
+    identity = verification_identity(root, config_path, mapping)
+    run_id = str(uuid.uuid4())
+    relative = f".tugling/local/verification/{run_id}.json"
+    path = evidence_file(root, relative)
+    # Reserve the private output before running commands; never overwrite an earlier run.
+    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    evidence: dict[str, Any] = {"schema_version": 1, "kind": "tugling-native-flows",
+        "run_id": run_id, **identity, "tugling": report["tugling"],
+        "started_at": datetime.now(timezone.utc).isoformat(), "state": "FLOWS_FAIL",
+        "requested_flows": selected, "results": [], "worktree_unchanged": False}
+    try:
+        for flow_id in selected:
+            result = run_flow(root, by_id[flow_id])
+            evidence["results"].append(result)
+            if result["failure"] is not None:
+                break
+        try:
+            evidence["worktree_unchanged"] = clean_revision(root) == identity["project_revision"]
+        except ContractError:
+            pass
+        if (len(evidence["results"]) == len(selected) and evidence["worktree_unchanged"]
+                and all(result["failure"] is None for result in evidence["results"])):
+            evidence["state"] = "FLOWS_PASS"
+    finally:
+        evidence["finished_at"] = datetime.now(timezone.utc).isoformat()
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(evidence, output, indent=2, sort_keys=True)
+            output.write("\n")
+    return {"state": evidence["state"], "path": relative, "evidence": evidence}
+
+
+def check_flow_evidence(
+    root: Path, config_path: Path, report: dict[str, Any], relative: str,
+) -> dict[str, Any]:
+    """Check freshness and scope of a local receipt; this is not an attestation."""
+    mapping = report["verification"]
+    if mapping is None:
+        raise ContractError("--check-flow-evidence requires project.verification")
+    evidence = read_json(evidence_file(root, relative))
+    identity = verification_identity(root, config_path, mapping)
+    if not isinstance(evidence, dict) or any(evidence.get(key) != value for key, value in identity.items()):
+        raise ContractError("flow evidence is stale or belongs to a different project, map, or helper")
+    by_id = {flow["id"]: flow for flow in mapping["flows"]}
+    selected = evidence.get("requested_flows")
+    results = evidence.get("results")
+    if (type(evidence.get("schema_version")) is not int or evidence["schema_version"] != 1
+            or evidence.get("kind") != "tugling-native-flows"
+            or evidence.get("state") != "FLOWS_PASS" or evidence.get("worktree_unchanged") is not True
+            or not isinstance(selected, list) or not selected
+            or not all(isinstance(key, str) and key in by_id for key in selected)
+            or len(set(selected)) != len(selected)
+            or not isinstance(results, list) or len(results) != len(selected)):
+        raise ContractError("flow evidence does not prove a complete successful selection")
+    for flow_id, result in zip(selected, results):
+        if (not isinstance(result, dict) or result.get("id") != flow_id
+                or result.get("argv") != by_id[flow_id]["argv"]
+                or type(result.get("exit_code")) is not int or result["exit_code"] != 0
+                or "failure" not in result or result["failure"] is not None
+                or result.get("forced_cleanup") is not False):
+            raise ContractError("flow evidence contains an unsuccessful or mismatched command")
+    return {"state": "FLOWS_PASS", "path": relative, "evidence": evidence}
 
 
 def relative_path(root: Path, value: Any, *, label: str) -> tuple[Path, str]:
@@ -93,7 +326,7 @@ def require_git_repository(root: Path) -> None:
 
 
 def require_tracked(root: Path, relative: str, *, label: str) -> None:
-    completed = run(["git", "ls-files", "--error-unmatch", "--", relative], cwd=root)
+    completed = run(["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", relative], cwd=root)
     if completed.returncode != 0:
         raise ContractError(f"{label} must be committed: {relative}")
 
@@ -102,7 +335,7 @@ def require_ignored(root: Path, relative: str, *, label: str) -> None:
     completed = run(["git", "check-ignore", "-q", "--no-index", "--", relative], cwd=root)
     if completed.returncode != 0:
         raise ContractError(f"{label} must be ignored by Git: {relative}")
-    tracked = run(["git", "ls-files", "--error-unmatch", "--", relative], cwd=root)
+    tracked = run(["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", relative], cwd=root)
     if tracked.returncode == 0:
         raise ContractError(f"{label} must never be committed: {relative}")
 
@@ -132,6 +365,7 @@ def source_identity(source_root: Path) -> dict[str, Any]:
         "plugin_root": str(plugin_root),
         "version": manifest["version"],
         "revision": revision,
+        "worktree_clean": not bool(git_output(source_root, "status", "--porcelain", "--untracked-files=all")) if revision else None,
     }
 
 
@@ -189,6 +423,8 @@ def validate_project(
     source_mode: str,
     run_native: bool = False,
     native_timeout: int = 1800,
+    run_flows: list[str] | None = None,
+    check_evidence: str | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
     config_path = config_path if config_path.is_absolute() else root / config_path
@@ -243,6 +479,7 @@ def validate_project(
         config.get("project"),
         label="project adapter project",
         keys={"adapter", "instructions", "canonical_verify", "ci_workflow", "dogfood_case"},
+        optional={"verification"},
     )
     adapter_path, adapter_relative = relative_path(root, project.get("adapter"), label="project.adapter")
     if not adapter_path.is_file():
@@ -304,6 +541,10 @@ def validate_project(
         raise ContractError("learning.local_path must stay under .tugling/local/")
     require_ignored(root, local_relative, label="learning.local_path")
 
+    mapping = validate_verification_map(root, project["verification"]) if "verification" in project else None
+    if sum(bool(value) for value in (run_native, run_flows, check_evidence)) > 1:
+        raise ContractError("choose one of native verification, selected flows, or an evidence check")
+
     native_result: dict[str, Any] | None = None
     if run_native:
         completed = run(verify_argv, cwd=root, timeout=native_timeout)
@@ -317,13 +558,14 @@ def validate_project(
                 f"canonical verification failed ({completed.returncode}): {detail[-2000:]}"
             )
 
-    return {
+    report = {
         "status": "PASS",
         "project_revision": git_output(root, "rev-parse", "HEAD"),
         "tugling": {
             "channel": channel,
             "configured_revision": configured_revision,
             "source_revision": identity["revision"],
+            "source_worktree_clean": identity["worktree_clean"],
             "version": identity["version"],
             "source_mode": effective_mode,
         },
@@ -338,7 +580,16 @@ def validate_project(
             "git_ignored": True,
         },
         "native_verification": native_result,
+        "verification": mapping,
+        "flow_verification": None,
     }
+    if run_flows:
+        report["flow_verification"] = execute_flows(root, config_path, report, run_flows)
+    elif check_evidence:
+        report["flow_verification"] = check_flow_evidence(root, config_path, report, check_evidence)
+    if report["flow_verification"] and report["flow_verification"]["state"] != "FLOWS_PASS":
+        report["status"] = "FAIL"
+    return report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -351,7 +602,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tugling repository or plugin root used for this check",
     )
     parser.add_argument("--source-mode", choices=("auto", "pinned", "candidate"), default="auto")
-    parser.add_argument("--run-native", action="store_true")
+    execution = parser.add_mutually_exclusive_group()
+    execution.add_argument("--run-native", action="store_true")
+    execution.add_argument("--run-flow", action="append", help="run one mapped native flow; repeat for a selection")
+    execution.add_argument("--check-flow-evidence", help="check a local receipt against the current clean commit")
     parser.add_argument("--native-timeout", type=int, default=1800)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -359,6 +613,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
+    previous_handler = None
+    if args.run_flow:
+        def interrupted(signum: int, frame: Any) -> None:
+            raise KeyboardInterrupt
+        previous_handler = signal.signal(signal.SIGTERM, interrupted)
     try:
         if args.native_timeout < 30:
             raise ContractError("--native-timeout must be at least 30 seconds")
@@ -369,19 +628,27 @@ def main(argv: Iterable[str] | None = None) -> int:
             source_mode=args.source_mode,
             run_native=args.run_native,
             native_timeout=args.native_timeout,
+            run_flows=args.run_flow,
+            check_evidence=args.check_flow_evidence,
         )
     except ContractError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if previous_handler is not None:
+            signal.signal(signal.SIGTERM, previous_handler)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
+    elif report["flow_verification"]:
+        result = report["flow_verification"]
+        print(f"{result['state']}: {result['path']} (selected native flows only; canonical gate unexecuted)")
     else:
         print(
             "Tugling project contract passed: "
             f"{report['tugling']['version']} at {report['tugling']['source_revision'] or 'installed source'}, "
             f"{report['dogfood']['questions']} dogfood decisions, learning {report['learning']['mode']}."
         )
-    return 0
+    return 0 if report["status"] == "PASS" else 1
 
 
 if __name__ == "__main__":

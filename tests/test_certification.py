@@ -135,6 +135,9 @@ class CertificationGitTest(unittest.TestCase):
             shutil.copytree(cert.ROOT / name, self.repo / name,
                             ignore=shutil.ignore_patterns("__pycache__", "runs", "releases"))
         shutil.copy2(cert.ROOT / "Makefile", self.repo / "Makefile")
+        manifest = json.loads((self.repo / "plugins/tugling/.codex-plugin/plugin.json").read_text())
+        major, minor, patch = map(int, manifest["version"].split("."))
+        self.candidate_version = f"{major}.{minor}.{patch + 1}"
         self.baseline = self.commit("synthetic approved controller")
         self.git(self.repo, "branch", "stable")
         self.git(self.root, "clone", "--bare", str(self.repo), str(self.root / "remote.git"))
@@ -157,7 +160,7 @@ class CertificationGitTest(unittest.TestCase):
     def change_plugin(self):
         manifest = self.repo / "plugins/tugling/.codex-plugin/plugin.json"
         value = json.loads(manifest.read_text())
-        value["version"] = "0.4.1"
+        value["version"] = self.candidate_version
         manifest.write_text(json.dumps(value))
         self.publish()
 
@@ -176,7 +179,7 @@ class CertificationGitTest(unittest.TestCase):
         before = self.git(self.remote, "show-ref")
         plan = self.prepare()
         self.assertEqual(plan["state"], "CERTIFICATION_REQUIRED")
-        self.assertEqual(plan["plugin"]["version"], "0.4.1")
+        self.assertEqual(plan["plugin"]["version"], self.candidate_version)
         self.assertEqual(self.git(self.root / "candidate", "rev-parse", "HEAD"), self.request["candidate_sha"])
         self.assertEqual(self.git(self.remote, "show-ref"), before)
 
@@ -260,7 +263,7 @@ class CertificationGitTest(unittest.TestCase):
                         cert.certify(candidate, self.request, patterns, output, private, budget)
                         cert.validate_artifact(output, self.request)
                         certificate = cert.gate.read_json(output / "certificate.json")
-                        self.assertEqual(certificate["plugin"]["version"], "0.4.1")
+                        self.assertEqual(certificate["plugin"]["version"], self.candidate_version)
                     else:
                         with self.assertRaisesRegex(cert.CertificationError, "promotion gate"):
                             cert.certify(candidate, self.request, patterns, output, private, budget)
