@@ -57,6 +57,33 @@ def safe_failure_detail(exc: BaseException) -> str:
     return " <- ".join(details)
 
 
+def clean_install_failure_detail(result: dict[str, Any]) -> str:
+    # Only controller-owned check names and finite transport categories may be public.
+    names = (
+        "marketplace_add", "plugin_add", "exact_public_revision", "isolated_install_path",
+        "marketplace_package_matches_candidate", "installed_plugin_matches_candidate",
+        "live_exit_zero", "live_skill_selected", "live_repository_native_contract",
+        "live_no_false_pass", "live_no_edits_reported", "live_repository_unchanged",
+        "live_native_gate_not_run",
+    )
+    checks = result.get("checks", {})
+    live = result.get("live", {})
+    diagnostics = live.get("diagnostics", {})
+    exit_code = diagnostics.get("exit_code")
+    detail = {
+        "failed_checks": [name for name in names if checks.get(name) is False],
+        "exit_code": exit_code if type(exit_code) is int and -255 <= exit_code <= 255 else None,
+        "final_output_present": diagnostics.get("final_output_present") is True,
+        "error_event_observed": diagnostics.get("error_event_observed") is True,
+        "turn_failed": diagnostics.get("turn_failed") is True,
+        "http_statuses": sorted({value for value in diagnostics.get("http_statuses", [])
+                                 if type(value) is int and 400 <= value <= 599}),
+        "api_error_codes": sorted({value for value in diagnostics.get("api_error_codes", [])
+                                   if isinstance(value, str) and value in runtime.API_ERROR_CODES}),
+    }
+    return json.dumps(detail, sort_keys=True)
+
+
 def positive_integer(value: str, ceiling: int) -> int:
     if not re.fullmatch(r"[1-9][0-9]{0,9}", value) or int(value) > ceiling:
         raise CertificationError("missing, malformed, or excessive token limit")
@@ -196,9 +223,16 @@ def certify(candidate: Path, request: dict[str, Any], pattern_file: Path,
         codex_bin=codex_bin, codex_version=version, auth_home=private / "no-auth",
         live=True, model=MODEL, reasoning_effort=EFFORT, timeout=TASK_TIMEOUT,
     )
+    # A completed model task can fail a check and still have billable usage.
+    try:
+        budget.record(clean.get("live", {}).get("usage"))
+    except runtime.BudgetError as exc:
+        if clean.get("passed") is not True:
+            raise CertificationError("clean-install task failed: " + clean_install_failure_detail(clean)
+                                     + "; " + str(exc)) from exc
+        raise
     if clean.get("passed") is not True:
-        raise CertificationError("clean-install task failed; certification stops")
-    budget.record(clean["live"]["usage"])
+        raise CertificationError("clean-install task failed: " + clean_install_failure_detail(clean))
     clean_path = private / "clean-room.json"
     gate.write_json(clean_path, clean)
     matrix = gate.validate_matrix()

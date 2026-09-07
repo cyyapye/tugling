@@ -33,6 +33,63 @@ def approved_environment() -> dict[str, str]:
 
 
 class CertificationRuntimeTest(unittest.TestCase):
+    def test_transport_diagnostics_allow_only_error_categories(self):
+        private = "synthetic-private-key-path-message"
+        events = [
+            {"type": "error", "code": "invalid_api_key",
+             "message": "unexpected status 401 Unauthorized " + private},
+            {"type": "turn.failed", "error": {"message":
+             'unexpected status 429 Too Many Requests {"code":"insufficient_quota","message":"' + private + '"}'}},
+            {"type": "error", "code": private, "message": private},
+            {"type": "item.completed", "item": {"type": "agent_message", "text":
+             'unexpected status 503 {"code":"model_not_found"}'}},
+            {"type": []}, [],
+        ]
+        detail = cert.runtime.failure_diagnostics("not JSON\n" + "\n".join(map(json.dumps, events)))
+        self.assertEqual(detail, {"error_event_observed": True, "turn_failed": True,
+                                 "http_statuses": [401, 429],
+                                 "api_error_codes": ["insufficient_quota", "invalid_api_key"]})
+        self.assertNotIn(private, json.dumps(detail))
+
+    def test_failed_install_preserves_usage_and_never_starts_behavioral_tasks(self):
+        private = "synthetic-private-key-path-message"
+        for input_tokens, completed, unaccounted in ((17, 1, False), (0, 0, True), (101, 1, False)):
+            with self.subTest(input_tokens=input_tokens), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                result = {"passed": False,
+                    "checks": {"live_no_false_pass": False, private: False},
+                    "live": {"usage": {"input_tokens": input_tokens, "output_tokens": 5,
+                                        "cached_input_tokens": 0},
+                             "selected_skill": private,
+                             "diagnostics": {"exit_code": 1, "final_output_present": False,
+                                             "error_event_observed": True, "turn_failed": True,
+                                             "http_statuses": [401, private, 999],
+                                             "api_error_codes": ["invalid_api_key", private],
+                                             "message": private}}}
+                budget = cert.runtime.RunBudget(100, 50, 91)
+                with mock.patch.object(cert.runtime, "proxy_arguments", return_value=["synthetic"]), \
+                     mock.patch.object(cert.clean_room, "resolve_codex", return_value=("synthetic", f"codex-cli {cert.CODEX_VERSION}")), \
+                     mock.patch.object(cert, "require_fresh_refs"), mock.patch.object(cert, "check_public_policy"), \
+                     mock.patch.object(cert.clean_room, "public_install", return_value=result), \
+                     mock.patch.object(cert.behavioral, "run_evaluation") as behavioral:
+                    with self.assertRaisesRegex(cert.CertificationError, "clean-install task failed") as failure:
+                        cert.certify(root, cert.authorize(approved_environment()), root / "policy",
+                                     root / "output", root / "private", budget)
+                    behavioral.assert_not_called()
+                detail = str(failure.exception)
+                self.assertIn('"failed_checks": ["live_no_false_pass"]', detail)
+                self.assertIn('"http_statuses": [401]', detail)
+                self.assertIn('"api_error_codes": ["invalid_api_key"]', detail)
+                self.assertNotIn(private, detail)
+                self.assertFalse((root / "output").exists())
+                self.assertEqual(budget.tasks, completed)
+                self.assertEqual(budget.input_tokens, input_tokens)
+                self.assertEqual(budget.in_flight_or_unaccounted_task, unaccounted)
+                if input_tokens == 0:
+                    self.assertIn("model usage missing or invalid", detail)
+                if input_tokens == 101:
+                    self.assertIn("exceeded the observed-token threshold", detail)
+
     def test_failure_diagnostics_keep_os_categories_but_never_private_details(self):
         private = "synthetic-private-message-and-path"
         try:

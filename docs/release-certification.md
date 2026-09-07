@@ -102,6 +102,12 @@ threshold, so this is **not a hard token or dollar cap**. A failed or timed-out
 task may have consumed unreported tokens; the run reports incomplete accounting
 rather than treating missing usage as zero. Provider billing is authoritative.
 
+A failed installation task reports only the failed check names, CLI exit status,
+whether a final output exists, and allowlisted HTTP/API error categories when
+the CLI exposes them. Raw messages, model output, and paths stay private. Usage
+from a completed task is recorded even when its checks fail; missing usage
+remains explicitly unaccounted.
+
 There is one task at a time, at most 91 tasks, a 180-second timeout per model task,
 and a 330-minute evaluation-job timeout. Process cleanup kills remaining members
 of the Codex process group after success, failure, or timeout, before scratch

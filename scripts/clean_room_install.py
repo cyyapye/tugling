@@ -399,6 +399,9 @@ def run_live_discovery(
             "reasoning_effort": reasoning_effort,
             "elapsed_seconds": elapsed,
             "usage": events["usage"],
+            "diagnostics": {"exit_code": completed.returncode,
+                            "final_output_present": final_path.is_file(),
+                            **codex_runtime.failure_diagnostics(completed.stdout)},
             "selected_skill": final.get("selected_skill") if isinstance(final, dict) else None,
             "canonical_verify": final.get("canonical_verify") if isinstance(final, dict) else None,
             "verification_order": (
