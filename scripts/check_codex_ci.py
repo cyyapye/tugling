@@ -20,7 +20,7 @@ import certify_release as certification
 import codex_runtime as runtime
 
 
-def check(binary: str) -> None:
+def check(binary: str, status: int = 400) -> None:
     observed = []
 
     class FakeAPI(BaseHTTPRequestHandler):
@@ -31,8 +31,9 @@ def check(binary: str) -> None:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
             observed.append((self.path, body, self.headers.get("Authorization")))
             payload = json.dumps({"error": {"message": "synthetic-private-error-message",
-                                           "type": "invalid_request_error", "code": "unsupported_value"}}).encode()
-            self.send_response(400)
+                                           "type": "invalid_request_error",
+                                           "code": "unsupported_value" if status == 400 else "insufficient_quota"}}).encode()
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -77,9 +78,11 @@ def check(binary: str) -> None:
                         or body.get("reasoning", {}).get("effort") != certification.EFFORT or auth):
                     raise RuntimeError("CLI did not use the explicit credential-free proxy contract")
                 diagnostics = runtime.failure_diagnostics(result.stdout)
-                # The pinned CLI can retain the API code while omitting HTTP status.
-                if (diagnostics["http_statuses"] not in ([], [400])
-                        or diagnostics["api_error_codes"] != ["unsupported_value"]
+                # 400 retains the API code; 429 retains only its final HTTP status.
+                expected_statuses = ([], [400]) if status == 400 else ([429],)
+                expected_codes = ["unsupported_value"] if status == 400 else []
+                if (diagnostics["http_statuses"] not in expected_statuses
+                        or diagnostics["api_error_codes"] != expected_codes
                         or diagnostics["error_event_observed"] is not True
                         or diagnostics["turn_failed"] is not True
                         or "synthetic-private-error-message" in json.dumps(diagnostics)):
@@ -88,10 +91,12 @@ def check(binary: str) -> None:
             server.shutdown()
             server.server_close()
             worker.join()
-    print("Codex CI transport contract passed against a local fake API; no provider calls.")
+    print(f"Codex CI HTTP {status} transport contract passed against a local fake API; no provider calls.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--codex-bin", required=True)
-    check(parser.parse_args().codex_bin)
+    args = parser.parse_args()
+    for status in (400, 429):
+        check(args.codex_bin, status)

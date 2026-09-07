@@ -41,13 +41,15 @@ class CertificationRuntimeTest(unittest.TestCase):
             {"type": "turn.failed", "error": {"message":
              'unexpected status 429 Too Many Requests {"code":"insufficient_quota","message":"' + private + '"}'}},
             {"type": "error", "code": private, "message": private},
+            {"type": "turn.failed", "error": {"message":
+             "exceeded retry limit, last status: 503 Service Unavailable"}},
             {"type": "item.completed", "item": {"type": "agent_message", "text":
              'unexpected status 503 {"code":"model_not_found"}'}},
             {"type": []}, [],
         ]
         detail = cert.runtime.failure_diagnostics("not JSON\n" + "\n".join(map(json.dumps, events)))
         self.assertEqual(detail, {"error_event_observed": True, "turn_failed": True,
-                                 "http_statuses": [401, 429],
+                                 "http_statuses": [401, 429, 503],
                                  "api_error_codes": ["insufficient_quota", "invalid_api_key"]})
         self.assertNotIn(private, json.dumps(detail))
 

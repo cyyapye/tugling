@@ -51,7 +51,8 @@ def failure_diagnostics(raw: str) -> dict[str, Any]:
         message = error.get("message", "")
         if isinstance(message, str):
             # These are CLI transport-error fields, not assistant output or stderr.
-            statuses.update(int(value) for value in re.findall(r"unexpected status ([45][0-9]{2})\b", message))
+            statuses.update(int(value) for value in re.findall(
+                r"(?:unexpected status|last status:)\s+([45][0-9]{2})\b", message))
             codes.update(value for value in re.findall(r'"code"\s*:\s*"([^"\n]+)"', message)
                          if value in API_ERROR_CODES)
     return {"error_event_observed": error_observed, "turn_failed": turn_failed,
