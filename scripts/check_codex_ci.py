@@ -30,8 +30,8 @@ def check(binary: str) -> None:
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
             observed.append((self.path, body, self.headers.get("Authorization")))
-            payload = json.dumps({"error": {"message": "Tugling synthetic transport rejection",
-                                           "type": "invalid_request_error", "code": "synthetic"}}).encode()
+            payload = json.dumps({"error": {"message": "synthetic-private-error-message",
+                                           "type": "invalid_request_error", "code": "unsupported_value"}}).encode()
             self.send_response(400)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
@@ -76,6 +76,14 @@ def check(binary: str) -> None:
                 if (path != "/v1/responses" or body.get("model") != certification.MODEL
                         or body.get("reasoning", {}).get("effort") != certification.EFFORT or auth):
                     raise RuntimeError("CLI did not use the explicit credential-free proxy contract")
+                diagnostics = runtime.failure_diagnostics(result.stdout)
+                # The pinned CLI can retain the API code while omitting HTTP status.
+                if (diagnostics["http_statuses"] not in ([], [400])
+                        or diagnostics["api_error_codes"] != ["unsupported_value"]
+                        or diagnostics["error_event_observed"] is not True
+                        or diagnostics["turn_failed"] is not True
+                        or "synthetic-private-error-message" in json.dumps(diagnostics)):
+                    raise RuntimeError("CLI rejection did not preserve safe failure categories")
         finally:
             server.shutdown()
             server.server_close()

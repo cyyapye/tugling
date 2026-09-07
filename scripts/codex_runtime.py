@@ -7,6 +7,7 @@ not a hard cap on tokens or dollars spent by an in-flight task.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import signal
@@ -17,6 +18,44 @@ from typing import Any
 
 class BudgetError(RuntimeError):
     pass
+
+
+API_ERROR_CODES = frozenset({
+    "invalid_api_key", "insufficient_quota", "model_not_found", "permission_denied",
+    "rate_limit_exceeded", "unsupported_parameter", "unsupported_value", "context_length_exceeded",
+    "invalid_json_schema",
+})
+
+
+def failure_diagnostics(raw: str) -> dict[str, Any]:
+    """Project CLI error events to fixed categories; never retain their messages."""
+    statuses: set[int] = set()
+    codes: set[str] = set()
+    error_observed = False
+    turn_failed = False
+    for line in raw.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("type") not in ("error", "turn.failed"):
+            continue
+        error_observed = True
+        turn_failed = turn_failed or event["type"] == "turn.failed"
+        error = event.get("error", event)
+        if not isinstance(error, dict):
+            continue
+        code = error.get("code")
+        if isinstance(code, str) and code in API_ERROR_CODES:
+            codes.add(code)
+        message = error.get("message", "")
+        if isinstance(message, str):
+            # These are CLI transport-error fields, not assistant output or stderr.
+            statuses.update(int(value) for value in re.findall(r"unexpected status ([45][0-9]{2})\b", message))
+            codes.update(value for value in re.findall(r'"code"\s*:\s*"([^"\n]+)"', message)
+                         if value in API_ERROR_CODES)
+    return {"error_event_observed": error_observed, "turn_failed": turn_failed,
+            "http_statuses": sorted(statuses), "api_error_codes": sorted(codes)}
 
 
 def proxy_arguments() -> list[str]:
