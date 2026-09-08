@@ -78,8 +78,9 @@ def execute(plan: dict, admission: dict, directory: Path, policy: Path | None) -
                 if raw["exit_code"] != 0 or usage is None:
                     raise tasks.TaskError("synthetic behavioral runtime failed")
                 # Synthetic scores exercise recovery only; never certify a skill.
-                evidence = {"score": 1.0 if task["condition"] == "candidate" else 0.5,
-                            "critical_pass": True, "passed": True, "elapsed_seconds": raw["elapsed_seconds"]}
+                evidence = tasks.behavioral_evidence(task["case_id"], raw)
+                evidence.update(score=1.0 if task["condition"] == "candidate" else 0.5,
+                                critical_pass=True, passed=True)
                 if task["id"] == "t003":
                     evidence.update(score=0.0, critical_pass=False, passed=False)
             if task["id"] == "t002" and admission["attempt"] == 0:
@@ -108,10 +109,7 @@ def execute(plan: dict, admission: dict, directory: Path, policy: Path | None) -
                 # Keep valid observed counters on both failed grades and CLI exits.
                 usage = tasks.usage_evidence(raw.get("events", {}).get("usage"))
                 if raw["exit_code"] == 0 and usage is not None:
-                    evidence = {"score": raw["grade"]["effective_score"],
-                                "critical_pass": raw["grade"]["critical_pass"],
-                                "passed": raw["grade"]["passed"],
-                                "elapsed_seconds": raw["elapsed_seconds"]}
+                    evidence = tasks.behavioral_evidence(task["case_id"], raw)
                     state = "RESULT"
                 else:
                     failure = {"stage": stage,

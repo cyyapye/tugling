@@ -58,7 +58,9 @@ class ReleaseControllerTest(unittest.TestCase):
 
     def git(self, root: Path, *args: str) -> str:
         # Intentionally keep receive hooks enabled here and on the remote.
-        result = subprocess.run(["git", *args], cwd=root, env=controller.git_env(),
+        # Disposable fixtures must not leave maintenance writing during cleanup.
+        result = subprocess.run(["git", "-c", "maintenance.auto=false", *args],
+                                cwd=root, env=controller.git_env(),
                                 text=True, capture_output=True, check=True)
         return result.stdout.strip()
 
@@ -231,6 +233,25 @@ class ReleaseControllerTest(unittest.TestCase):
         self.assertNotIn("GIT_CONFIG_COUNT", env)
         self.assertNotIn("GIT_CONFIG_VALUE_0", env)
         self.assertNotIn("GIT_TRACE", env)
+
+    def test_disposable_git_commands_do_not_start_maintenance(self) -> None:
+        self.git(self.repo, "config", "maintenance.auto", "true")
+        # Keep the negative control synchronous even on Git versions that
+        # otherwise detach before checking whether maintenance is needed.
+        self.git(self.repo, "config", "maintenance.autoDetach", "false")
+        self.git(self.repo, "config", "gc.autoDetach", "false")
+        for name, command in (("fixture", self.git), ("controller", controller.git)):
+            with self.subTest(command=name):
+                trace = self.root / f"{name}-git-trace.jsonl"
+                env = {**controller.git_env(), "GIT_TRACE2_EVENT": str(trace)}
+                with mock.patch.object(controller, "git_env", return_value=env):
+                    command(self.repo, "commit", "--allow-empty", "--quiet", "-m", name)
+                events = [json.loads(line) for line in trace.read_text().splitlines()]
+                self.assertTrue(any(event.get("event") == "exit" for event in events))
+                maintenance = [event["argv"] for event in events
+                               if event.get("event") == "child_start"
+                               and {"maintenance", "gc"} & set(event.get("argv", []))]
+                self.assertEqual(maintenance, [])
 
     def test_isolated_cli_rejects_wrong_controller_before_network_access(self) -> None:
         poison = self.root / "pythonpath"

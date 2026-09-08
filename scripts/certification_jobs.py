@@ -257,7 +257,8 @@ def assemble(plan: dict, records: list[dict], destination: Path, policy: Path | 
         certificate = cert.gate.assemble_certificate(version=cert.gate.plugin_identity(candidate)["version"],
             behavioral_path=private / "behavioral.json", clean_room_path=private / "clean.json", package_source_root=candidate)
         if not certificate["passed"]:
-            raise tasks.TaskError("VERIFICATION_FAILED: the full promotion gate did not pass")
+            failures = json.dumps(tasks.failed_candidate_checks(plan, records), sort_keys=True)
+            raise tasks.TaskError("VERIFICATION_FAILED: the full promotion gate did not pass; candidate_checks=" + failures)
         cert.require_fresh_refs(candidate, plan["request"])
         write(destination / "certificate.json", certificate)
         cert.gate.verify_certificate(path=destination / "certificate.json", package_source_root=candidate)

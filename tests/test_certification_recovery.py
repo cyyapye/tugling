@@ -25,6 +25,8 @@ def outcome(p, task_id="t003", attempt=0, passed=True, state="RESULT", usage=Tru
     value = {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0} if usage else None
     evidence = {"score": 1.0 if passed else 0.0, "critical_pass": passed,
                 "passed": passed, "elapsed_seconds": 1.0} if state == "RESULT" else None
+    if evidence is not None and task_id != "t000":
+        evidence["checks"] = {name: passed for name in tasks.behavioral_check_names(tasks.task_for(p, task_id)["case_id"])}
     if task_id == "t000" and state == "RESULT":
         raw = {"passed": True, "checks": {}, "plugin": tasks.cert.gate.plugin_identity(),
                "live": {"ran": True, "repository_unchanged": True, "selected_skill": "repo-verify",
@@ -150,6 +152,8 @@ class RecoveryProtocolTest(unittest.TestCase):
 
     def test_worker_preserves_real_parser_usage_and_failed_verification(self):
         p = plan()
+        case = next(case for case in tasks.cert.behavioral.read_json(tasks.cert.behavioral.DEFAULT_SUITE)["cases"]
+                    if case["id"] == tasks.task_for(p, "t003")["case_id"])
         events = tasks.cert.behavioral.parse_jsonl(json.dumps({"type": "turn.completed", "usage": {
             "input_tokens": 200, "cached_input_tokens": 50, "output_tokens": 100,
             "reasoning_output_tokens": 25}}))
@@ -163,8 +167,7 @@ class RecoveryProtocolTest(unittest.TestCase):
                         return_value={"skills": directory}), \
                     mock.patch.object(tasks.cert.behavioral, "run_condition", return_value={
                         "events": events, "exit_code": exit_code, "timed_out": False,
-                        "elapsed_seconds": 1.0, "grade": {
-                            "effective_score": 0.0, "critical_pass": False, "passed": False}}):
+                        "elapsed_seconds": 1.0, "grade": tasks.cert.behavioral.grade_run(case, {})}):
                 result = worker.execute(p, tasks.admit(p, [], "t003", 0), Path(directory), None)
                 self.assertEqual(result["state"], expected_state)
                 self.assertEqual(result["usage"], {

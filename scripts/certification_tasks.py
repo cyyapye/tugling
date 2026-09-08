@@ -9,6 +9,7 @@ blocks further admission; synthetic diagnostics can exercise recovery for free.
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 import json
 import math
 from pathlib import Path
@@ -22,6 +23,7 @@ except ImportError:
 MAX_RECORD_BYTES = 32 * 1024
 MAX_RECORDS = 91 * 3 * 2
 STATES = {"RESULT", "TASK_ERROR", "INFRA_ERROR"}
+SCHEMA_VERSION = 2
 
 
 class TaskError(RuntimeError):
@@ -45,7 +47,7 @@ def task_definitions() -> list[dict]:
 
 
 def manifest(request: dict, *, synthetic: bool = False) -> dict:
-    body = {"schema_version": 1, "request": request, "synthetic": synthetic,
+    body = {"schema_version": SCHEMA_VERSION, "request": request, "synthetic": synthetic,
             "model": cert.MODEL, "effort": cert.EFFORT, "codex_version": cert.CODEX_VERSION,
             "tasks": task_definitions(), "max_attempts": 3, "lanes": 2}
     return {**body, "id": digest(body)}
@@ -77,7 +79,7 @@ def task_for(plan: dict, task_id: str) -> dict:
 
 
 def record(plan: dict, task_id: str, attempt: int, kind: str, **fields: Any) -> dict:
-    return {"schema_version": 1, "manifest_id": plan["id"], "task_id": task_id,
+    return {"schema_version": SCHEMA_VERSION, "manifest_id": plan["id"], "task_id": task_id,
             "attempt": attempt, "kind": kind, **fields}
 
 
@@ -96,12 +98,47 @@ def usage_evidence(value: Any) -> dict | None:
     return counters if valid_usage(counters) else None
 
 
+@lru_cache(maxsize=16)
+def behavioral_check_names(case_id: str) -> frozenset[str]:
+    """Derive the allowed names from the controller's pure, unconditional grader."""
+    suite = cert.behavioral.read_json(cert.behavioral.DEFAULT_SUITE)
+    case = next((case for case in suite["cases"] if case["id"] == case_id), None)
+    if case is None:
+        raise TaskError("unknown behavioral case")
+    return frozenset(check["name"] for check in cert.behavioral.grade_run(case, {})["checks"])
+
+
+def validate_behavioral_checks(case_id: str, checks: Any) -> None:
+    if (not isinstance(checks, dict) or set(checks) != behavioral_check_names(case_id)
+            or any(type(passed) is not bool for passed in checks.values())):
+        raise TaskError("invalid controller-owned grader checks")
+
+
+def behavioral_evidence(case_id: str, raw: dict) -> dict:
+    """Keep every fixed check's verdict; omit raw detail and assistant strings."""
+    grade = raw["grade"]
+    raw_checks = grade.get("checks")
+    expected = behavioral_check_names(case_id)
+    if not isinstance(raw_checks, list) or len(raw_checks) != len(expected):
+        raise TaskError("incomplete controller-owned grader checks")
+    checks = {}
+    for check in raw_checks:
+        if (not isinstance(check, dict) or not isinstance(check.get("name"), str)
+                or check["name"] not in expected or check["name"] in checks
+                or type(check.get("passed")) is not bool):
+            raise TaskError("invalid controller-owned grader check")
+        checks[check["name"]] = check["passed"]
+    validate_behavioral_checks(case_id, checks)
+    return {"score": grade["effective_score"], "critical_pass": grade["critical_pass"],
+            "passed": grade["passed"], "elapsed_seconds": raw["elapsed_seconds"], "checks": checks}
+
+
 def validate_record(plan: dict, value: dict) -> None:
     base = {"schema_version", "manifest_id", "task_id", "attempt", "kind"}
     if not isinstance(value, dict) or value.get("manifest_id") != plan["id"]:
         raise TaskError("receipt belongs to another certification")
     task = task_for(plan, value.get("task_id"))
-    if (value.get("schema_version") != 1 or type(value.get("attempt")) is not int
+    if (value.get("schema_version") != SCHEMA_VERSION or type(value.get("attempt")) is not int
             or not 0 <= value["attempt"] < plan["max_attempts"]):
         raise TaskError("invalid receipt generation")
     if value.get("kind") == "admission":
@@ -142,8 +179,9 @@ def validate_record(plan: dict, value: dict) -> None:
         if evidence != clean_evidence(evidence, plan):
             raise TaskError("installation evidence contains unexpected data")
     else:
-        if not isinstance(evidence, dict) or set(evidence) != {"score", "critical_pass", "passed", "elapsed_seconds"}:
+        if not isinstance(evidence, dict) or set(evidence) != {"score", "critical_pass", "passed", "elapsed_seconds", "checks"}:
             raise TaskError("invalid behavioral evidence")
+        validate_behavioral_checks(task["case_id"], evidence["checks"])
         if any(type(evidence[key]) is not bool for key in ("critical_pass", "passed")):
             raise TaskError("invalid behavioral verdict")
         for key, maximum in (("score", 1), ("elapsed_seconds", 600)):
@@ -212,6 +250,22 @@ def accepted(records: list[dict]) -> dict[str, dict]:
             raise TaskError("multiple terminal outcomes for one task")
         results[item["task_id"]] = item
     return results
+
+
+def failed_candidate_checks(plan: dict, records: list[dict]) -> list[dict]:
+    """Project actionable failures using only validated controller-owned names."""
+    completed = accepted(records)
+    failures = []
+    for task in plan["tasks"][1:]:
+        result = completed.get(task["id"])
+        if task["condition"] != "candidate" or result is None or result["state"] != "RESULT":
+            continue
+        validate_record(plan, result)
+        failed = sorted(name for name, passed in result["evidence"]["checks"].items() if not passed)
+        if failed:
+            failures.append({"task": task["id"], "case": task["case_id"],
+                             "trial": task["trial"], "checks": failed})
+    return failures
 
 
 def accounting(plan: dict, records: list[dict], lane: int | None = None) -> dict:
