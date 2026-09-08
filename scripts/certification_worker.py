@@ -79,11 +79,12 @@ def execute(plan: dict, admission: dict, directory: Path, policy: Path | None) -
                     raise tasks.TaskError("synthetic behavioral runtime failed")
                 # Synthetic scores exercise recovery only; never certify a skill.
                 evidence = tasks.behavioral_evidence(task["case_id"], raw)
-                evidence.update(score=1.0 if task["condition"] == "candidate" else 0.5,
-                                critical_pass=True, passed=True)
-                if task["id"] == "t003":
-                    evidence.update(score=0.0, critical_pass=False, passed=False)
-            if task["id"] == "t002" and admission["attempt"] == 0:
+                if not tasks.is_diagnostic(plan):
+                    evidence.update(score=1.0 if task["condition"] == "candidate" else 0.5,
+                                    critical_pass=True, passed=True)
+                    if task["id"] == "t003":
+                        evidence.update(score=0.0, critical_pass=False, passed=False)
+            if not tasks.is_diagnostic(plan) and task["id"] == "t002" and admission["attempt"] == 0:
                 # A synthetic in-flight worker death. The uploaded admission
                 # survives, while this process cannot emit a result.
                 os._exit(71)

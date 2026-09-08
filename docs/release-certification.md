@@ -93,6 +93,49 @@ certificates retain the model they actually used. The first approved live Luna
 certification must pass this same full matrix and every existing promotion gate;
 local checks and the fake API transport check do not establish live model quality.
 
+## Diagnose one case before full certification
+
+`diagnose-case.yml` uses the same controller, preflight, pinned Luna/medium runtime,
+isolated worker and immutable checkpoints as certification. Select one case from
+the controller's ten-case suite; the manifest fixes the candidate condition and
+trial 1. There is no public-install task or comparison matrix in this mode.
+
+Pushes to `main` and `codex/**` that change this machinery run a free no-op-case
+diagnostic against the local fake provider. A manual dispatch with `synthetic=true`
+can exercise another reviewed case without account credentials. Synthetic case
+diagnostics preserve the actual fake-provider grader verdict; they do not apply
+the deliberately assigned scores used by the full recovery test.
+
+A paid diagnostic requires the protected controller tag, current main/stable SHAs,
+an enabled certification setting, and a fresh `approve_paid_run=true` approval.
+Its selected case is part of that approval and the immutable manifest. It reuses
+the existing GitHub API-key secret and shares the paid-certification concurrency
+group. The maximum requested thresholds are 100,000 input tokens (including cached
+input) and 5,000 output tokens, also bounded by the configured repository ceilings.
+These are observed-token thresholds, not hard billing caps: the one in-flight
+trial can exceed them, and all reported usage is retained.
+
+This mode uses manifest/receipt schema version 3 with `purpose=case_diagnostic` and
+one budget lane. Full certification retains its version 2, 91-task contract.
+Setup can recover before durable admission, but once the trial is admitted it
+cannot execute again within the dispatch, even after a known infrastructure error.
+Missing paid usage remains blocked. A terminal grade is preserved, including a
+failure. Another live trial needs another explicitly approved dispatch.
+
+The bounded `case-diagnostic` artifact contains `diagnostic.json`: exact request,
+runtime, task identity, admission/result receipts, observed usage, grader verdict,
+and failed check names. An aggregator replacement validates and reuses this report
+without another model call. The free workflow deliberately loses the first
+aggregator after upload to test that recovery. Its success means the diagnostic
+report was produced and recovered; inspect `verification_passed` for the actual
+fake-provider grade. In paid mode, a separate verdict job reads the saved report
+and fails the workflow if the selected case failed verification.
+
+Diagnostic reports are never certificates: they create no attestation, cannot
+authorize promotion, and cannot satisfy any part of a different certification run.
+After fixing a diagnosed behavior, full release certification still requires all
+91 tasks and the existing promotion gate.
+
 ## Cost, failure, and recovery
 
 The controller freezes all 91 task identities in an immutable manifest before

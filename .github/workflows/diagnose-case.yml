@@ -1,0 +1,107 @@
+name: Case diagnostic
+
+on:
+  push:
+    branches: ['main', 'codex/**']
+    paths:
+      - '.github/workflows/certification-*.yml'
+      - '.github/workflows/diagnose-case.yml'
+      - 'scripts/certification_*.py'
+      - 'scripts/certify_release.py'
+      - 'scripts/behavioral_eval.py'
+      - 'scripts/codex_runtime.py'
+      - 'scripts/check_certification_ci.py'
+  workflow_dispatch:
+    inputs:
+      diagnostic_case:
+        description: One controller-owned case; one candidate trial, no certificate
+        type: choice
+        required: true
+        default: tugling-bounded-noop
+        options:
+          - async-safety-webhook
+          - async-safety-retry-lease-proof
+          - async-safety-typescript-worker
+          - scale-cost-list-api
+          - repo-verify-ignored-support-file
+          - tugling-project-setup
+          - tugling-bounded-noop
+          - skill-delivery-overtrigger
+          - screenshot-first-mobile-overflow
+          - delivery-plan-api-migration
+      synthetic:
+        description: Use the local fake provider without API charges
+        type: boolean
+        default: false
+      candidate_sha:
+        description: Exact current main SHA (paid mode)
+        type: string
+      baseline_sha:
+        description: Exact current stable SHA (paid mode)
+        type: string
+      approved_input_tokens:
+        description: Observed input-token threshold, at most 100000; not a hard billing cap
+        type: string
+      approved_output_tokens:
+        description: Observed output-token threshold, at most 5000; not a hard billing cap
+        type: string
+      approve_paid_run:
+        description: Approve exactly one candidate trial and its API charges
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && !inputs.synthetic && 'tugling-release-certification' || format('case-diagnostic-{0}', github.ref) }}
+  cancel-in-progress: false
+
+jobs:
+  diagnostic:
+    uses: ./.github/workflows/certification-pipeline.yml
+    with:
+      synthetic: ${{ github.event_name != 'workflow_dispatch' || inputs.synthetic }}
+      diagnostic-case: ${{ github.event_name == 'push' && 'tugling-bounded-noop' || inputs.diagnostic_case }}
+    secrets:
+      api-key: ${{ github.event_name == 'workflow_dispatch' && !inputs.synthetic && secrets.TUGLING_CERTIFICATION_API_KEY || '' }}
+      policy: ${{ github.event_name == 'workflow_dispatch' && !inputs.synthetic && secrets.TUGLING_PUBLIC_POLICY_PATTERNS || '' }}
+
+  verdict:
+    needs: diagnostic
+    if: github.event_name == 'workflow_dispatch' && !inputs.synthetic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      DIAGNOSTIC_CASE: ${{ inputs.diagnostic_case }}
+      CONTROLLER_SHA: ${{ vars.TUGLING_CERTIFICATION_CONTROLLER_SHA }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      CERTIFICATION_ENABLED: ${{ vars.TUGLING_CERTIFICATION_ENABLED }}
+      APPROVE_PAID_RUN: ${{ inputs.approve_paid_run }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      BASELINE_SHA: ${{ inputs.baseline_sha }}
+      APPROVED_INPUT_TOKENS: ${{ inputs.approved_input_tokens }}
+      APPROVED_OUTPUT_TOKENS: ${{ inputs.approved_output_tokens }}
+      MAX_INPUT_TOKENS: ${{ vars.TUGLING_CERTIFICATION_MAX_INPUT_TOKENS }}
+      MAX_OUTPUT_TOKENS: ${{ vars.TUGLING_CERTIFICATION_MAX_OUTPUT_TOKENS }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ needs.diagnostic.outputs.manifest }}
+          path: ${{ runner.temp }}/manifest
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: case-diagnostic
+          path: ${{ runner.temp }}/diagnostic
+      - name: Report the saved case verdict without repeating model execution
+        run: >-
+          python3 -I scripts/certification_jobs.py diagnostic-verdict
+          --manifest "$RUNNER_TEMP/manifest/manifest.json" --out "$RUNNER_TEMP/diagnostic"

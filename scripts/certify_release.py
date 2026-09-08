@@ -35,6 +35,7 @@ EFFORT = "medium"
 CODEX_VERSION = "0.153.4"
 TASK_TIMEOUT = 180
 MAX_CERTIFICATE_BYTES = 256 * 1024
+DIAGNOSTIC_LIMITS = {"INPUT": 100_000, "OUTPUT": 5_000}
 
 
 class CertificationError(RuntimeError):
@@ -107,16 +108,25 @@ def authorize(env: dict[str, str]) -> dict[str, Any]:
     candidate, baseline = env.get("CANDIDATE_SHA", ""), env.get("BASELINE_SHA", "")
     if not controller.SHA.fullmatch(candidate) or not controller.SHA.fullmatch(baseline):
         raise CertificationError("candidate and baseline must be full lowercase commit SHAs")
+    case_id = env.get("DIAGNOSTIC_CASE", "")
+    diagnostic_workflow = f"{REPOSITORY}/.github/workflows/diagnose-case.yml@{env['GITHUB_REF']}"
+    if case_id or env.get("GITHUB_WORKFLOW_REF") == diagnostic_workflow:
+        if (env.get("GITHUB_WORKFLOW_REF") != diagnostic_workflow
+                or case_id not in gate.validate_matrix()["required_case_ids"]):
+            raise CertificationError("diagnostics require one reviewed case and the diagnostic workflow")
     limits = {}
     for kind, ceiling in (("INPUT", 100_000_000), ("OUTPUT", 10_000_000)):
         configured = positive_integer(env.get(f"MAX_{kind}_TOKENS", ""), ceiling)
+        if case_id:
+            configured = min(configured, DIAGNOSTIC_LIMITS[kind])
         requested = positive_integer(env.get(f"APPROVED_{kind}_TOKENS", ""), configured)
         limits[f"{kind.lower()}_limit"] = requested
     run_id = env.get("GITHUB_RUN_ID", "")
     if not re.fullmatch(r"[1-9][0-9]{0,19}", run_id):
         raise CertificationError("invalid GitHub run identity")
     return {"repository": REPOSITORY, "controller_sha": pin, "candidate_sha": candidate,
-            "baseline_sha": baseline, "run_id": run_id, "run_attempt": 1, **limits}
+            "baseline_sha": baseline, "run_id": run_id, "run_attempt": 1, **limits,
+            **({"diagnostic_case": case_id} if case_id else {})}
 
 
 def require_successful_verify(candidate: str) -> None:
@@ -209,6 +219,8 @@ def check_public_policy(candidate: Path, pattern_file: Path) -> None:
 
 def certify(candidate: Path, request: dict[str, Any], pattern_file: Path,
             output: Path, private: Path, budget: runtime.RunBudget) -> None:
+    if "diagnostic_case" in request:
+        raise CertificationError("a diagnostic approval cannot run full certification")
     if not runtime.proxy_arguments():
         raise CertificationError("CI certification requires the official Codex Action proxy")
     codex_bin, version = clean_room.resolve_codex(None)
@@ -271,6 +283,8 @@ def certify(candidate: Path, request: dict[str, Any], pattern_file: Path,
 
 
 def validate_artifact(output: Path, request: dict[str, Any]) -> None:
+    if "diagnostic_case" in request:
+        raise CertificationError("diagnostic evidence cannot certify a release")
     names = {"certificate.json", "certification.json"}
     if {path.name for path in output.iterdir()} != names:
         raise CertificationError("unexpected certification artifact files")

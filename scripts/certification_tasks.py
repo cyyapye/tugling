@@ -50,14 +50,28 @@ def manifest(request: dict, *, synthetic: bool = False) -> dict:
     body = {"schema_version": SCHEMA_VERSION, "request": request, "synthetic": synthetic,
             "model": cert.MODEL, "effort": cert.EFFORT, "codex_version": cert.CODEX_VERSION,
             "tasks": task_definitions(), "max_attempts": 3, "lanes": 2}
+    if "diagnostic_case" in request:
+        selected = [task for task in body["tasks"] if task["case_id"] == request["diagnostic_case"]
+                    and task["case_id"] != "public-install" and task["condition"] == "candidate" and task["trial"] == 1]
+        if len(selected) != 1:
+            raise TaskError("diagnostics require one reviewed behavioral case")
+        body.update(schema_version=3, purpose="case_diagnostic", lanes=1,
+                    tasks=[{**selected[0], "lane": 0}])
     return {**body, "id": digest(body)}
+
+
+def is_diagnostic(plan: dict) -> bool:
+    return plan.get("purpose") == "case_diagnostic"
 
 
 def validate_manifest(value: dict) -> None:
     if not isinstance(value, dict) or type(value.get("synthetic")) is not bool:
         raise TaskError("invalid certification manifest")
     request = value.get("request")
-    if not isinstance(request, dict) or value != manifest(request, synthetic=value["synthetic"]):
+    if not isinstance(request, dict):
+        raise TaskError("invalid certification request")
+    expected = manifest(request, synthetic=value["synthetic"])
+    if value != expected or digest(value) != digest(expected):
         raise TaskError("manifest differs from the reviewed task matrix or runtime")
     for key in ("candidate_sha", "baseline_sha", "controller_sha"):
         if not cert.controller.SHA.fullmatch(str(request.get(key, ""))):
@@ -69,6 +83,8 @@ def validate_manifest(value: dict) -> None:
     for key in ("input_limit", "output_limit"):
         if type(request.get(key)) is not int or request[key] < 2:
             raise TaskError("invalid lane budget")
+        if is_diagnostic(value) and request[key] > cert.DIAGNOSTIC_LIMITS[key.split("_")[0].upper()]:
+            raise TaskError("diagnostic token threshold exceeds the controller ceiling")
 
 
 def task_for(plan: dict, task_id: str) -> dict:
@@ -79,7 +95,7 @@ def task_for(plan: dict, task_id: str) -> dict:
 
 
 def record(plan: dict, task_id: str, attempt: int, kind: str, **fields: Any) -> dict:
-    return {"schema_version": SCHEMA_VERSION, "manifest_id": plan["id"], "task_id": task_id,
+    return {"schema_version": plan["schema_version"], "manifest_id": plan["id"], "task_id": task_id,
             "attempt": attempt, "kind": kind, **fields}
 
 
@@ -138,7 +154,7 @@ def validate_record(plan: dict, value: dict) -> None:
     if not isinstance(value, dict) or value.get("manifest_id") != plan["id"]:
         raise TaskError("receipt belongs to another certification")
     task = task_for(plan, value.get("task_id"))
-    if (value.get("schema_version") != SCHEMA_VERSION or type(value.get("attempt")) is not int
+    if (value.get("schema_version") != plan["schema_version"] or type(value.get("attempt")) is not int
             or not 0 <= value["attempt"] < plan["max_attempts"]):
         raise TaskError("invalid receipt generation")
     if value.get("kind") == "admission":
@@ -256,9 +272,10 @@ def failed_candidate_checks(plan: dict, records: list[dict]) -> list[dict]:
     """Project actionable failures using only validated controller-owned names."""
     completed = accepted(records)
     failures = []
-    for task in plan["tasks"][1:]:
+    for task in plan["tasks"]:
         result = completed.get(task["id"])
-        if task["condition"] != "candidate" or result is None or result["state"] != "RESULT":
+        if (task["case_id"] == "public-install" or task["condition"] != "candidate"
+                or result is None or result["state"] != "RESULT"):
             continue
         validate_record(plan, result)
         failed = sorted(name for name, passed in result["evidence"]["checks"].items() if not passed)
@@ -289,11 +306,13 @@ def admit(plan: dict, records: list[dict], task_id: str, attempt: int) -> dict |
         raise TaskError("recovery exhausted")
     if any(r["task_id"] == task_id and r["attempt"] == attempt for r in records):
         raise TaskError("attempt already admitted; never replay model execution")
+    if is_diagnostic(plan) and any(r["kind"] == "admission" for r in records):
+        raise TaskError("one-trial diagnostic already admitted; a new paid run needs fresh approval")
     usage = accounting(plan, records, task["lane"])
     if usage["unaccounted_attempts"] and not plan["synthetic"]:
         raise TaskError("ACCOUNTING_BLOCKED: an admitted paid task has missing usage")
     for key in ("input", "output"):
-        limit = plan["request"][f"{key}_limit"] // 2
+        limit = plan["request"][f"{key}_limit"] // plan["lanes"]
         if usage[f"{key}_tokens"] >= limit:
             raise TaskError("BUDGET_BLOCKED: lane token threshold reached")
     return record(plan, task_id, attempt, "admission")
@@ -307,10 +326,10 @@ def recovery(plan: dict, records: list[dict], attempt: int) -> list[dict]:
         raise TaskError("stale recovery planner")
     completed = accepted(records)
     blocked_lanes = set()
-    for lane in (0, 1):
+    for lane in range(plan["lanes"]):
         usage = accounting(plan, records, lane)
         if ((usage["unaccounted_attempts"] and not plan["synthetic"])
-                or any(usage[f"{key}_tokens"] >= plan["request"][f"{key}_limit"] // 2
+                or any(usage[f"{key}_tokens"] >= plan["request"][f"{key}_limit"] // plan["lanes"]
                        for key in ("input", "output"))):
             blocked_lanes.add(lane)
     pending = []
@@ -321,6 +340,8 @@ def recovery(plan: dict, records: list[dict], attempt: int) -> list[dict]:
         prior = [r for r in records if r["task_id"] == task["id"]]
         if any(r["attempt"] >= attempt for r in prior):
             raise TaskError("stale recovery planner")
+        if is_diagnostic(plan) and any(r["kind"] == "admission" for r in prior):
+            continue
         if not plan["synthetic"] and any(r["kind"] == "admission" for r in prior):
             results = {(r["attempt"]): r for r in prior if r["kind"] == "result"}
             if any(r["attempt"] not in results or results[r["attempt"]]["usage"] is None

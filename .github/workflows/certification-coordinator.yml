@@ -18,6 +18,9 @@ on:
       manifest-artifact:
         type: string
         default: ''
+      diagnostic-case:
+        type: string
+        default: ''
     secrets:
       policy:
         required: false
@@ -41,6 +44,7 @@ permissions:
 
 env:
   PYTHONDONTWRITEBYTECODE: "1"
+  DIAGNOSTIC_CASE: ${{ inputs.diagnostic-case }}
   CONTROLLER_SHA: ${{ vars.TUGLING_CERTIFICATION_CONTROLLER_SHA }}
   WORKFLOW_SHA: ${{ github.workflow_sha }}
   CERTIFICATION_ENABLED: ${{ vars.TUGLING_CERTIFICATION_ENABLED }}
@@ -60,7 +64,7 @@ jobs:
     outputs:
       ready: ${{ steps.ready.outputs.value }}
       required: ${{ steps.execute.outputs.required }}
-      state: ${{ steps.execute.outputs.required == 'true' && 'CERTIFICATION_REQUIRED' || 'UNCHANGED_PLUGIN' }}
+      state: ${{ steps.execute.outputs.state }}
       manifest: certification-manifest-${{ inputs.attempt }}
       lane0: ${{ steps.execute.outputs.lane0 }}
       lane1: ${{ steps.execute.outputs.lane1 }}
@@ -128,7 +132,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Publish successful certificate
-        if: inputs.stage == 'aggregate' && !inputs.synthetic && steps.execute.outputs.existing == 'false'
+        if: inputs.stage == 'aggregate' && inputs.diagnostic-case == '' && !inputs.synthetic && steps.execute.outputs.existing == 'false'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: certification-${{ github.event.inputs.candidate_sha }}-${{ github.run_id }}-1
@@ -138,15 +142,23 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Publish successful free recovery proof
-        if: inputs.stage == 'aggregate' && inputs.synthetic && steps.execute.outputs.existing == 'false'
+        if: inputs.stage == 'aggregate' && inputs.diagnostic-case == '' && inputs.synthetic && steps.execute.outputs.existing == 'false'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: recovery-diagnostic
           path: ${{ runner.temp }}/output/recovery-diagnostic.json
           if-no-files-found: error
           retention-days: 7
+      - name: Publish the completed diagnostic without a certificate
+        if: inputs.stage == 'aggregate' && inputs.diagnostic-case != '' && steps.execute.outputs.existing == 'false'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: case-diagnostic
+          path: ${{ runner.temp }}/output/diagnostic.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Save failed synthetic aggregation diagnostics
-        if: failure() && inputs.stage == 'aggregate' && inputs.synthetic
+        if: failure() && inputs.stage == 'aggregate' && inputs.diagnostic-case == '' && inputs.synthetic
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: recovery-diagnostic-failure-${{ inputs.attempt }}
