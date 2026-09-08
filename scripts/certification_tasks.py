@@ -88,6 +88,14 @@ def valid_usage(value: Any) -> bool:
             and value["input_tokens"] > 0 and value["cached_input_tokens"] <= value["input_tokens"])
 
 
+def usage_evidence(value: Any) -> dict | None:
+    """Project observed counters; reasoning tokens are already part of output."""
+    if not isinstance(value, dict):
+        return None
+    counters = {key: value.get(key) for key in ("input_tokens", "output_tokens", "cached_input_tokens")}
+    return counters if valid_usage(counters) else None
+
+
 def validate_record(plan: dict, value: dict) -> None:
     base = {"schema_version", "manifest_id", "task_id", "attempt", "kind"}
     if not isinstance(value, dict) or value.get("manifest_id") != plan["id"]:
@@ -109,11 +117,19 @@ def validate_record(plan: dict, value: dict) -> None:
     if value["state"] != "RESULT":
         if value["evidence"] is not None:
             detail = value["evidence"]
-            if (not isinstance(detail, dict) or set(detail) != {"stage", "category"}
+            fields = {"stage", "category"}
+            execution = {"exit_code", "timed_out", "diagnostics"}
+            if (not isinstance(detail, dict) or set(detail) not in (fields, fields | execution)
                     or detail["stage"] not in {"runtime", "candidate", "installation", "evaluation"}
                     or detail["category"] not in {"TaskError", "CleanRoomError", "ControllerError", "EvalError",
-                         "PermissionError", "FileNotFoundError", "TimeoutExpired", "BudgetError", "unexpected"}):
+                         "PermissionError", "FileNotFoundError", "TimeoutExpired", "BudgetError",
+                         "UsageError", "CodexExitError", "unexpected"}):
                 raise TaskError("invalid fixed failure category")
+            if execution <= set(detail) and (
+                    detail["stage"] != "evaluation" or type(detail["exit_code"]) is not int
+                    or not -255 <= detail["exit_code"] <= 255 or type(detail["timed_out"]) is not bool
+                    or not cert.runtime.valid_failure_diagnostics(detail["diagnostics"])):
+                raise TaskError("invalid execution diagnostics")
         return
     if not valid_usage(value["usage"]):
         raise TaskError("completed verification requires reported usage")

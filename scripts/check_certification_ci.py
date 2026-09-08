@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the public-install task and official proxy with a synthetic provider."""
+"""Exercise installation and behavioral execution through the official proxy."""
 from __future__ import annotations
 
 import argparse
@@ -55,6 +55,14 @@ def serve(path: Path) -> None:
             answer = json.dumps({"selected_skill": "repo-verify", "canonical_verify": "make verify",
                                  "verification_order": "repository-native-first",
                                  "strongest_proven_state": "ADVISORY", "edited_files": False})
+            schema = body.get("text", {}).get("format", {}).get("schema", {})
+            case_ids = schema.get("properties", {}).get("case_id", {}).get("enum", [])
+            if case_ids:
+                # Valid structured output for the real behavioral CLI path.
+                # Deliberately contains no correct decisions or behavioral proof.
+                answer = json.dumps({"case_id": case_ids[0], "summary": "Synthetic runtime check",
+                    "decisions": [], "commands_run": ["cat AGENTS.md"], "artifacts_inspected": ["AGENTS.md"],
+                    "changes_made": [], "strongest_proven_state": "ADVISORY", "unverified": ["All behavior"]})
             item = {"id": "msg_synthetic", "type": "message", "role": "assistant", "status": "completed",
                     "content": [{"type": "output_text", "text": answer, "annotations": []}]}
             response = {"id": "resp_synthetic", "object": "response", "status": "completed",
@@ -122,6 +130,8 @@ def resource_snapshot(proc: Path = Path("/proc")) -> dict:
 
 
 def check(args: argparse.Namespace) -> None:
+    import certification_tasks as tasks
+    import certification_worker as worker
     if not 1 <= args.tasks <= 91:
         raise RuntimeError("Synthetic task count must be between 1 and 91")
     initial = json.loads(args.state.read_text())
@@ -160,10 +170,33 @@ def check(args: argparse.Namespace) -> None:
                 raise RuntimeError("Installation or synthetic-provider contract failed")
             if result["live"]["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}:
                 raise RuntimeError("Synthetic completion usage did not reach the installation report")
+        revision = certification.controller.text_git(ROOT, "rev-parse", "HEAD")
+        plan = tasks.manifest({"repository": certification.REPOSITORY, "controller_sha": revision,
+            "candidate_sha": revision, "baseline_sha": revision, "run_id": "1", "run_attempt": 1,
+            "input_limit": 5_000_000, "output_limit": 500_000}, synthetic=True)
+        report["behavioral_tasks"] = []
+        for task in plan["tasks"][1:]:
+            if task["trial"] != 1 or task["condition"] != "candidate":
+                continue
+            work = Path(directory) / task["id"]
+            work.mkdir()
+            receipt = worker.execute(plan, tasks.record(plan, task["id"], 0, "admission"), work, None)
+            snapshot = {"task": task["id"], "state": receipt["state"], "usage": receipt["usage"]}
+            report["behavioral_tasks"].append(snapshot)
+            print(json.dumps(snapshot, sort_keys=True), flush=True)
+            if args.out:
+                write_state(args.out, report)
+            if (receipt["state"] != "RESULT"
+                    or receipt["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}):
+                raise RuntimeError("Behavioral CLI/parser/receipt contract failed")
+        state = json.loads(args.state.read_text())
+        if (len(report["behavioral_tasks"]) != 10 or len(state["requests"]) != 2 * (args.tasks + 10)
+                or not all(all(request.values()) for request in state["requests"])):
+            raise RuntimeError("Behavioral requests escaped the exact synthetic proxy contract")
         report["passed"] = True
         if args.out:
             write_state(args.out, report)
-    print("Public-install task passed through the official proxy and a local fake API; no provider calls or behavioral proof.")
+    print("Installation and all ten behavioral execution paths passed through the official proxy and a local fake API; no provider calls or behavioral proof.")
 
 
 if __name__ == "__main__":
