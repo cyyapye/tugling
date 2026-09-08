@@ -1,0 +1,26 @@
+name: Recovery diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'codex/**']
+    paths:
+      - '.github/workflows/certification-*.yml'
+      - '.github/workflows/diagnose-recovery.yml'
+      - 'scripts/certification_*.py'
+      - 'scripts/check_worker_isolation.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: recovery-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  recovery:
+    uses: ./.github/workflows/certification-pipeline.yml
+    with:
+      synthetic: true
+    # Deliberately no secrets: every Responses request stays on loopback.

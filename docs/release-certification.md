@@ -5,7 +5,7 @@ receive the certification API key or call a model. The additional runtime check
 installs the pinned CLI and sends one request to a local fake API, without account
 credentials. Fork contributions can run these checks on standard public runners.
 Another free job exercises the full public-install discovery path through the
-same pinned Codex Action and privilege removal as certification. Its credential
+pinned Codex Action and proxy. Its credential
 is a fixed synthetic string and its upstream is a local fake API. It checks a
 synthetic tool call, successful response, and reported usage, not live model quality.
 For pull requests, this installation check uses the contributor's exact public
@@ -59,15 +59,15 @@ deliberately replacing it. Protect those controls before activation.
    API credential. No behavioral certificate or attestation is created. A change
    only to release tooling can therefore complete without a paid run.
 3. Install Codex CLI `0.153.4` through the SHA-pinned official Codex Action in
-   setup-only mode. Its proxy holds the API credential and the action removes
-   runner sudo access. Each model task receives only the loopback proxy address,
+   setup-only mode. Its proxy holds the API credential outside the separate
+   unprivileged worker. Each model task receives only the loopback proxy address,
    a fresh Codex home, and the case's declared sandbox. Model tool processes do
    not inherit API keys, GitHub tokens, or policy-pattern environment variables.
 4. Scan the candidate against the configured public-policy patterns before
    spending. Install the exact public candidate in a fresh home and run the
    existing read-only discovery task. Run all 10 synthetic cases under control,
    released, and candidate conditions, with three attempts per condition.
-   This is 90 behavioral tasks plus one installation task, run serially with
+   This is 90 behavioral tasks plus one installation task, in two serial lanes with
    `gpt-5.6-luna` and medium reasoning. The model name is an API alias, not an
    immutable backend snapshot; all three arms use the same configured name.
 5. Use controller-owned fixtures, schemas, Python graders, scans, thresholds,
@@ -95,39 +95,72 @@ local checks and the fake API transport check do not establish live model qualit
 
 ## Cost, failure, and recovery
 
-Token thresholds are checked **between tasks**, using reported input/output usage.
-Cached input counts toward the input threshold; reasoning output is already part
-of reported output usage and is not added twice. An in-flight task can exceed a
-threshold, so this is **not a hard token or dollar cap**. A failed or timed-out
-task may have consumed unreported tokens; the run reports incomplete accounting
-rather than treating missing usage as zero. Provider billing is authoritative.
+The controller freezes all 91 task identities in an immutable manifest before
+spending. An identity includes the candidate, baseline, controller, CLI, model,
+case, condition and trial. `certification-pipeline.yml` runs two serial lanes;
+`certification-lane.yml` gives each task a fresh Ubuntu 24.04 job. Each lane has
+`max-parallel: 1`; there is no concurrent writer to a lane checkpoint. Recovery
+rounds depend on both previous lanes reaching terminal state.
 
-A failed installation task reports only the failed check names, CLI exit status,
-whether a final output exists, and allowlisted HTTP/API error categories when
-the CLI exposes them. Raw messages, model output, and paths stay private. Usage
-from a completed task is recorded even when its checks fail; missing usage
-remains explicitly unaccounted.
+Each lane owns half of the approved input and output thresholds. Usage is checked
+**between tasks**, includes cached input, and preserves reported overshoot. There
+can be two in-flight tasks, each able to exceed its lane threshold. These remain
+**observed-token admission thresholds, not hard billing caps**. Unused allowance
+is not borrowed between lanes. Provider billing is authoritative.
 
-There is one task at a time, at most 91 tasks, a 180-second timeout per model task,
-and a 330-minute evaluation-job timeout. Process cleanup kills remaining members
-of the Codex process group after success, failure, or timeout, before scratch
-directories are removed. Public plugin commands use the same cleanup.
-HTTP/stream retries are disabled for the configured proxy provider.
-Missing usage, task failure, threshold overshoot,
-changed refs, or a failed gate stops certification without a signed success.
+Before a model request is allowed, the supervisor uploads an admission checkpoint.
+It uploads a new checkpoint immediately after the task, retaining known usage even
+when checks fail. The latest checkpoint contains the complete lane history, so
+loading state requires a bounded artifact listing and one download per lane rather
+than downloading every result separately. Checkpoints are immutable and contain
+only fixed identities, verdicts, numeric scores and usage. Conflicting outcomes,
+stale generations, unexpected fields, or results without admissions are rejected.
 
-Workflow reruns (`run_attempt > 1`) are rejected, including a rerun of only the
-attestation job. A new dispatch is a new explicit paid approval. Runs are
-serialized and do not resume or mix partial evidence. If signing fails after
-evaluation, the uploaded files remain **unattested**; do not promote from them.
-Reproduction and recovery use the local harness or a newly approved dispatch.
+The official action keeps the API key in its proxy and uses `unprivileged-user`.
+A trusted supervisor starts the worker as a separate `tugling-worker` Linux user
+in a systemd cgroup. The worker has no sudo or capabilities, a read-only controller
+checkout, a 4 GiB memory limit without swap, a two-CPU quota, at most 256 processes,
+a 1 GiB work tmpfs, and separately bounded `/tmp` and `/var/tmp`. A file-size limit
+and supervisor output limit bound logs. The worker service lasts at most five
+minutes, while each model task retains its 180-second timeout and each hosted job
+has a ten-minute timeout. The entire worker cgroup is stopped on every outcome.
+The uploader and GitHub runner remain outside the worker's user and resource
+boundary. Numeric peak memory, process count and supervisor outcome are uploaded.
 
-Only the two bounded JSON files are uploaded, with seven-day retention and a
-combined maximum size of 512 KiB per successful run. Raw model output, prompts,
-local paths, auth files, and policy expressions are not uploaded. Failed-run
-logs expose case progress, controlled failure categories, and known usage only.
-The ephemeral runner removes raw evidence when the job ends. Keep long-lived
-release evidence and reviewed provenance outside this short-lived artifact store.
+Recovery is limited to two replacement rounds **within the same approved dispatch**.
+A saved terminal verification result is never rerun for a better grade. A setup
+failure before durable admission can be retried without authorizing another model
+call. An interrupted paid attempt with missing usage blocks its lane and prevents
+a certificate; it is never assigned zero usage or automatically spent again.
+The free synthetic workflow can replay an interrupted model task because every
+request stays on loopback and has no billable usage. This distinction is explicit:
+free recovery proof does not authorize paid retries with uncertain accounting.
+
+Planning, recovery selection and final aggregation each have at most three
+controller jobs. A replacement coordinator reads the saved state without repeating
+model work. If aggregation loses its job after publishing the final artifact, the
+replacement validates and reuses that artifact. Artifact provenance must match the
+same run, controller commit and source repository; expired or conflicting heads
+never fall back to older checkpoints.
+
+`run_attempt > 1`, cross-run evidence reuse and new paid dispatches without fresh
+approval remain forbidden. If attestation fails, the successful evaluation
+checkpoints and unsigned certificate remain available for inspection. Promotion
+still requires the complete successful workflow and both verified attestations.
+
+The independent aggregation job requires all 91 exact task identities, recomputes
+the existing comparisons and promotion gates, repeats freshness and policy checks,
+and assembles the existing certificate format. Leaf worker jobs tolerate execution
+failure so recovery can run; **only this complete aggregation and the separate
+attestation job can establish certification success**. Synthetic manifests cannot
+produce certificates.
+
+Artifacts retain data for seven days. A checkpoint is bounded to 2 MiB (normally
+far smaller), and the final two certificate JSON files retain their combined
+512 KiB limit. Raw model output, prompts, local paths, API keys, auth files and
+private policy expressions never enter checkpoint or telemetry artifacts. Failed
+or expired evidence remains incomplete. Keep reviewed release evidence outside
+this short-lived store.
 
 ## Review and promotion handoff
 
@@ -163,16 +196,30 @@ plugin commands exist. GitHub runs this check on Linux on each push and PR.
 These checks prove the integration contract, not a successful paid certification;
 the first live run remains a separate activation check with an approved budget.
 
-For repeated hosted-runner failures, manually dispatch `diagnose-runtime.yml`.
-It repeats 91 isolated public-install tasks through the same pinned CLI, official
-proxy, and privilege removal, using only a loopback synthetic provider and a
-fixed fake credential. It never reads certification secrets, invokes a real model,
-or produces a certificate. Ordinary push and PR checks still run one synthetic task.
-The diagnostic saves fixed check results and numeric Linux resource snapshots
-after each task in a seven-day artifact. Memory readings are between-task snapshots,
-not peak measurements or resource caps. A disconnected runner may be unable to
-upload even this diagnostic. A passing synthetic run does not rule out failures
-caused by real model tool choices or establish the cause of an earlier disconnect.
+`Verify / worker-isolation` deliberately exhausts a worker's memory and process
+limits, triggers a timeout, and checks that the worker cannot signal its supervisor
+or write the controller checkout. A final worker must still start successfully.
+The numeric proof is uploaded on failure as well as success. This is a Linux
+integration check; local Python tests do not establish those operating-system
+boundaries.
+
+`diagnose-recovery.yml` runs the full 91-task free recovery test when its controller
+or workflow changes on `main` or a `codex/**` branch, and supports manual dispatch.
+It uses the same workflow, official proxy, pinned CLI and isolated workers with a
+loopback synthetic provider. It kills one synthetic worker during a task, simulates
+job failure after another task's result upload, and preserves a failing candidate
+verification. It also fails the first aggregator after its artifact upload, so a
+replacement must validate and reuse the saved final result. The final
+`recovery-diagnostic` artifact must prove the missing task
+was recovered, the uploaded task was not repeated, all 91 results remain present,
+and the failed verification was preserved. No certification secret is passed and
+no certificate or attestation is generated.
+
+The older `diagnose-runtime.yml` remains a diagnostic for the historical
+single-host setup; it is not proof of the new isolation or recovery workflow.
+A passing free test does not establish live model quality or identify the cause of
+a historical runner disconnect. Full paid certification remains a separately
+approved activation check after reviewed controller pins have been refreshed.
 
 References: [Codex Action](https://learn.chatgpt.com/docs/github-action),
 [automation authentication](https://learn.chatgpt.com/docs/non-interactive-mode),

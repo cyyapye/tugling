@@ -361,6 +361,47 @@ class CertificationGitTest(unittest.TestCase):
                 self.assertEqual(budget.report()["completed_tasks"], 91)
         self.assertEqual(self.git(self.remote, "show-ref"), before)
 
+    def test_checkpoint_aggregation_preserves_the_real_release_gate(self):
+        from scripts import certification_tasks as tasks
+        from scripts import certification_jobs as jobs
+        self.change_plugin()
+        patterns = self.root / "checkpoint-policy.txt"
+        patterns.write_text("synthetic-private-sentinel-" + str(time.time_ns()))
+        manifest = tasks.manifest(self.request)
+        prepare = cert.prepare_candidate
+        before = self.git(self.remote, "show-ref")
+        for score in (1.0, 0.8):
+            records = []
+            for task in manifest["tasks"]:
+                records.append(tasks.record(manifest, task["id"], 0, "admission"))
+                if task["id"] == "t000":
+                    raw = {"passed": True, "checks": {}, "plugin": cert.gate.plugin_identity(self.repo),
+                        "live": {"ran": True, "repository_unchanged": True,
+                            "selected_skill": "repo-verify", "verification_order": "repository-native-first",
+                            "installed_skill_read_observed": True}}
+                    evidence = tasks.clean_evidence(raw, manifest)
+                    evidence["checks"] = {key: True for key in evidence["checks"]}
+                    evidence["passed"] = True
+                else:
+                    evidence = {"score": {"control": 0.8, "released": 0.9, "candidate": score}[task["condition"]],
+                        "critical_pass": True, "passed": True, "elapsed_seconds": 0.1}
+                receipt = tasks.record(manifest, task["id"], 0, "result", state="RESULT",
+                    usage={"input_tokens": 10, "output_tokens": 1, "cached_input_tokens": 0}, evidence=evidence)
+                tasks.validate_record(manifest, receipt)
+                records.append(receipt)
+            output = self.root / f"checkpoint-output-{score}"
+            with mock.patch.object(cert, "prepare_candidate",
+                    side_effect=lambda destination, request: prepare(destination, request, remote=str(self.remote))):
+                if score == 1.0:
+                    jobs.assemble(manifest, records, output, patterns)
+                    cert.validate_artifact(output, self.request)
+                    self.assertTrue(cert.gate.read_json(output / "certificate.json")["passed"])
+                else:
+                    with self.assertRaisesRegex(tasks.TaskError, "VERIFICATION_FAILED"):
+                        jobs.assemble(manifest, records, output, patterns)
+                    self.assertFalse((output / "certificate.json").exists())
+        self.assertEqual(before, self.git(self.remote, "show-ref"))
+
 
 class CertificationArtifactTest(unittest.TestCase):
     def setUp(self):

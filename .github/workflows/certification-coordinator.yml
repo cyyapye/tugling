@@ -1,0 +1,164 @@
+name: Certification coordinator
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        type: string
+        required: true
+      attempt:
+        type: number
+        required: true
+      round:
+        type: number
+        default: 0
+      synthetic:
+        type: boolean
+        default: false
+      manifest-artifact:
+        type: string
+        default: ''
+    secrets:
+      policy:
+        required: false
+    outputs:
+      ready:
+        value: ${{ jobs.coordinate.outputs.ready }}
+      required:
+        value: ${{ jobs.coordinate.outputs.required }}
+      state:
+        value: ${{ jobs.coordinate.outputs.state }}
+      manifest:
+        value: ${{ jobs.coordinate.outputs.manifest }}
+      lane0:
+        value: ${{ jobs.coordinate.outputs.lane0 }}
+      lane1:
+        value: ${{ jobs.coordinate.outputs.lane1 }}
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  CONTROLLER_SHA: ${{ vars.TUGLING_CERTIFICATION_CONTROLLER_SHA }}
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  CERTIFICATION_ENABLED: ${{ vars.TUGLING_CERTIFICATION_ENABLED }}
+  APPROVE_PAID_RUN: ${{ github.event.inputs.approve_paid_run }}
+  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+  BASELINE_SHA: ${{ github.event.inputs.baseline_sha }}
+  APPROVED_INPUT_TOKENS: ${{ github.event.inputs.approved_input_tokens }}
+  APPROVED_OUTPUT_TOKENS: ${{ github.event.inputs.approved_output_tokens }}
+  MAX_INPUT_TOKENS: ${{ vars.TUGLING_CERTIFICATION_MAX_INPUT_TOKENS }}
+  MAX_OUTPUT_TOKENS: ${{ vars.TUGLING_CERTIFICATION_MAX_OUTPUT_TOKENS }}
+
+jobs:
+  coordinate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: ${{ inputs.attempt < 3 }}
+    outputs:
+      ready: ${{ steps.ready.outputs.value }}
+      required: ${{ steps.execute.outputs.required }}
+      state: ${{ steps.execute.outputs.required == 'true' && 'CERTIFICATION_REQUIRED' || 'UNCHANGED_PLUGIN' }}
+      manifest: certification-manifest-${{ inputs.attempt }}
+      lane0: ${{ steps.execute.outputs.lane0 }}
+      lane1: ${{ steps.execute.outputs.lane1 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        if: inputs.stage != 'plan'
+        with:
+          name: ${{ inputs.manifest-artifact }}
+          path: ${{ runner.temp }}/manifest
+      - name: Prepare private policy
+        if: '!inputs.synthetic && inputs.stage != ''recover'''
+        env:
+          POLICY: ${{ secrets.policy }}
+        run: |
+          test -n "$POLICY"
+          umask 077
+          printf '%s\n' "$POLICY" > "$RUNNER_TEMP/policy"
+      - name: Prove the worker boundary before admitting model tasks
+        if: inputs.stage == 'plan'
+        run: python3 scripts/check_worker_isolation.py --work "$RUNNER_TEMP/isolation-worker" --out "$RUNNER_TEMP/isolation-proof"
+      - name: Preserve preflight isolation evidence
+        if: always() && inputs.stage == 'plan'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: certification-isolation-proof-${{ inputs.attempt }}
+          path: ${{ runner.temp }}/isolation-proof/*.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Execute the stateless coordinator step
+        id: execute
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGE: ${{ inputs.stage }}
+          SYNTHETIC: ${{ inputs.synthetic }}
+          RECOVERY_ROUND: ${{ inputs.round }}
+        run: |
+          case "$STAGE" in
+            plan)
+              if [ "$SYNTHETIC" = true ]; then
+                python3 -I scripts/certification_jobs.py plan --synthetic --out "$RUNNER_TEMP/output"
+              else
+                python3 -I scripts/certification_jobs.py plan --policy "$RUNNER_TEMP/policy" --out "$RUNNER_TEMP/output"
+              fi
+              ;;
+            recover)
+              python3 -I scripts/certification_jobs.py recover --attempt "$RECOVERY_ROUND" --manifest "$RUNNER_TEMP/manifest/manifest.json" --out "$RUNNER_TEMP/output"
+              ;;
+            aggregate)
+              python3 -I scripts/certification_jobs.py aggregate --manifest "$RUNNER_TEMP/manifest/manifest.json" --policy "$RUNNER_TEMP/policy" --out "$RUNNER_TEMP/output"
+              ;;
+            *) exit 1 ;;
+          esac
+      - name: Publish immutable manifest
+        if: inputs.stage == 'plan' && steps.execute.outputs.required == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: certification-manifest-${{ inputs.attempt }}
+          path: ${{ runner.temp }}/output/manifest.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Publish successful certificate
+        if: inputs.stage == 'aggregate' && !inputs.synthetic && steps.execute.outputs.existing == 'false'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: certification-${{ github.event.inputs.candidate_sha }}-${{ github.run_id }}-1
+          path: |
+            ${{ runner.temp }}/output/certificate.json
+            ${{ runner.temp }}/output/certification.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Publish successful free recovery proof
+        if: inputs.stage == 'aggregate' && inputs.synthetic && steps.execute.outputs.existing == 'false'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: recovery-diagnostic
+          path: ${{ runner.temp }}/output/recovery-diagnostic.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Save failed synthetic aggregation diagnostics
+        if: failure() && inputs.stage == 'aggregate' && inputs.synthetic
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: recovery-diagnostic-failure-${{ inputs.attempt }}
+          path: ${{ runner.temp }}/output/recovery-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Simulate aggregator loss after artifact upload
+        if: inputs.stage == 'aggregate' && inputs.synthetic && inputs.attempt == 1 && steps.execute.outcome == 'success'
+        run: exit 73
+      - name: Acknowledge durable completion
+        id: ready
+        run: echo "value=true" >> "$GITHUB_OUTPUT"
+      - name: Remove private policy
+        if: always()
+        run: rm -f "$RUNNER_TEMP/policy"

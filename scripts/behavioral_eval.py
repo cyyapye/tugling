@@ -1651,9 +1651,9 @@ def run_evaluation(
                 condition_identity=condition_identity,
             )
             if budget is not None:
-                if result["exit_code"] != 0:
-                    raise EvalError("model task failed; usage may be incomplete and certification stops")
                 budget.record(result["events"]["usage"])
+                if result["exit_code"] != 0:
+                    raise EvalError("model task failed; reported usage retained and certification stops")
             return result
 
         if budget is not None:
