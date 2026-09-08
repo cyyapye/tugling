@@ -52,8 +52,10 @@ def git_env(token: str = "") -> dict[str, str]:
 
 
 def git(root: Path, *args: str, env: dict[str, str] | None = None) -> bytes:
+    # These repositories are disposable. Background maintenance must not
+    # outlive the command and race with TemporaryDirectory cleanup.
     result = subprocess.run(
-        ["git", "-c", f"core.hooksPath={os.devnull}", *args], cwd=root,
+        ["git", "-c", "maintenance.auto=false", "-c", f"core.hooksPath={os.devnull}", *args], cwd=root,
         env=env if env is not None else git_env(), stdin=subprocess.DEVNULL,
         capture_output=True, timeout=120, check=False,
     )
