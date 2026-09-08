@@ -12,15 +12,15 @@ on:
         required: true
         type: string
       approved_input_tokens:
-        description: Stop admitting tasks at this observed input-token threshold (includes cached input)
+        description: Total observed input-token threshold, split equally between two serial lanes (includes cached input)
         required: true
         type: string
       approved_output_tokens:
-        description: Stop admitting tasks at this observed output-token threshold
+        description: Total observed output-token threshold, split equally between two serial lanes
         required: true
         type: string
       approve_paid_run:
-        description: Approve API charges; one in-flight task can exceed a token threshold (not a hard dollar cap)
+        description: Approve API charges; up to two in-flight tasks can exceed lane thresholds (not a hard dollar cap)
         required: true
         type: boolean
         default: false
@@ -47,77 +47,15 @@ env:
 
 jobs:
   certify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 330
-    outputs:
-      state: ${{ steps.plan.outputs.state }}
-    steps:
-      - name: Require an explicitly enabled dispatch from the approved controller
-        shell: bash
-        run: |
-          test "$GITHUB_REPOSITORY" = cyyapye/tugling
-          test "$GITHUB_EVENT_NAME" = workflow_dispatch
-          test "$GITHUB_RUN_ATTEMPT" = 1
-          test "$CERTIFICATION_ENABLED" = true
-          test "$APPROVE_PAID_RUN" = true
-          [[ "$CONTROLLER_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$WORKFLOW_SHA" = "$CONTROLLER_SHA"
-          test "$GITHUB_SHA" = "$CONTROLLER_SHA"
-          [[ "$GITHUB_REF" == refs/tags/controller-* ]]
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.workflow_sha }}
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-      - name: Check exact refs, successful CI, reviewed machinery, and token approval
-        id: plan
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 -I scripts/certify_release.py plan --out "$RUNNER_TEMP/certification-plan.json"
-      - name: Prepare private policy patterns
-        if: steps.plan.outputs.state == 'CERTIFICATION_REQUIRED'
-        env:
-          POLICY_PATTERNS: ${{ secrets.TUGLING_PUBLIC_POLICY_PATTERNS }}
-        shell: bash
-        run: |
-          test -n "$POLICY_PATTERNS"
-          umask 077
-          printf '%s\n' "$POLICY_PATTERNS" > "$RUNNER_TEMP/tugling-policy-patterns.txt"
-      # Setup-only mode: the official action holds the API credential in its
-      # proxy and drops runner sudo access. The harness never receives the key.
-      - name: Set up the pinned Codex CLI and credential proxy
-        if: steps.plan.outputs.state == 'CERTIFICATION_REQUIRED'
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e
-        with:
-          openai-api-key: ${{ secrets.TUGLING_CERTIFICATION_API_KEY }}
-          codex-version: "0.153.4"
-          codex-home: ${{ runner.temp }}/tugling-ci-home
-          safety-strategy: drop-sudo
-      - name: Run the full release matrix with read-only repository permission
-        if: steps.plan.outputs.state == 'CERTIFICATION_REQUIRED'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >-
-          python3 -I scripts/certify_release.py run
-          --policy-pattern-file "$RUNNER_TEMP/tugling-policy-patterns.txt"
-          --proxy-info "$RUNNER_TEMP/tugling-ci-home/$GITHUB_RUN_ID.json"
-          --out "$RUNNER_TEMP/certification"
-      - name: Upload only successful sanitized evidence
-        if: steps.plan.outputs.state == 'CERTIFICATION_REQUIRED'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: certification-${{ inputs.candidate_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/certification/certificate.json
-            ${{ runner.temp }}/certification/certification.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: Remove private policy material
-        if: always()
-        shell: bash
-        run: rm -f "$RUNNER_TEMP/tugling-policy-patterns.txt"
+    uses: ./.github/workflows/certification-pipeline.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      synthetic: false
+    secrets:
+      api-key: ${{ secrets.TUGLING_CERTIFICATION_API_KEY }}
+      policy: ${{ secrets.TUGLING_PUBLIC_POLICY_PATTERNS }}
 
   attest:
     needs: certify

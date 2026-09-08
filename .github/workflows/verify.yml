@@ -8,6 +8,24 @@ permissions:
   contents: read
 
 jobs:
+  worker-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Prove worker containment with deliberate resource failures
+        run: python3 scripts/check_worker_isolation.py --work "$RUNNER_TEMP/isolation-worker" --out "$RUNNER_TEMP/isolation-proof"
+      - name: Upload numeric isolation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: worker-isolation-proof
+          path: ${{ runner.temp }}/isolation-proof/*.json
+          if-no-files-found: error
+          retention-days: 7
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10

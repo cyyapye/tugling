@@ -1,0 +1,251 @@
+name: Certification pipeline
+
+on:
+  workflow_call:
+    inputs:
+      synthetic:
+        type: boolean
+        default: false
+    secrets:
+      api-key:
+        required: false
+      policy:
+        required: false
+    outputs:
+      state:
+        value: ${{ (jobs.plan1.outputs.ready == 'true' && jobs.plan1.outputs.state) || (jobs.plan2.outputs.ready == 'true' && jobs.plan2.outputs.state) || jobs.plan3.outputs.state }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  plan1:
+    if: always() && !cancelled() && true
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: plan
+      attempt: 1
+      round: 0
+      synthetic: ${{ inputs.synthetic }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  plan2:
+    needs: [plan1]
+    if: always() && !cancelled() && true && needs.plan1.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: plan
+      attempt: 2
+      round: 0
+      synthetic: ${{ inputs.synthetic }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  plan3:
+    needs: [plan1, plan2]
+    if: always() && !cancelled() && true && needs.plan1.outputs.ready != 'true' && needs.plan2.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: plan
+      attempt: 3
+      round: 0
+      synthetic: ${{ inputs.synthetic }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  wave0_lane0:
+    needs: [plan1, plan2, plan3]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && (needs.plan1.outputs.ready == 'true' || needs.plan2.outputs.ready == 'true' || needs.plan3.outputs.ready == 'true') && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.lane0) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.lane0) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.lane0)) != '[]'
+    uses: ./.github/workflows/certification-lane.yml
+    with:
+      tasks: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.lane0) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.lane0) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.lane0) }}
+      lane: 0
+      attempt: 0
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      api-key: ${{ secrets.api-key }}
+
+  wave0_lane1:
+    needs: [plan1, plan2, plan3]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && (needs.plan1.outputs.ready == 'true' || needs.plan2.outputs.ready == 'true' || needs.plan3.outputs.ready == 'true') && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.lane1) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.lane1) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.lane1)) != '[]'
+    uses: ./.github/workflows/certification-lane.yml
+    with:
+      tasks: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.lane1) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.lane1) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.lane1) }}
+      lane: 1
+      attempt: 0
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      api-key: ${{ secrets.api-key }}
+
+  recover1_1:
+    needs: [plan1, plan2, plan3, wave0_lane0, wave0_lane1]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: recover
+      attempt: 1
+      round: 1
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  recover1_2:
+    needs: [plan1, plan2, plan3, wave0_lane0, wave0_lane1, recover1_1]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && needs.recover1_1.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: recover
+      attempt: 2
+      round: 1
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  recover1_3:
+    needs: [plan1, plan2, plan3, wave0_lane0, wave0_lane1, recover1_1, recover1_2]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && needs.recover1_1.outputs.ready != 'true' && needs.recover1_2.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: recover
+      attempt: 3
+      round: 1
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  wave1_lane0:
+    needs: [plan1, plan2, plan3, recover1_1, recover1_2, recover1_3]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && (needs.recover1_1.outputs.ready == 'true' || needs.recover1_2.outputs.ready == 'true' || needs.recover1_3.outputs.ready == 'true') && ((needs.recover1_1.outputs.ready == 'true' && needs.recover1_1.outputs.lane0) || (needs.recover1_2.outputs.ready == 'true' && needs.recover1_2.outputs.lane0) || (needs.recover1_3.outputs.ready == 'true' && needs.recover1_3.outputs.lane0)) != '[]'
+    uses: ./.github/workflows/certification-lane.yml
+    with:
+      tasks: ${{ (needs.recover1_1.outputs.ready == 'true' && needs.recover1_1.outputs.lane0) || (needs.recover1_2.outputs.ready == 'true' && needs.recover1_2.outputs.lane0) || (needs.recover1_3.outputs.ready == 'true' && needs.recover1_3.outputs.lane0) }}
+      lane: 0
+      attempt: 1
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      api-key: ${{ secrets.api-key }}
+
+  wave1_lane1:
+    needs: [plan1, plan2, plan3, recover1_1, recover1_2, recover1_3]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && (needs.recover1_1.outputs.ready == 'true' || needs.recover1_2.outputs.ready == 'true' || needs.recover1_3.outputs.ready == 'true') && ((needs.recover1_1.outputs.ready == 'true' && needs.recover1_1.outputs.lane1) || (needs.recover1_2.outputs.ready == 'true' && needs.recover1_2.outputs.lane1) || (needs.recover1_3.outputs.ready == 'true' && needs.recover1_3.outputs.lane1)) != '[]'
+    uses: ./.github/workflows/certification-lane.yml
+    with:
+      tasks: ${{ (needs.recover1_1.outputs.ready == 'true' && needs.recover1_1.outputs.lane1) || (needs.recover1_2.outputs.ready == 'true' && needs.recover1_2.outputs.lane1) || (needs.recover1_3.outputs.ready == 'true' && needs.recover1_3.outputs.lane1) }}
+      lane: 1
+      attempt: 1
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      api-key: ${{ secrets.api-key }}
+
+  recover2_1:
+    needs: [plan1, plan2, plan3, wave1_lane0, wave1_lane1]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: recover
+      attempt: 1
+      round: 2
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  recover2_2:
+    needs: [plan1, plan2, plan3, wave1_lane0, wave1_lane1, recover2_1]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && needs.recover2_1.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: recover
+      attempt: 2
+      round: 2
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  recover2_3:
+    needs: [plan1, plan2, plan3, wave1_lane0, wave1_lane1, recover2_1, recover2_2]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && needs.recover2_1.outputs.ready != 'true' && needs.recover2_2.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: recover
+      attempt: 3
+      round: 2
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  wave2_lane0:
+    needs: [plan1, plan2, plan3, recover2_1, recover2_2, recover2_3]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && (needs.recover2_1.outputs.ready == 'true' || needs.recover2_2.outputs.ready == 'true' || needs.recover2_3.outputs.ready == 'true') && ((needs.recover2_1.outputs.ready == 'true' && needs.recover2_1.outputs.lane0) || (needs.recover2_2.outputs.ready == 'true' && needs.recover2_2.outputs.lane0) || (needs.recover2_3.outputs.ready == 'true' && needs.recover2_3.outputs.lane0)) != '[]'
+    uses: ./.github/workflows/certification-lane.yml
+    with:
+      tasks: ${{ (needs.recover2_1.outputs.ready == 'true' && needs.recover2_1.outputs.lane0) || (needs.recover2_2.outputs.ready == 'true' && needs.recover2_2.outputs.lane0) || (needs.recover2_3.outputs.ready == 'true' && needs.recover2_3.outputs.lane0) }}
+      lane: 0
+      attempt: 2
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      api-key: ${{ secrets.api-key }}
+
+  wave2_lane1:
+    needs: [plan1, plan2, plan3, recover2_1, recover2_2, recover2_3]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && (needs.recover2_1.outputs.ready == 'true' || needs.recover2_2.outputs.ready == 'true' || needs.recover2_3.outputs.ready == 'true') && ((needs.recover2_1.outputs.ready == 'true' && needs.recover2_1.outputs.lane1) || (needs.recover2_2.outputs.ready == 'true' && needs.recover2_2.outputs.lane1) || (needs.recover2_3.outputs.ready == 'true' && needs.recover2_3.outputs.lane1)) != '[]'
+    uses: ./.github/workflows/certification-lane.yml
+    with:
+      tasks: ${{ (needs.recover2_1.outputs.ready == 'true' && needs.recover2_1.outputs.lane1) || (needs.recover2_2.outputs.ready == 'true' && needs.recover2_2.outputs.lane1) || (needs.recover2_3.outputs.ready == 'true' && needs.recover2_3.outputs.lane1) }}
+      lane: 1
+      attempt: 2
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      api-key: ${{ secrets.api-key }}
+
+  aggregate1:
+    needs: [plan1, plan2, plan3, wave2_lane0, wave2_lane1]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: aggregate
+      attempt: 1
+      round: 0
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  aggregate2:
+    needs: [plan1, plan2, plan3, wave2_lane0, wave2_lane1, aggregate1]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && needs.aggregate1.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: aggregate
+      attempt: 2
+      round: 0
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}
+
+  aggregate3:
+    needs: [plan1, plan2, plan3, wave2_lane0, wave2_lane1, aggregate1, aggregate2]
+    if: always() && !cancelled() && ((needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.required) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.required) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.required)) == 'true' && needs.aggregate1.outputs.ready != 'true' && needs.aggregate2.outputs.ready != 'true'
+    uses: ./.github/workflows/certification-coordinator.yml
+    with:
+      stage: aggregate
+      attempt: 3
+      round: 0
+      synthetic: ${{ inputs.synthetic }}
+      manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
+    secrets:
+      policy: ${{ secrets.policy }}

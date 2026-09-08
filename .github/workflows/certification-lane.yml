@@ -1,0 +1,161 @@
+name: Certification worker lane
+
+on:
+  workflow_call:
+    inputs:
+      manifest-artifact:
+        type: string
+        required: true
+      tasks:
+        type: string
+        required: true
+      lane:
+        type: number
+        required: true
+      attempt:
+        type: number
+        required: true
+      synthetic:
+        type: boolean
+        default: false
+    secrets:
+      api-key:
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  CONTROLLER_SHA: ${{ vars.TUGLING_CERTIFICATION_CONTROLLER_SHA }}
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  CERTIFICATION_ENABLED: ${{ vars.TUGLING_CERTIFICATION_ENABLED }}
+  APPROVE_PAID_RUN: ${{ github.event.inputs.approve_paid_run }}
+  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+  BASELINE_SHA: ${{ github.event.inputs.baseline_sha }}
+  APPROVED_INPUT_TOKENS: ${{ github.event.inputs.approved_input_tokens }}
+  APPROVED_OUTPUT_TOKENS: ${{ github.event.inputs.approved_output_tokens }}
+  MAX_INPUT_TOKENS: ${{ vars.TUGLING_CERTIFICATION_MAX_INPUT_TOKENS }}
+  MAX_OUTPUT_TOKENS: ${{ vars.TUGLING_CERTIFICATION_MAX_OUTPUT_TOKENS }}
+  PUBLIC_REPOSITORY: ${{ github.repository }}
+  PUBLIC_REVISION: ${{ github.sha }}
+
+jobs:
+  task:
+    if: inputs.tasks != '[]'
+    name: Task ${{ matrix.task }} attempt ${{ inputs.attempt }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The independent aggregator is the required verdict; a lost worker is recoverable.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        task: ${{ fromJSON(inputs.tasks) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ inputs.manifest-artifact }}
+          path: ${{ runner.temp }}/manifest
+      - name: Check checkpoint and reserve this attempt before model setup
+        id: admission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_ID: ${{ matrix.task }}
+          TASK_LANE: ${{ inputs.lane }}
+          TASK_ATTEMPT: ${{ inputs.attempt }}
+        run: >-
+          python3 -I scripts/certification_jobs.py admit
+          --manifest "$RUNNER_TEMP/manifest/manifest.json"
+          --task "$TASK_ID" --lane "$TASK_LANE" --attempt "$TASK_ATTEMPT"
+          --out "$RUNNER_TEMP/checkpoint"
+      - name: Prepare the separate user and bounded worker filesystem
+        if: steps.admission.outputs.execute == 'true'
+        run: sudo -n python3 -I scripts/certification_sandbox.py setup --work "$RUNNER_TEMP/worker"
+      - name: Start the synthetic provider
+        id: fake
+        if: steps.admission.outputs.execute == 'true' && inputs.synthetic
+        run: |
+          python3 -I scripts/check_certification_ci.py serve --state "$RUNNER_TEMP/fake-api.json" > "$RUNNER_TEMP/fake-api.log" 2>&1 &
+          echo "pid=$!" >> "$GITHUB_OUTPUT"
+          python3 -I scripts/check_certification_ci.py ready --state "$RUNNER_TEMP/fake-api.json" >> "$GITHUB_OUTPUT"
+      - name: Set up the pinned CLI and proxy for the isolated worker
+        if: steps.admission.outputs.execute == 'true'
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e
+        with:
+          openai-api-key: ${{ inputs.synthetic && 'tugling-synthetic-credential-not-a-secret' || secrets.api-key }}
+          responses-api-endpoint: ${{ inputs.synthetic && steps.fake.outputs.endpoint || 'https://api.openai.com/v1/responses' }}
+          codex-version: "0.153.4"
+          codex-home: ${{ runner.temp }}/proxy-home
+          safety-strategy: unprivileged-user
+          codex-user: tugling-worker
+          allow-users: ${{ inputs.synthetic && '*' || '' }}
+      - name: Persist admission before any model request
+        if: steps.admission.outputs.execute == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.admission.outputs.artifact }}
+          path: ${{ runner.temp }}/checkpoint/checkpoint.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Run one task inside the enforced resource boundary
+        id: worker
+        if: steps.admission.outputs.execute == 'true'
+        shell: bash
+        run: |
+          chmod o+rx "$RUNNER_TEMP" "$RUNNER_TEMP/manifest" "$RUNNER_TEMP/checkpoint"
+          chmod o+r "$RUNNER_TEMP/manifest/manifest.json" "$RUNNER_TEMP/checkpoint/admission.json"
+          export TUGLING_CODEX_PROXY_URL
+          TUGLING_CODEX_PROXY_URL="$(python3 -c 'import json,os; print("http://127.0.0.1:"+str(json.load(open(os.environ["RUNNER_TEMP"]+"/proxy-home/"+os.environ["GITHUB_RUN_ID"]+".json"))["port"])+"/v1")')"
+          python3 -I scripts/certification_sandbox.py run --work "$RUNNER_TEMP/worker" --out "$RUNNER_TEMP/telemetry.json" -- python3 -I "$GITHUB_WORKSPACE/scripts/certification_worker.py" --manifest "$RUNNER_TEMP/manifest/manifest.json" --admission "$RUNNER_TEMP/checkpoint/admission.json" --out "$RUNNER_TEMP/worker/result.json"
+      - name: Record the result or worker failure
+        if: always() && steps.admission.outputs.execute == 'true' && steps.worker.outcome != 'skipped'
+        id: result
+        env:
+          TASK_ID: ${{ matrix.task }}
+          TASK_LANE: ${{ inputs.lane }}
+          TASK_ATTEMPT: ${{ inputs.attempt }}
+        run: >-
+          python3 -I scripts/certification_jobs.py finish
+          --manifest "$RUNNER_TEMP/manifest/manifest.json"
+          --task "$TASK_ID" --lane "$TASK_LANE" --attempt "$TASK_ATTEMPT"
+          --worker-result "$RUNNER_TEMP/worker/result.json"
+          --out "$RUNNER_TEMP/checkpoint"
+      - name: Persist the immutable result checkpoint
+        if: always() && steps.result.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.result.outputs.artifact }}
+          path: ${{ runner.temp }}/checkpoint/checkpoint.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload numeric worker telemetry
+        if: always() && steps.worker.outcome != 'skipped'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: telemetry-${{ matrix.task }}-${{ inputs.attempt }}
+          path: ${{ runner.temp }}/telemetry.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Simulate loss after a successfully uploaded result
+        if: inputs.synthetic && matrix.task == 't006' && inputs.attempt == 0 && steps.result.outcome == 'success'
+        run: exit 72
+      - name: Remove the worker filesystem and stop the synthetic provider
+        if: always()
+        env:
+          FAKE_PID: ${{ steps.fake.outputs.pid }}
+        run: |
+          if mountpoint -q "$RUNNER_TEMP/worker"; then
+            sudo -n python3 -I scripts/certification_sandbox.py cleanup --work "$RUNNER_TEMP/worker"
+          fi
+          if [[ "$FAKE_PID" =~ ^[1-9][0-9]*$ ]]; then
+            kill "$FAKE_PID" 2>/dev/null || true
+          fi
