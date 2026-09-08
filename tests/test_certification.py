@@ -370,7 +370,7 @@ class CertificationGitTest(unittest.TestCase):
         manifest = tasks.manifest(self.request)
         prepare = cert.prepare_candidate
         before = self.git(self.remote, "show-ref")
-        for score in (1.0, 0.8):
+        for score, failed_check in ((1.0, None), (0.8, None), (1.0, "evidence_state")):
             records = []
             for task in manifest["tasks"]:
                 records.append(tasks.record(manifest, task["id"], 0, "admission"))
@@ -384,21 +384,31 @@ class CertificationGitTest(unittest.TestCase):
                     evidence["passed"] = True
                 else:
                     evidence = {"score": {"control": 0.8, "released": 0.9, "candidate": score}[task["condition"]],
-                        "critical_pass": True, "passed": True, "elapsed_seconds": 0.1}
+                        "critical_pass": True, "passed": True, "elapsed_seconds": 0.1,
+                        "checks": {name: True for name in tasks.behavioral_check_names(task["case_id"])}}
+                    if failed_check and task["case_id"] == "tugling-bounded-noop" and task["condition"] == "candidate":
+                        evidence.update(score=0.0, critical_pass=False, passed=False)
+                        evidence["checks"][failed_check] = False
                 receipt = tasks.record(manifest, task["id"], 0, "result", state="RESULT",
                     usage={"input_tokens": 10, "output_tokens": 1, "cached_input_tokens": 0}, evidence=evidence)
                 tasks.validate_record(manifest, receipt)
                 records.append(receipt)
-            output = self.root / f"checkpoint-output-{score}"
+            output = self.root / f"checkpoint-output-{score}-{failed_check or 'none'}"
             with mock.patch.object(cert, "prepare_candidate",
                     side_effect=lambda destination, request: prepare(destination, request, remote=str(self.remote))):
-                if score == 1.0:
+                if score == 1.0 and failed_check is None:
                     jobs.assemble(manifest, records, output, patterns)
                     cert.validate_artifact(output, self.request)
                     self.assertTrue(cert.gate.read_json(output / "certificate.json")["passed"])
                 else:
-                    with self.assertRaisesRegex(tasks.TaskError, "VERIFICATION_FAILED"):
+                    with self.assertRaisesRegex(tasks.TaskError, "VERIFICATION_FAILED") as failure:
                         jobs.assemble(manifest, records, output, patterns)
+                    if failed_check:
+                        diagnostic = json.loads(str(failure.exception).split("candidate_checks=", 1)[1])
+                        self.assertEqual(diagnostic, [
+                            {"task": task["id"], "case": "tugling-bounded-noop", "trial": task["trial"],
+                             "checks": ["evidence_state"]} for task in manifest["tasks"]
+                            if task["case_id"] == "tugling-bounded-noop" and task["condition"] == "candidate"])
                     self.assertFalse((output / "certificate.json").exists())
         self.assertEqual(before, self.git(self.remote, "show-ref"))
 

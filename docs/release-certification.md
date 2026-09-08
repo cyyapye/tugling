@@ -163,6 +163,25 @@ The free recovery workflow runs the actual behavioral fixtures, CLI, parser and
 grader before applying its deliberately synthetic recovery scores. It covers this
 usage projection in addition to the public installation path.
 
+Manifest and task-receipt schema version 2 require a `checks` map on every
+behavioral result. It retains each controller-defined grader check name and a
+boolean verdict, including failed decisions, required command groups, evidence
+state and change limits. Missing, duplicate, foreign or non-boolean check data is
+rejected. Grader detail strings, assistant answers and command output are omitted.
+The final `VERIFICATION_FAILED` error includes the candidate's failed check names,
+case and trial. Scores, critical verdicts and promotion thresholds are unchanged;
+these diagnostics do not turn failed verification into success or authorize a retry.
+
+For example, in `tugling-bounded-noop`, `required_command_group:1` identifies missing
+native-gate command evidence, `required_command_group:2` identifies missing Git-status
+command evidence, and `evidence_state` identifies an incorrect reported proof state.
+The exact required command alternatives and expected state remain in the
+controller-owned `evals/behavioral/cases.json` rubric. Older receipts cannot be
+backfilled with check verdicts they did not retain; inspect them with their original
+controller revision. A new manifest and controller pin are required for version 2.
+Synthetic runs preserve the fake provider's real check booleans alongside the
+deliberately assigned recovery scores; neither is live behavioral certification.
+
 Artifacts retain data for seven days. A checkpoint is bounded to 2 MiB (normally
 far smaller), and the final two certificate JSON files retain their combined
 512 KiB limit. Raw model output, prompts, local paths, API keys, auth files and

@@ -181,7 +181,9 @@ def check(args: argparse.Namespace) -> None:
             work = Path(directory) / task["id"]
             work.mkdir()
             receipt = worker.execute(plan, tasks.record(plan, task["id"], 0, "admission"), work, None)
-            snapshot = {"task": task["id"], "state": receipt["state"], "usage": receipt["usage"]}
+            checks = (receipt.get("evidence") or {}).get("checks")
+            snapshot = {"task": task["id"], "state": receipt["state"], "usage": receipt["usage"],
+                        "checks": checks}
             report["behavioral_tasks"].append(snapshot)
             print(json.dumps(snapshot, sort_keys=True), flush=True)
             if args.out:
@@ -189,6 +191,7 @@ def check(args: argparse.Namespace) -> None:
             if (receipt["state"] != "RESULT"
                     or receipt["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}):
                 raise RuntimeError("Behavioral CLI/parser/receipt contract failed")
+            tasks.validate_behavioral_checks(task["case_id"], checks)
         state = json.loads(args.state.read_text())
         if (len(report["behavioral_tasks"]) != 10 or len(state["requests"]) != 2 * (args.tasks + 10)
                 or not all(all(request.values()) for request in state["requests"])):
