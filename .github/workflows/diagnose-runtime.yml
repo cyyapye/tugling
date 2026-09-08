@@ -1,0 +1,69 @@
+name: Diagnose certification runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-runtime-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  synthetic-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PUBLIC_REPOSITORY: ${{ github.repository }}
+      PUBLIC_REVISION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ env.PUBLIC_REPOSITORY }}
+          ref: ${{ env.PUBLIC_REVISION }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Start the local synthetic provider
+        id: fake
+        shell: bash
+        run: |
+          python3 -I scripts/check_certification_ci.py serve --state "$RUNNER_TEMP/tugling-fake-api.json" > "$RUNNER_TEMP/tugling-fake-api.log" 2>&1 &
+          echo "pid=$!" >> "$GITHUB_OUTPUT"
+          python3 -I scripts/check_certification_ci.py ready --state "$RUNNER_TEMP/tugling-fake-api.json" >> "$GITHUB_OUTPUT"
+      # Match the release setup while routing every model request to loopback.
+      # All contributors may run this job: it has no account credentials.
+      - name: Set up the pinned CLI and proxy with a synthetic credential
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e
+        with:
+          openai-api-key: tugling-synthetic-credential-not-a-secret
+          responses-api-endpoint: ${{ steps.fake.outputs.endpoint }}
+          codex-version: "0.153.4"
+          codex-home: ${{ runner.temp }}/tugling-fake-ci-home
+          safety-strategy: drop-sudo
+          allow-users: "*"
+      - name: Repeat 91 isolated public installation tasks without a real model
+        run: >-
+          python3 -I scripts/check_certification_ci.py check
+          --state "$RUNNER_TEMP/tugling-fake-api.json"
+          --proxy-info "$RUNNER_TEMP/tugling-fake-ci-home/$GITHUB_RUN_ID.json"
+          --source "$PUBLIC_REPOSITORY" --ref "$PUBLIC_REVISION"
+          --tasks 91 --out "$RUNNER_TEMP/runtime-diagnostics.json"
+      - name: Stop the synthetic provider
+        if: always()
+        env:
+          FAKE_PID: ${{ steps.fake.outputs.pid }}
+        run: |
+          if [[ "$FAKE_PID" =~ ^[1-9][0-9]*$ ]]; then
+            kill "$FAKE_PID" 2>/dev/null || true
+          fi
+      - name: Preserve numeric resource diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: synthetic-runtime-diagnostics
+          path: ${{ runner.temp }}/runtime-diagnostics.json
+          if-no-files-found: warn
+          retention-days: 7
