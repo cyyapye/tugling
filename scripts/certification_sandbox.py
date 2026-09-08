@@ -47,6 +47,11 @@ def setup(work: Path) -> None:
     subprocess.run(["mount", "-t", "tmpfs", "-o", "size=1G,nosuid,nodev,mode=0755",
                     "tmpfs", str(work)], check=True)
     os.chown(work, account.pw_uid, account.pw_gid)
+    # Hosted runners keep their temporary directory non-traversable. Permit
+    # reaching this explicitly shared mount without granting directory listings
+    # or read access to any other user's private files.
+    for parent in work.parents:
+        parent.chmod(parent.stat().st_mode | 0o001)
 
 
 def command(unit: str, work: Path, argv: list[str], environment: Path,
