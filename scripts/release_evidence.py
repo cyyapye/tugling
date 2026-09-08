@@ -9,6 +9,7 @@ import re
 import stat
 import subprocess
 from typing import Any
+from urllib.parse import urlencode
 import zipfile
 
 if __package__:
@@ -108,11 +109,14 @@ def fetch_verified(*, run_id: str, pin: str, candidate: str, digest: str,
     if not RUN_ID.fullmatch(run_id):
         raise EvidenceError("invalid certification run ID")
     source_ref = require_run(api(f"actions/runs/{run_id}"), run_id, pin)
-    listing = api(f"actions/runs/{run_id}/artifacts?per_page=100")
+    name = f"certification-{candidate}-{run_id}-1"
+    # Checkpoint artifacts may span many pages; bound this lookup to the exact
+    # certificate name while retaining completeness and ambiguity checks.
+    query = urlencode({"per_page": 100, "name": name})
+    listing = api(f"actions/runs/{run_id}/artifacts?{query}")
     artifacts = listing.get("artifacts", [])
     if listing.get("total_count") != len(artifacts) or len(artifacts) > 100:
         raise EvidenceError("certification artifact listing is incomplete or excessive")
-    name = f"certification-{candidate}-{run_id}-1"
     matches = [item for item in artifacts if item.get("name") == name]
     if len(matches) != 1:
         raise EvidenceError("the exact certification artifact is missing or ambiguous")

@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from scripts import release_evidence as evidence
@@ -30,6 +31,7 @@ class ReleaseEvidenceTest(unittest.TestCase):
             "head_repository": {"full_name": "cyyapye/tugling"}}
         self.artifact = {"id": 456, "name": f"certification-{self.candidate}-123-1", "expired": False,
                          "size_in_bytes": 10000, "workflow_run": {"id": 123, "head_sha": self.pin}}
+        self.additional_artifacts = []
         cert = evidence.certification
         self.certificate = cert.gate.read_json(cert.ROOT / "evals/releases/v0.4.0/certificate.json")
         self.certificate["behavioral"].update(evaluated_revision=self.candidate, released_revision=self.baseline)
@@ -56,8 +58,14 @@ class ReleaseEvidenceTest(unittest.TestCase):
     def api(self, path):
         if path == "actions/runs/123":
             return copy.deepcopy(self.run)
-        if path == "actions/runs/123/artifacts?per_page=100":
-            return {"total_count": 1, "artifacts": [copy.deepcopy(self.artifact)]}
+        parsed = urlsplit(path)
+        if parsed.path == "actions/runs/123/artifacts":
+            query = parse_qs(parsed.query)
+            self.assertEqual(query.get("per_page"), ["100"])
+            artifacts = [*self.additional_artifacts, self.artifact]
+            if "name" in query:
+                artifacts = [item for item in artifacts if item["name"] == query["name"][0]]
+            return {"total_count": len(artifacts), "artifacts": copy.deepcopy(artifacts[:100])}
         raise AssertionError(path)
 
     def gh(self, *args, output=None):
@@ -100,6 +108,34 @@ class ReleaseEvidenceTest(unittest.TestCase):
         for key, value in changes:
             with self.subTest(key=key), self.assertRaises(evidence.EvidenceError):
                 evidence.require_run({**self.run, key: value}, "123", self.pin)
+
+    def test_certificate_beyond_first_page_of_checkpoints_is_still_verified(self):
+        self.additional_artifacts = [{"id": 1000 + index, "name": f"checkpoint-{index}"}
+                                     for index in range(278)]
+        path, envelope = self.fetch()
+        self.assertEqual(path.read_bytes(), (self.source / "certificate.json").read_bytes())
+        self.assertEqual(envelope["certificate_sha256"], self.digest)
+        self.assertEqual(sum(args[:2] == ("attestation", "verify") for args in self.commands), 2)
+
+    def test_duplicate_exact_artifacts_are_rejected_before_download(self):
+        self.additional_artifacts = [{**self.artifact, "id": 457}]
+        with self.assertRaisesRegex(evidence.EvidenceError, "missing or ambiguous"):
+            self.fetch()
+        self.assertEqual(self.commands, [])
+
+    def test_incomplete_filtered_listing_is_rejected_before_download(self):
+        original = self.api
+
+        def incomplete(path):
+            result = original(path)
+            if "/artifacts?" in path:
+                result["total_count"] = 101
+            return result
+
+        with mock.patch.object(self, "api", side_effect=incomplete):
+            with self.assertRaisesRegex(evidence.EvidenceError, "incomplete or excessive"):
+                self.fetch()
+        self.assertEqual(self.commands, [])
 
     def test_expired_or_substituted_artifact_is_rejected_before_download(self):
         for changes in ({"expired": True}, {"size_in_bytes": evidence.MAX_ARCHIVE_BYTES + 1},
