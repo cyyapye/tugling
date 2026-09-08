@@ -6,12 +6,17 @@ on:
       synthetic:
         type: boolean
         default: false
+      diagnostic-case:
+        type: string
+        default: ''
     secrets:
       api-key:
         required: false
       policy:
         required: false
     outputs:
+      manifest:
+        value: ${{ (jobs.plan1.outputs.ready == 'true' && jobs.plan1.outputs.manifest) || (jobs.plan2.outputs.ready == 'true' && jobs.plan2.outputs.manifest) || jobs.plan3.outputs.manifest }}
       state:
         value: ${{ (jobs.plan1.outputs.ready == 'true' && jobs.plan1.outputs.state) || (jobs.plan2.outputs.ready == 'true' && jobs.plan2.outputs.state) || jobs.plan3.outputs.state }}
 
@@ -28,6 +33,7 @@ jobs:
       attempt: 1
       round: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
     secrets:
       policy: ${{ secrets.policy }}
 
@@ -40,6 +46,7 @@ jobs:
       attempt: 2
       round: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
     secrets:
       policy: ${{ secrets.policy }}
 
@@ -52,6 +59,7 @@ jobs:
       attempt: 3
       round: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
     secrets:
       policy: ${{ secrets.policy }}
 
@@ -64,6 +72,7 @@ jobs:
       lane: 0
       attempt: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       api-key: ${{ secrets.api-key }}
@@ -77,6 +86,7 @@ jobs:
       lane: 1
       attempt: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       api-key: ${{ secrets.api-key }}
@@ -90,6 +100,7 @@ jobs:
       attempt: 1
       round: 1
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -103,6 +114,7 @@ jobs:
       attempt: 2
       round: 1
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -116,6 +128,7 @@ jobs:
       attempt: 3
       round: 1
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -129,6 +142,7 @@ jobs:
       lane: 0
       attempt: 1
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       api-key: ${{ secrets.api-key }}
@@ -142,6 +156,7 @@ jobs:
       lane: 1
       attempt: 1
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       api-key: ${{ secrets.api-key }}
@@ -155,6 +170,7 @@ jobs:
       attempt: 1
       round: 2
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -168,6 +184,7 @@ jobs:
       attempt: 2
       round: 2
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -181,6 +198,7 @@ jobs:
       attempt: 3
       round: 2
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -194,6 +212,7 @@ jobs:
       lane: 0
       attempt: 2
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       api-key: ${{ secrets.api-key }}
@@ -207,6 +226,7 @@ jobs:
       lane: 1
       attempt: 2
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       api-key: ${{ secrets.api-key }}
@@ -220,6 +240,7 @@ jobs:
       attempt: 1
       round: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -233,6 +254,7 @@ jobs:
       attempt: 2
       round: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}
@@ -246,6 +268,7 @@ jobs:
       attempt: 3
       round: 0
       synthetic: ${{ inputs.synthetic }}
+      diagnostic-case: ${{ inputs.diagnostic-case }}
       manifest-artifact: ${{ (needs.plan1.outputs.ready == 'true' && needs.plan1.outputs.manifest) || (needs.plan2.outputs.ready == 'true' && needs.plan2.outputs.manifest) || (needs.plan3.outputs.ready == 'true' && needs.plan3.outputs.manifest) }}
     secrets:
       policy: ${{ secrets.policy }}

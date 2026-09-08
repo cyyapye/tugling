@@ -56,7 +56,8 @@ def checkpoint(plan: dict, records: list[dict], lane: int) -> dict:
 
 
 def validate_checkpoint(plan: dict, value: dict, lane: int) -> list[dict]:
-    if (not isinstance(value, dict) or set(value) != {"schema_version", "manifest_id", "lane", "generation", "records"}
+    if (type(lane) is not int or lane not in range(plan["lanes"])
+            or not isinstance(value, dict) or set(value) != {"schema_version", "manifest_id", "lane", "generation", "records"}
             or value["schema_version"] != 1 or value["manifest_id"] != plan["id"] or value["lane"] != lane
             or not isinstance(value["records"], list) or len(value["records"]) > tasks.MAX_RECORDS
             or value["generation"] != len(value["records"])):
@@ -129,10 +130,10 @@ def artifact_files(plan: dict, artifact: dict, names: set[str]) -> dict[str, byt
         return {entry.filename: archive.read(entry) for entry in entries}
 
 
-def load_remote(plan: dict, lanes: tuple[int, ...] = (0, 1)) -> list[dict]:
+def load_remote(plan: dict, lanes: tuple[int, ...] | None = None) -> list[dict]:
     artifacts = artifact_list(plan)
     records = []
-    for lane in lanes:
+    for lane in range(plan["lanes"]) if lanes is None else lanes:
         pattern = re.compile(rf"checkpoint-{plan['id'][:16]}-lane{lane}-([0-9]+)\Z")
         eligible = [(int(match[1]), artifact) for artifact in artifacts
                     if (match := pattern.fullmatch(artifact.get("name", "")))]
@@ -152,17 +153,24 @@ def load_remote(plan: dict, lanes: tuple[int, ...] = (0, 1)) -> list[dict]:
 
 def reuse_final(plan: dict, destination: Path) -> bool:
     request = plan["request"]
-    name = "recovery-diagnostic" if plan["synthetic"] else f"certification-{request['candidate_sha']}-{request['run_id']}-1"
+    diagnostic = tasks.is_diagnostic(plan)
+    name = ("case-diagnostic" if diagnostic else "recovery-diagnostic" if plan["synthetic"]
+            else f"certification-{request['candidate_sha']}-{request['run_id']}-1")
     found = [artifact for artifact in artifact_list(plan) if artifact.get("name") == name]
     if not found:
         return False
     if len(found) != 1:
         raise tasks.TaskError("conflicting final artifacts")
-    names = {"recovery-diagnostic.json"} if plan["synthetic"] else {"certificate.json", "certification.json"}
+    names = ({"diagnostic.json"} if diagnostic else {"recovery-diagnostic.json"} if plan["synthetic"]
+             else {"certificate.json", "certification.json"})
     files = artifact_files(plan, found[0], names)
+    if diagnostic:
+        validate_diagnostic_report(plan, json.loads(files["diagnostic.json"]))
     destination.mkdir(parents=True, exist_ok=True)
     for filename, contents in files.items():
         (destination / filename).write_bytes(contents)
+    if diagnostic:
+        return True
     if plan["synthetic"]:
         report = json.loads(files["recovery-diagnostic.json"])
         if (report.get("passed") is not True or report.get("synthetic_only") is not True
@@ -181,6 +189,39 @@ def reuse_final(plan: dict, destination: Path) -> bool:
     return True
 
 
+def diagnostic_report(plan: dict, records: list[dict]) -> dict:
+    tasks.validate_manifest(plan)
+    if not tasks.is_diagnostic(plan) or not isinstance(records, list) or len(records) != 2:
+        raise tasks.TaskError("INCOMPLETE: diagnostics require exactly one admitted trial and its result")
+    for item in records:
+        tasks.validate_record(plan, item)
+    usage = tasks.accounting(plan, records)
+    completed = tasks.accepted(records)
+    task = plan["tasks"][0]
+    result = completed.get(task["id"])
+    if usage["unaccounted_attempts"]:
+        raise tasks.TaskError("ACCOUNTING_BLOCKED: diagnostic usage is incomplete")
+    if result is None or result["state"] != "RESULT":
+        raise tasks.TaskError("INCOMPLETE: diagnostic execution did not produce a graded result")
+    if any(usage[f"{kind}_tokens"] > plan["request"][f"{kind}_limit"] for kind in ("input", "output")):
+        raise tasks.TaskError("BUDGET_BLOCKED: diagnostic usage exceeds its approved threshold")
+    return {"schema_version": 1, "state": "DIAGNOSTIC_COMPLETED", "diagnostic_only": True,
+        "certificate_created": False, "synthetic_only": plan["synthetic"], "manifest_id": plan["id"],
+        "request": plan["request"], "model": plan["model"], "reasoning_effort": plan["effort"],
+        "codex_version": plan["codex_version"], "task": task, "records": records,
+        "verification_passed": result["evidence"]["passed"],
+        "failed_checks": sorted(name for name, passed in result["evidence"]["checks"].items() if not passed),
+        "usage": usage}
+
+
+def validate_diagnostic_report(plan: dict, value: dict) -> None:
+    if not isinstance(value, dict):
+        raise tasks.TaskError("invalid diagnostic report")
+    expected = diagnostic_report(plan, value.get("records"))
+    if tasks.digest(value) != tasks.digest(expected):
+        raise tasks.TaskError("diagnostic report differs from its admitted trial and fixed grader checks")
+
+
 def emit_checkpoint(plan: dict, records: list[dict], lane: int, destination: Path) -> None:
     value = checkpoint(plan, records, lane)
     validate_checkpoint(plan, value, lane)
@@ -189,6 +230,10 @@ def emit_checkpoint(plan: dict, records: list[dict], lane: int, destination: Pat
 
 
 def assemble(plan: dict, records: list[dict], destination: Path, policy: Path | None) -> None:
+    tasks.validate_manifest(plan)
+    if tasks.is_diagnostic(plan):
+        write(destination / "diagnostic.json", diagnostic_report(plan, records))
+        return
     accepted = tasks.accepted(records)
     expected = {task["id"] for task in plan["tasks"]}
     usage = tasks.accounting(plan, records)
@@ -273,7 +318,7 @@ def assemble(plan: dict, records: list[dict], destination: Path, policy: Path | 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "admit", "finish", "recover", "aggregate"))
+    parser.add_argument("command", choices=("plan", "admit", "finish", "recover", "aggregate", "diagnostic-verdict"))
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--synthetic", action="store_true")
     parser.add_argument("--task")
@@ -291,6 +336,10 @@ def main() -> int:
                     "candidate_sha": revision, "baseline_sha": revision,
                     "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": 1,
                     "input_limit": 5_000_000, "output_limit": 500_000}
+                if os.environ.get("DIAGNOSTIC_CASE"):
+                    request.update(diagnostic_case=os.environ["DIAGNOSTIC_CASE"],
+                                   input_limit=cert.DIAGNOSTIC_LIMITS["INPUT"],
+                                   output_limit=cert.DIAGNOSTIC_LIMITS["OUTPUT"])
                 if os.environ.get("GITHUB_RUN_ATTEMPT") != "1":
                     raise tasks.TaskError("diagnostics require a fresh run")
             else:
@@ -301,14 +350,16 @@ def main() -> int:
                 with tempfile.TemporaryDirectory() as directory:
                     candidate = Path(directory) / "candidate"
                     preflight = cert.prepare_candidate(candidate, request)
-                    if preflight["state"] != "CERTIFICATION_REQUIRED":
+                    if "diagnostic_case" not in request and preflight["state"] != "CERTIFICATION_REQUIRED":
                         output("required", "false")
+                        output("state", "UNCHANGED_PLUGIN")
                         return 0
                     cert.check_public_policy(candidate, args.policy)
             plan = tasks.manifest(request, synthetic=args.synthetic)
             tasks.validate_manifest(plan)
             write(args.out / "manifest.json", plan)
             output("required", "true")
+            output("state", "CASE_DIAGNOSTIC" if tasks.is_diagnostic(plan) else "CERTIFICATION_REQUIRED")
             for lane in (0, 1):
                 output(f"lane{lane}", [t["id"] for t in plan["tasks"] if t["lane"] == lane])
             return 0
@@ -316,9 +367,18 @@ def main() -> int:
         tasks.validate_manifest(plan)
         if str(plan["request"]["run_id"]) != os.environ.get("GITHUB_RUN_ID"):
             raise tasks.TaskError("cross-run checkpoint reuse is forbidden")
+        if plan["request"].get("diagnostic_case", "") != os.environ.get("DIAGNOSTIC_CASE", ""):
+            raise tasks.TaskError("case selection differs from the immutable manifest")
         if not plan["synthetic"] and cert.authorize(dict(os.environ)) != plan["request"]:
             raise tasks.TaskError("approval differs from the immutable manifest")
-        if args.command == "admit":
+        if args.command == "diagnostic-verdict":
+            report = json.loads((args.out / "diagnostic.json").read_text())
+            validate_diagnostic_report(plan, report)
+            print(json.dumps({key: report[key] for key in ("task", "verification_passed", "failed_checks", "usage")}, sort_keys=True))
+            if not report["verification_passed"]:
+                raise tasks.TaskError("VERIFICATION_FAILED: diagnostic " + plan["request"]["diagnostic_case"]
+                    + " trial 1; failed_checks=" + json.dumps(report["failed_checks"]))
+        elif args.command == "admit":
             lane = tasks.task_for(plan, args.task)["lane"]
             if lane != args.lane:
                 raise tasks.TaskError("worker belongs to another budget lane")

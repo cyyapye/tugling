@@ -18,6 +18,9 @@ on:
       synthetic:
         type: boolean
         default: false
+      diagnostic-case:
+        type: string
+        default: ''
     secrets:
       api-key:
         required: false
@@ -28,6 +31,7 @@ permissions:
 
 env:
   PYTHONDONTWRITEBYTECODE: "1"
+  DIAGNOSTIC_CASE: ${{ inputs.diagnostic-case }}
   CONTROLLER_SHA: ${{ vars.TUGLING_CERTIFICATION_CONTROLLER_SHA }}
   WORKFLOW_SHA: ${{ github.workflow_sha }}
   CERTIFICATION_ENABLED: ${{ vars.TUGLING_CERTIFICATION_ENABLED }}
