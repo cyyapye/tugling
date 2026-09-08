@@ -163,6 +163,17 @@ plugin commands exist. GitHub runs this check on Linux on each push and PR.
 These checks prove the integration contract, not a successful paid certification;
 the first live run remains a separate activation check with an approved budget.
 
+For repeated hosted-runner failures, manually dispatch `diagnose-runtime.yml`.
+It repeats 91 isolated public-install tasks through the same pinned CLI, official
+proxy, and privilege removal, using only a loopback synthetic provider and a
+fixed fake credential. It never reads certification secrets, invokes a real model,
+or produces a certificate. Ordinary push and PR checks still run one synthetic task.
+The diagnostic saves fixed check results and numeric Linux resource snapshots
+after each task in a seven-day artifact. Memory readings are between-task snapshots,
+not peak measurements or resource caps. A disconnected runner may be unable to
+upload even this diagnostic. A passing synthetic run does not rule out failures
+caused by real model tool choices or establish the cause of an earlier disconnect.
+
 References: [Codex Action](https://learn.chatgpt.com/docs/github-action),
 [automation authentication](https://learn.chatgpt.com/docs/non-interactive-mode),
 [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),

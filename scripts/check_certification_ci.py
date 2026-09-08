@@ -26,7 +26,8 @@ def write_state(path: Path, state: dict) -> None:
 
 
 def serve(path: Path) -> None:
-    state = {"pid": os.getpid(), "requests": [], "port": 0, "tool_read_observed": False}
+    state = {"pid": os.getpid(), "requests": [], "port": 0, "tool_read_observed": False,
+             "tool_read_count": 0}
 
     class FakeAPI(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -38,10 +39,12 @@ def serve(path: Path) -> None:
                 self.send_error(413)
                 return
             body = json.loads(self.rfile.read(length))
-            state["tool_read_observed"] = state["tool_read_observed"] or any(
+            tool_read = any(
                 item.get("type") in {"custom_tool_call_output", "function_call_output"}
                 and "Synthetic fixture instructions" in json.dumps(item.get("output", ""))
                 for item in body.get("input", []) if isinstance(item, dict))
+            state["tool_read_observed"] = state["tool_read_observed"] or tool_read
+            state["tool_read_count"] += int(tool_read)
             state["requests"].append({
                 "path_matches": self.path == "/v1/responses",
                 "model_matches": body.get("model") == certification.MODEL,
@@ -69,7 +72,7 @@ def serve(path: Path) -> None:
                 {"type": "response.output_item.done", "output_index": 0, "item": item},
                 {"type": "response.completed", "response": response},
             ]
-            if len(state["requests"]) == 1:
+            if len(state["requests"]) % 2 == 1:
                 tool = {"id": "ctc_synthetic", "type": "custom_tool_call", "call_id": "call_synthetic",
                         "name": "exec", "namespace": "functions",
                         "input": 'const result = await tools.exec_command({cmd: "cat AGENTS.md", max_output_tokens: 300}); text(result.output);'}
@@ -103,7 +106,24 @@ def ready(path: Path) -> None:
     raise RuntimeError("Synthetic provider did not start")
 
 
+def resource_snapshot(proc: Path = Path("/proc")) -> dict:
+    """Report numeric Linux resource data only, never process names or arguments."""
+    def fields(path: Path) -> dict:
+        if not path.is_file():
+            return {}
+        return {parts[0].rstrip(":"): int(parts[1]) for line in path.read_text().splitlines()
+                if len(parts := line.split()) == 3 and parts[1].isdigit() and parts[2] == "kB"}
+
+    memory, own = fields(proc / "meminfo"), fields(proc / "self/status")
+    return {"memory_total_kib": memory.get("MemTotal"),
+            "memory_available_kib": memory.get("MemAvailable"),
+            "harness_rss_kib": own.get("VmRSS"),
+            "process_count": sum(path.name.isdigit() for path in proc.iterdir()) if proc.is_dir() else None}
+
+
 def check(args: argparse.Namespace) -> None:
+    if not 1 <= args.tasks <= 91:
+        raise RuntimeError("Synthetic task count must be between 1 and 91")
     initial = json.loads(args.state.read_text())
     info = json.loads(args.proxy_info.read_text())
     port = info.get("port")
@@ -117,19 +137,32 @@ def check(args: argparse.Namespace) -> None:
         binary, version = certification.clean_room.resolve_codex(args.codex_bin)
         if version != f"codex-cli {certification.CODEX_VERSION}":
             raise RuntimeError("CLI differs from the reviewed pin")
-        result = certification.clean_room.public_install(
-            source=args.source, ref=args.ref, expected_root=ROOT, codex_bin=binary,
-            codex_version=version, auth_home=Path(directory) / "no-auth", live=True,
-            model=certification.MODEL, reasoning_effort=certification.EFFORT, timeout=45)
-    state = json.loads(args.state.read_text())
-    print(json.dumps({"checks": result["checks"], "fake_requests": state["requests"],
-                      "tool_read_observed": state["tool_read_observed"]}, sort_keys=True))
-    if (result["passed"] is not True or len(state["requests"]) != 2
-            or not all(all(request.values()) for request in state["requests"])
-            or state["tool_read_observed"] is not True):
-        raise RuntimeError("Installation or synthetic-provider contract failed")
-    if result["live"]["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}:
-        raise RuntimeError("Synthetic completion usage did not reach the installation report")
+        report = {"synthetic_only": True, "passed": False, "requested_tasks": args.tasks,
+                  "initial_resources": resource_snapshot(), "tasks": []}
+        for task in range(1, args.tasks + 1):
+            result = certification.clean_room.public_install(
+                source=args.source, ref=args.ref, expected_root=ROOT, codex_bin=binary,
+                codex_version=version, auth_home=Path(directory) / "no-auth", live=True,
+                model=certification.MODEL, reasoning_effort=certification.EFFORT, timeout=45)
+            state = json.loads(args.state.read_text())
+            snapshot = {"task": task, "checks": result["checks"],
+                        "fake_request_count": len(state["requests"]),
+                        "tool_read_observed": state["tool_read_observed"],
+                        "tool_read_count": state["tool_read_count"],
+                        "resources": resource_snapshot()}
+            report["tasks"].append(snapshot)
+            print(json.dumps(snapshot, sort_keys=True), flush=True)
+            if args.out:
+                write_state(args.out, report)
+            if (result["passed"] is not True or len(state["requests"]) != 2 * task
+                    or not all(all(request.values()) for request in state["requests"])
+                    or state["tool_read_count"] != task):
+                raise RuntimeError("Installation or synthetic-provider contract failed")
+            if result["live"]["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}:
+                raise RuntimeError("Synthetic completion usage did not reach the installation report")
+        report["passed"] = True
+        if args.out:
+            write_state(args.out, report)
     print("Public-install task passed through the official proxy and a local fake API; no provider calls or behavioral proof.")
 
 
@@ -141,6 +174,8 @@ if __name__ == "__main__":
     parser.add_argument("--codex-bin")
     parser.add_argument("--source")
     parser.add_argument("--ref")
+    parser.add_argument("--tasks", type=int, default=1)
+    parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     if args.command == "serve":
         serve(args.state)
