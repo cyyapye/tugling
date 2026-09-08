@@ -155,6 +155,14 @@ failure so recovery can run; **only this complete aggregation and the separate
 attestation job can establish certification success**. Synthetic manifests cannot
 produce certificates.
 
+Worker receipts project the evaluator's input, cached-input and output counters
+without adding its optional reasoning-token subtotal a second time. Missing or
+invalid counters still block admission. Execution failures preserve available
+usage plus fixed exit and API error categories; raw error messages stay private.
+The free recovery workflow runs the actual behavioral fixtures, CLI, parser and
+grader before applying its deliberately synthetic recovery scores. It covers this
+usage projection in addition to the public installation path.
+
 Artifacts retain data for seven days. A checkpoint is bounded to 2 MiB (normally
 far smaller), and the final two certificate JSON files retain their combined
 512 KiB limit. Raw model output, prompts, local paths, API keys, auth files and

@@ -8,6 +8,9 @@ on:
       - '.github/workflows/certification-*.yml'
       - '.github/workflows/diagnose-recovery.yml'
       - 'scripts/certification_*.py'
+      - 'scripts/behavioral_eval.py'
+      - 'scripts/codex_runtime.py'
+      - 'scripts/check_certification_ci.py'
       - 'scripts/check_worker_isolation.py'
 
 permissions:

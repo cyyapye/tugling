@@ -59,6 +59,20 @@ def failure_diagnostics(raw: str) -> dict[str, Any]:
             "http_statuses": sorted(statuses), "api_error_codes": sorted(codes)}
 
 
+def valid_failure_diagnostics(value: Any) -> bool:
+    if (not isinstance(value, dict) or set(value) != {
+            "error_event_observed", "turn_failed", "http_statuses", "api_error_codes"}
+            or any(type(value[key]) is not bool for key in ("error_event_observed", "turn_failed"))):
+        return False
+    statuses, codes = value["http_statuses"], value["api_error_codes"]
+    return (isinstance(statuses, list) and len(statuses) <= 200
+            and all(type(item) is int and 400 <= item <= 599 for item in statuses)
+            and statuses == sorted(set(statuses))
+            and isinstance(codes, list) and len(codes) <= len(API_ERROR_CODES)
+            and all(isinstance(item, str) and item in API_ERROR_CODES for item in codes)
+            and codes == sorted(set(codes)))
+
+
 def proxy_arguments() -> list[str]:
     address = os.environ.get("TUGLING_CODEX_PROXY_URL")
     if address is None:

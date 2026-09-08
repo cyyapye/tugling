@@ -12,6 +12,7 @@ import zipfile
 from scripts import certification_tasks as tasks
 from scripts import certification_jobs as jobs
 from scripts import certification_sandbox as sandbox
+from scripts import certification_worker as worker
 
 
 def plan(synthetic=False):
@@ -122,6 +123,58 @@ class ArtifactRecoveryTest(unittest.TestCase):
 
 
 class RecoveryProtocolTest(unittest.TestCase):
+    def test_usage_projection_never_defaults_missing_or_invalid_counters(self):
+        good = {"input_tokens": 200, "cached_input_tokens": 50, "output_tokens": 100}
+        self.assertEqual(tasks.usage_evidence({**good, "reasoning_output_tokens": 25}), good)
+        for value in (None, {}, {**good, "input_tokens": True}, {**good, "input_tokens": 0},
+                      {**good, "cached_input_tokens": 201}, {**good, "output_tokens": -1},
+                      {key: item for key, item in good.items() if key != "output_tokens"}):
+            with self.subTest(value=value):
+                self.assertIsNone(tasks.usage_evidence(value))
+
+    def test_execution_diagnostics_keep_only_bounded_public_categories(self):
+        p = plan()
+        receipt = outcome(p, state="TASK_ERROR", usage=False)
+        diagnostics = tasks.cert.runtime.failure_diagnostics(json.dumps({"type": "turn.failed",
+            "error": {"code": "invalid_json_schema", "message": "synthetic-private-message"}}))
+        detail = {"stage": "evaluation", "category": "CodexExitError", "exit_code": 1,
+                  "timed_out": False, "diagnostics": diagnostics}
+        tasks.validate_record(p, dict(receipt, evidence=detail))
+        self.assertNotIn("synthetic-private-message", json.dumps(detail))
+        for changed in (dict(detail, exit_code=True), dict(detail, stderr="private"),
+                        dict(detail, diagnostics={**diagnostics, "message": "private"}),
+                        dict(detail, diagnostics={**diagnostics, "api_error_codes": ["private"]}),
+                        dict(detail, diagnostics={**diagnostics, "http_statuses": [True]})):
+            with self.subTest(detail=changed), self.assertRaises(tasks.TaskError):
+                tasks.validate_record(p, dict(receipt, evidence=changed))
+
+    def test_worker_preserves_real_parser_usage_and_failed_verification(self):
+        p = plan()
+        events = tasks.cert.behavioral.parse_jsonl(json.dumps({"type": "turn.completed", "usage": {
+            "input_tokens": 200, "cached_input_tokens": 50, "output_tokens": 100,
+            "reasoning_output_tokens": 25}}))
+        for exit_code, expected_state in ((0, "RESULT"), (1, "TASK_ERROR")):
+            with self.subTest(exit_code=exit_code), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(tasks.cert.clean_room, "resolve_codex",
+                        return_value=("codex", f"codex-cli {tasks.cert.CODEX_VERSION}")), \
+                    mock.patch.object(tasks.cert.runtime, "proxy_arguments", return_value=["--config"]), \
+                    mock.patch.object(tasks.cert, "prepare_candidate"), \
+                    mock.patch.object(tasks.cert.behavioral, "resolve_release_baseline",
+                        return_value={"skills": directory}), \
+                    mock.patch.object(tasks.cert.behavioral, "run_condition", return_value={
+                        "events": events, "exit_code": exit_code, "timed_out": False,
+                        "elapsed_seconds": 1.0, "grade": {
+                            "effective_score": 0.0, "critical_pass": False, "passed": False}}):
+                result = worker.execute(p, tasks.admit(p, [], "t003", 0), Path(directory), None)
+                self.assertEqual(result["state"], expected_state)
+                self.assertEqual(result["usage"], {
+                    "input_tokens": 200, "cached_input_tokens": 50, "output_tokens": 100})
+                if expected_state == "RESULT":
+                    self.assertFalse(result["evidence"]["passed"])
+                records = [tasks.admit(p, [], "t003", 0), result]
+                self.assertEqual(tasks.accounting(p, records)["unaccounted_attempts"], 0)
+                self.assertIsNotNone(tasks.admit(p, records, "t005", 0))
+
     def test_freeze_all_91_distinct_tasks_and_runtime(self):
         p = plan()
         tasks.validate_manifest(p)

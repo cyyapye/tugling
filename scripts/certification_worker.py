@@ -23,6 +23,25 @@ except ImportError:
     import certify_release as cert
 
 
+def run_behavioral(plan: dict, task: dict, directory: Path, candidate: Path,
+                   binary: str, version: str) -> dict:
+    """Share the real fixture, CLI, parser and grader path with free diagnostics."""
+    suite = cert.behavioral.read_json(cert.behavioral.DEFAULT_SUITE)
+    case = next(case for case in suite["cases"] if case["id"] == task["case_id"])
+    with cert.candidate_source(candidate):
+        # A synthetic run deliberately uses one revision and cannot certify a
+        # release comparison. Paid runs still require a distinct stable baseline.
+        baseline = cert.behavioral.materialize_plugin_revision if plan["synthetic"] else cert.behavioral.resolve_release_baseline
+        released = baseline(plan["request"]["baseline_sha"], directory / "released")
+        source = {"control": None, "released": Path(released["skills"]),
+                  "candidate": cert.behavioral.SKILLS}[task["condition"]]
+        return cert.behavioral.run_condition(
+            case=case, condition=task["condition"], attempt=task["trial"],
+            out_dir=directory / "raw", codex_bin=binary, codex_version=version,
+            model=cert.MODEL, reasoning_effort=cert.EFFORT, timeout=cert.TASK_TIMEOUT,
+            keep_workspace=False, project_repo=None, skills_source=source, condition_identity=None)
+
+
 def execute(plan: dict, admission: dict, directory: Path, policy: Path | None) -> dict:
     tasks.validate_manifest(plan)
     tasks.validate_record(plan, admission)
@@ -39,28 +58,34 @@ def execute(plan: dict, admission: dict, directory: Path, policy: Path | None) -
         if version != f"codex-cli {cert.CODEX_VERSION}" or not cert.runtime.proxy_arguments():
             raise tasks.TaskError("worker runtime differs from the reviewed pin")
         if plan["synthetic"]:
-            stage = "installation"
-            # Exercise the actual pinned CLI, install, tool call and accounting.
+            # Exercise each actual execution path, including parser -> receipt.
             # Fault selection is controller-owned and cannot be enabled in paid mode.
-            raw = cert.clean_room.public_install(
-                source=os.environ["PUBLIC_REPOSITORY"], ref=os.environ["PUBLIC_REVISION"],
-                expected_root=ROOT, codex_bin=binary, codex_version=version,
-                auth_home=directory / "no-auth", live=True, model=cert.MODEL,
-                reasoning_effort=cert.EFFORT, timeout=45)
-            usage = raw.get("live", {}).get("usage")
-            if not raw.get("passed") or not tasks.valid_usage(usage):
-                raise tasks.TaskError("synthetic public installation failed")
+            if task["case_id"] == "public-install":
+                stage = "installation"
+                raw = cert.clean_room.public_install(
+                    source=os.environ["PUBLIC_REPOSITORY"], ref=os.environ["PUBLIC_REVISION"],
+                    expected_root=ROOT, codex_bin=binary, codex_version=version,
+                    auth_home=directory / "no-auth", live=True, model=cert.MODEL,
+                    reasoning_effort=cert.EFFORT, timeout=45)
+                usage = tasks.usage_evidence(raw.get("live", {}).get("usage"))
+                if not raw.get("passed") or usage is None:
+                    raise tasks.TaskError("synthetic public installation failed")
+                evidence = tasks.clean_evidence(raw, plan)
+            else:
+                stage = "evaluation"
+                raw = run_behavioral(plan, task, directory, ROOT, binary, version)
+                usage = tasks.usage_evidence(raw.get("events", {}).get("usage"))
+                if raw["exit_code"] != 0 or usage is None:
+                    raise tasks.TaskError("synthetic behavioral runtime failed")
+                # Synthetic scores exercise recovery only; never certify a skill.
+                evidence = {"score": 1.0 if task["condition"] == "candidate" else 0.5,
+                            "critical_pass": True, "passed": True, "elapsed_seconds": raw["elapsed_seconds"]}
+                if task["id"] == "t003":
+                    evidence.update(score=0.0, critical_pass=False, passed=False)
             if task["id"] == "t002" and admission["attempt"] == 0:
                 # A synthetic in-flight worker death. The uploaded admission
                 # survives, while this process cannot emit a result.
                 os._exit(71)
-            if task["case_id"] == "public-install":
-                evidence = tasks.clean_evidence(raw, plan)
-            else:
-                evidence = {"score": 1.0 if task["condition"] == "candidate" else 0.5,
-                            "critical_pass": True, "passed": True, "elapsed_seconds": 0.0}
-                if task["id"] == "t003":
-                    evidence.update(score=0.0, critical_pass=False, passed=False)
             state = "RESULT"
         else:
             stage = "candidate"
@@ -74,31 +99,25 @@ def execute(plan: dict, admission: dict, directory: Path, policy: Path | None) -
                     source=cert.REPOSITORY, ref=plan["request"]["candidate_sha"], expected_root=candidate,
                     codex_bin=binary, codex_version=version, auth_home=directory / "no-auth",
                     live=True, model=cert.MODEL, reasoning_effort=cert.EFFORT, timeout=cert.TASK_TIMEOUT)
-                usage = raw.get("live", {}).get("usage")
+                usage = tasks.usage_evidence(raw.get("live", {}).get("usage"))
                 evidence = tasks.clean_evidence(raw, plan)
                 state = "RESULT" if tasks.valid_usage(usage) else "TASK_ERROR"
             else:
                 stage = "evaluation"
-                suite = cert.behavioral.read_json(cert.behavioral.DEFAULT_SUITE)
-                case = next(case for case in suite["cases"] if case["id"] == task["case_id"])
-                with cert.candidate_source(candidate):
-                    released = cert.behavioral.resolve_release_baseline(
-                        plan["request"]["baseline_sha"], directory / "released")
-                    source = {"control": None, "released": Path(released["skills"]),
-                              "candidate": cert.behavioral.SKILLS}[task["condition"]]
-                    raw = cert.behavioral.run_condition(
-                        case=case, condition=task["condition"], attempt=task["trial"],
-                        out_dir=directory / "raw", codex_bin=binary, codex_version=version,
-                        model=cert.MODEL, reasoning_effort=cert.EFFORT, timeout=cert.TASK_TIMEOUT,
-                        keep_workspace=False, project_repo=None, skills_source=source, condition_identity=None)
-                    # Retain reported usage even when the task or grade fails.
-                    usage = raw.get("events", {}).get("usage")
-                    if raw["exit_code"] == 0 and tasks.valid_usage(usage):
-                        evidence = {"score": raw["grade"]["effective_score"],
-                                    "critical_pass": raw["grade"]["critical_pass"],
-                                    "passed": raw["grade"]["passed"],
-                                    "elapsed_seconds": raw["elapsed_seconds"]}
-                        state = "RESULT"
+                raw = run_behavioral(plan, task, directory, candidate, binary, version)
+                # Keep valid observed counters on both failed grades and CLI exits.
+                usage = tasks.usage_evidence(raw.get("events", {}).get("usage"))
+                if raw["exit_code"] == 0 and usage is not None:
+                    evidence = {"score": raw["grade"]["effective_score"],
+                                "critical_pass": raw["grade"]["critical_pass"],
+                                "passed": raw["grade"]["passed"],
+                                "elapsed_seconds": raw["elapsed_seconds"]}
+                    state = "RESULT"
+                else:
+                    failure = {"stage": stage,
+                        "category": "UsageError" if raw["exit_code"] == 0 else "CodexExitError",
+                        "exit_code": raw["exit_code"], "timed_out": raw.get("timed_out", False),
+                        "diagnostics": raw.get("failure_diagnostics", cert.runtime.failure_diagnostics(""))}
     except Exception as exc:
         # No arbitrary exception strings, private paths or model output enter
         # public evidence. A worker exception is never a retry-for-a-better-grade.

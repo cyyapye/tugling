@@ -847,6 +847,7 @@ def run_codex(
         "final_output": final_output,
         "final_output_error": final_error,
         "events": parse_jsonl(stdout),
+        "failure_diagnostics": codex_runtime.failure_diagnostics(stdout),
     }
 
 
