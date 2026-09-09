@@ -206,6 +206,15 @@ The free recovery workflow runs the actual behavioral fixtures, CLI, parser and
 grader before applying its deliberately synthetic recovery scores. It covers this
 usage projection in addition to the public installation path.
 
+Workspace-write evaluations give the CLI a dedicated temporary directory beside
+the fixture, within the same disposable, bounded worker scratch space. Linux
+sandbox lock files therefore cannot count as repository edits. Only this directory
+is added to the sandbox's writable roots; global temporary directories remain
+excluded. Trial cleanup removes the runtime directory after stopping descendants.
+Free CI runs the pinned CLI against the no-op fixture through the fake provider
+and requires its unchanged zero-file change budget to pass. Actual fixture edits
+still fail that check; no runtime paths are ignored by the grader.
+
 Manifest and task-receipt schema version 2 require a `checks` map on every
 behavioral result. It retains each controller-defined grader check name and a
 boolean verdict, including failed decisions, required command groups, evidence
