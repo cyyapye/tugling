@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -58,6 +60,46 @@ class BehavioralEvalTest(unittest.TestCase):
             files, status = harness.changed_files(workspace)
         self.assertEqual(files, ["evals/routing.json"])
         self.assertTrue(status.startswith(" M evals/routing.json"))
+
+    def test_runtime_residue_is_separate_cleaned_and_does_not_hide_fixture_edits(self) -> None:
+        case = self.by_id["tugling-bounded-noop"]
+        for mode in ("clean", "dirty", "failed"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                binary = root / "fake-codex"
+                binary.write_text('''#!/usr/bin/env python3
+import json, sys, tempfile
+from pathlib import Path
+args = sys.argv
+workspace = Path(args[args.index("--cd") + 1])
+runtime = Path(tempfile.mkdtemp(prefix="runtime-residue-"))
+(runtime / "lock").touch()
+artifact = Path(args[args.index("--output-last-message") + 1]).parent
+(artifact / "runtime-location.json").write_text(json.dumps({
+    "runtime": str(runtime), "workspace": str(workspace)}))
+mode = args[args.index("--model") + 1]
+if mode == "dirty":
+    path = workspace / "docs/test-gaps.md"
+    path.write_text(path.read_text() + "\\n")
+raise SystemExit(17 if mode == "failed" else 0)
+''', encoding="utf-8")
+                binary.chmod(0o700)
+                with patch.dict(os.environ, {"TUGLING_CODEX_PROXY_URL": "http://127.0.0.1:12345/v1"}):
+                    result = harness.run_condition(
+                        case=case, condition="candidate", attempt=1, out_dir=root / "results",
+                        codex_bin=str(binary), codex_version="synthetic", model=mode,
+                        reasoning_effort="medium", timeout=10, keep_workspace=False,
+                        project_repo=None, skills_source=harness.SKILLS, condition_identity=None)
+                artifact = root / "results" / case["id"] / "candidate" / "attempt-1"
+                locations = json.loads((artifact / "runtime-location.json").read_text())
+                runtime, workspace = Path(locations["runtime"]), Path(locations["workspace"])
+                self.assertFalse(runtime.is_relative_to(workspace))
+                self.assertFalse(runtime.exists())
+                self.assertFalse(runtime.parent.exists())
+                self.assertEqual(result["exit_code"], 17 if mode == "failed" else 0)
+                self.assertEqual(result["changed_files"], ["docs/test-gaps.md"] if mode == "dirty" else [])
+                checks = {check["name"]: check["passed"] for check in result["grade"]["checks"]}
+                self.assertEqual(checks["change_budget"], mode != "dirty")
 
     def test_image_arguments_are_terminated_before_prompt(self) -> None:
         argv = ["codex", "exec"]

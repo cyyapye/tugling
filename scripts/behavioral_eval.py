@@ -794,7 +794,15 @@ def run_codex(
         if not image_path.is_file():
             raise EvalError(f"declared image does not exist after fixture preparation: {image_path}")
         image_paths.append(image_path)
-    argv.extend(codex_runtime.proxy_arguments())
+    proxy_args = codex_runtime.proxy_arguments()
+    runtime_tmp = None
+    if proxy_args and case["sandbox"] == "workspace-write":
+        # Linux sandbox setup leaves a mount-target lock under TMPDIR. Keep
+        # runtime files outside the graded fixture, inside this trial's scratch.
+        runtime_tmp = codex_home.parent / "runtime-tmp"
+        runtime_tmp.mkdir(mode=0o700)
+        argv.extend(["--add-dir", str(runtime_tmp)])
+    argv.extend(proxy_args)
     append_prompt_and_images(argv, image_paths, build_prompt(case))
 
     started = time.perf_counter()
@@ -802,8 +810,8 @@ def run_codex(
     try:
         child_env = command_env()
         child_env["CODEX_HOME"] = str(codex_home)
-        if codex_runtime.proxy_arguments() and case["sandbox"] == "workspace-write":
-            child_env["TMPDIR"] = str(workspace)
+        if runtime_tmp is not None:
+            child_env["TMPDIR"] = str(runtime_tmp)
         completed = codex_runtime.run_process(
             argv,
             cwd=workspace,

@@ -192,6 +192,8 @@ def check(args: argparse.Namespace) -> None:
                     or receipt["usage"] != {"input_tokens": 200, "output_tokens": 100, "cached_input_tokens": 0}):
                 raise RuntimeError("Behavioral CLI/parser/receipt contract failed")
             tasks.validate_behavioral_checks(task["case_id"], checks)
+            if task["case_id"] == "tugling-bounded-noop" and checks["change_budget"] is not True:
+                raise RuntimeError("Read-only synthetic tool execution dirtied the no-op fixture")
         state = json.loads(args.state.read_text())
         if (len(report["behavioral_tasks"]) != 10 or len(state["requests"]) != 2 * (args.tasks + 10)
                 or not all(all(request.values()) for request in state["requests"])):
