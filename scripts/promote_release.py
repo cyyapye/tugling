@@ -48,8 +48,16 @@ def authorize(env: dict[str, str]) -> dict[str, str]:
             "version": version, "certificate_digest": digest, "run_id": run_id}
 
 
-def verify_and_promote(request: dict[str, str], *, apply: bool) -> dict[str, Any]:
-    environment = protection.require_protections(writer=apply)
+def verify_and_promote(request: dict[str, str], *, apply: bool,
+                       policy_token: str | None = None) -> dict[str, Any]:
+    # Keep the App token in this process only; candidate checks, attestation
+    # commands, and Git publication retain the normal workflow identity.
+    token = os.environ.pop("TUGLING_POLICY_TOKEN", "") if policy_token is None else policy_token
+    if not token:
+        raise protection.ProtectionVisibilityError(
+            "policy App token is missing; configure TUGLING_POLICY_APP_CLIENT_ID and "
+            "TUGLING_POLICY_APP_PRIVATE_KEY in the protected release environments")
+    environment = protection.require_protections(token=token)
     if apply:
         protection.require_approval(os.environ.get("GITHUB_RUN_ID", ""), environment)
     with tempfile.TemporaryDirectory(prefix="tugling-release-evidence-") as directory:
@@ -114,10 +122,13 @@ def main() -> int:
     parser.add_argument("--out", required=True)
     parser.add_argument("--codex-bin")
     args = parser.parse_args()
+    # authorize() invokes Git too. Remove the policy credential before even
+    # those initial checkout checks, then pass it explicitly to policy reads.
+    policy_token = os.environ.pop("TUGLING_POLICY_TOKEN", "")
     try:
         request = authorize(dict(os.environ))
         result = (canary(request, codex_bin=args.codex_bin) if args.phase == "canary"
-                  else verify_and_promote(request, apply=args.phase == "promote"))
+                  else verify_and_promote(request, apply=args.phase == "promote", policy_token=policy_token))
         status = 0
     except (controller.ControllerError, certification.CertificationError, evidence.EvidenceError,
             clean_room.CleanRoomError, controller.gate.ReleaseGateError, OSError, ValueError,
@@ -129,6 +140,8 @@ def main() -> int:
                   "reason": str(exc) if isinstance(exc, (controller.ControllerError, evidence.EvidenceError,
                                                         certification.CertificationError)) else type(exc).__name__,
                   "recovery": "Inspect workflow evidence and live stable/tag refs; do not roll back or rerun paid certification automatically."}
+        if isinstance(exc, protection.ProtectionVisibilityError):
+            result["failure_kind"] = "PROTECTION_ACCESS_MISSING"
         status = 1
     controller.gate.write_json(Path(args.out), result)
     print(json.dumps(result, sort_keys=True))

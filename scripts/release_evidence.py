@@ -28,12 +28,14 @@ class EvidenceError(RuntimeError):
     pass
 
 
-def gh(*args: str, output: Path | None = None) -> bytes:
+def gh(*args: str, output: Path | None = None, token: str | None = None) -> bytes:
     # Do not inherit debug switches that could log authorization headers.
-    env = {key: value for key, value in os.environ.items() if not key.startswith("GH_")}
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith("GH_") and key != "TUGLING_POLICY_TOKEN"}
     env["GH_HOST"] = "github.com"
-    if os.environ.get("GH_TOKEN"):
-        env["GH_TOKEN"] = os.environ["GH_TOKEN"]
+    selected_token = os.environ.get("GH_TOKEN", "") if token is None else token
+    if selected_token:
+        env["GH_TOKEN"] = selected_token
     with (output.open("xb") if output else open(os.devnull, "wb")) as destination:
         result = subprocess.run(
             ["gh", *args], stdin=subprocess.DEVNULL,
@@ -51,9 +53,10 @@ def gh(*args: str, output: Path | None = None) -> bytes:
     return result.stdout
 
 
-def api(path: str) -> Any:
+def api(path: str, *, token: str | None = None) -> Any:
     endpoint = f"repos/{REPOSITORY}" + (f"/{path}" if path else "")
-    return json.loads(gh("api", "--hostname", "github.com", endpoint))
+    options = {} if token is None else {"token": token}
+    return json.loads(gh("api", "--hostname", "github.com", endpoint, **options))
 
 
 def require_run(run: dict[str, Any], run_id: str, pin: str) -> str:

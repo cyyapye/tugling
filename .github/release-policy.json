@@ -26,6 +26,7 @@
     }
   ],
   "environment_name": "tugling-stable",
+  "audit_environment_name": "tugling-release-policy",
   "environment": {
     "wait_timer": 0,
     "prevent_self_review": false,

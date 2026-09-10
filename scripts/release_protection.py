@@ -17,18 +17,28 @@ else:
 POLICY = Path(__file__).resolve().parents[1] / ".github/release-policy.json"
 
 
-def require_protections(*, writer: bool = False) -> dict[str, Any]:
+class ProtectionVisibilityError(evidence.EvidenceError):
+    """The caller cannot observe the protection policy; drift is not established."""
+
+
+def require_protections(*, token: str | None = None) -> dict[str, Any]:
+    """Read the full policy, using the App token only for ruleset requests.
+
+    An explicit token is supplied by CI. Local maintainer audits may use their
+    existing GitHub CLI identity, which must pass the same visibility check.
+    """
     policy = json.loads(POLICY.read_text())
     if evidence.api("").get("visibility") != "public":
         raise evidence.EvidenceError("release controls require this reviewed public repository configuration")
-    listing = evidence.api("rulesets?per_page=100")
+    options = {} if token is None else {"token": token}
+    listing = evidence.api("rulesets?per_page=100", **options)
     if not isinstance(listing, list) or len(listing) >= 100:
         raise evidence.EvidenceError("release ruleset listing is invalid or incomplete")
     for expected in policy["rulesets"]:
         matches = [item for item in listing if item.get("name") == expected["name"]]
         if len(matches) != 1:
             raise evidence.EvidenceError("required release ruleset is missing or ambiguous")
-        actual = evidence.api(f"rulesets/{matches[0]['id']}")
+        actual = evidence.api(f"rulesets/{matches[0]['id']}", **options)
         for key in ("name", "target", "enforcement", "conditions"):
             if actual.get(key) != expected[key]:
                 raise evidence.EvidenceError("release ruleset scope or enforcement drifted")
@@ -36,11 +46,15 @@ def require_protections(*, writer: bool = False) -> dict[str, Any]:
             item["type"] for item in expected["rules"]
         }:
             raise evidence.EvidenceError("required release ref restrictions drifted")
-        # GitHub hides bypass actors from callers without write access. The
-        # writer must observe and verify them again after environment approval.
-        if writer or "bypass_actors" in actual:
-            if actual.get("bypass_actors") != expected["bypass_actors"]:
-                raise evidence.EvidenceError("release ruleset bypass actors are unverified or changed")
+        # Repository contents:write is insufficient. GitHub reveals this field
+        # only to callers with ruleset write access (Administration:write).
+        # Omitted data must fail preflight, before candidate work or approval.
+        if "bypass_actors" not in actual:
+            raise ProtectionVisibilityError(
+                f"GitHub omitted bypass_actors for {expected['name']}; "
+                "configure the policy App with repository Administration:write access")
+        if actual["bypass_actors"] != expected["bypass_actors"]:
+            raise evidence.EvidenceError("release ruleset bypass actors changed")
     name = policy["environment_name"]
     environment = evidence.api(f"environments/{name}")
     expected_environment = policy["environment"]
@@ -58,6 +72,16 @@ def require_protections(*, writer: bool = False) -> dict[str, Any]:
             or [{key: item.get(key) for key in ("name", "type")}
                 for item in deployment.get("branch_policies", [])] != [policy["deployment_policy"]]):
         raise evidence.EvidenceError("release environment must admit only reviewed controller tags")
+    audit_name = policy["audit_environment_name"]
+    audit = evidence.api(f"environments/{audit_name}")
+    if (audit.get("name") != audit_name or audit.get("can_admins_bypass") is not False
+            or audit.get("deployment_branch_policy") != expected_environment["deployment_branch_policy"]):
+        raise evidence.EvidenceError("policy credential environment must restrict access to reviewed controller tags")
+    audit_deployment = evidence.api(f"environments/{audit_name}/deployment-branch-policies?per_page=100")
+    if (audit_deployment.get("total_count") != 1
+            or [{key: item.get(key) for key in ("name", "type")}
+                for item in audit_deployment.get("branch_policies", [])] != [policy["deployment_policy"]]):
+        raise evidence.EvidenceError("policy credential environment must admit only reviewed controller tags")
     return environment
 
 
