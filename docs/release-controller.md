@@ -14,8 +14,10 @@ a controller, enable paid certification, or publish a plugin release.
 
 The workflow uses four separate standard GitHub-hosted Ubuntu jobs:
 
-1. **Preflight:** check out the independently pinned promotion controller. Check
-   GitHub's protection settings, download the exact certification artifact, and
+1. **Preflight:** use the tag-restricted `tugling-release-policy` environment and
+   check out the independently pinned promotion controller. Mint a short-lived
+   policy App token for this repository and check the full protection settings,
+   including bypass actors, before candidate work or human approval. Download the exact certification artifact and
    verify both files with `gh attestation verify`. Check the certificate against
    the candidate package, exact main/stable refs, and the successful latest push
    `Verify` run. Write the release identity, certificate digest, and observed
@@ -23,7 +25,8 @@ The workflow uses four separate standard GitHub-hosted Ubuntu jobs:
 2. **Candidate verification:** check out the exact candidate with `contents: read`
    and `persist-credentials: false`, and run `make verify`.
 3. **Promotion:** wait for approval in `tugling-stable`, then start a fresh runner
-   with `contents: write`. Check out only the pinned controller. Independently
+   with `contents: write`. Check out only the pinned controller and mint a fresh
+   policy App token from this environment's protected secret. Independently
    download and verify the evidence again, check protection settings including
    bypass actors, and require the maintainer's recorded approval for this run.
    Candidate jobs do not supply executable code, caches, or authorization outputs
@@ -71,6 +74,7 @@ reads them and fails closed on drift:
 | Immutable release refs ruleset | Prevent updates and deletion of existing `v*` and `controller-*` tags, with no bypass actors |
 | Controller approval ruleset | Only repository administrators can create new `controller-*` tags |
 | `tugling-stable` environment | Require approval by `cyyapye`, disable administrator bypass, and admit only `controller-*` **tags** |
+| `tugling-release-policy` environment | Admit only `controller-*` **tags** for the preflight policy credential; disable administrator bypass |
 
 Self-review is allowed so the sole maintainer can dispatch a release and then
 explicitly approve it after reviewing the preflight summary. This is a human
@@ -91,8 +95,44 @@ rulesets with `POST /repos/cyyapye/tugling/rulesets`, create/update the environm
 with `PUT /repos/cyyapye/tugling/environments/tugling-stable`, and create its tag
 policy with `POST .../deployment-branch-policies`. Read all settings back before
 activation. Preserve unrelated settings; do not create duplicate named rulesets.
-The writer requires visible bypass-actor data; GitHub hides it from read-only
-callers, so preflight alone cannot prove that part of the policy.
+Both preflight and the writer require visible bypass-actor data. GitHub requires
+**write access to the ruleset** to reveal `bypass_actors`; `contents: write` and
+`write-all` on the built-in `GITHUB_TOKEN` do not supply that administration
+permission. An omitted field is an access failure, not evidence of an empty list
+or a changed policy. The guard reports `PROTECTION_ACCESS_MISSING` separately and
+continues to reject observed bypass changes.
+
+### Policy App setup
+
+Create a private GitHub App under `cyyapye`, installed only on `cyyapye/tugling`.
+Grant repository **Administration: read and write**, plus GitHub's automatic
+Metadata read permission. Leave webhooks, user authorization, account access,
+and all other optional permissions disabled. Administration write can change
+rulesets; GitHub does not provide a read-only permission for this visibility.
+Our integration uses it only for ruleset GET requests. It is not a release writer
+and must not be added to any ruleset bypass list.
+
+Store its client ID in the repository variable `TUGLING_POLICY_APP_CLIENT_ID`.
+Store the same private key as the environment secret
+`TUGLING_POLICY_APP_PRIVATE_KEY` in **both** `tugling-release-policy` and
+`tugling-stable`. Do not create a repository-wide copy. Create the audit
+environment with no required reviewers, administrator bypass disabled, and the
+same single `controller-*` tag policy as the release environment. Preflight can
+then detect configuration errors before requesting the existing human release
+approval. Read back the two environment scopes before installing the secrets.
+
+The pinned official `actions/create-github-app-token` action scopes each token
+to `tugling` and Administration write, masks it, and revokes it at job cleanup.
+The normal workflow token continues to read evidence and publish refs. The App
+token is passed only to ruleset reads and removed from child-process environments.
+Candidate verification and the installation canary receive neither the private
+key nor the App token. No App credentials are available to PR or ordinary push
+checks. Key rotation updates the two protected secret copies together.
+
+App creation and these credentials do not activate revised controller code.
+After merging, the changed workflow and guards still require separate controller
+review and pin updates. An existing certificate remains bound to its original
+candidate and controller; this infrastructure change does not extend it.
 
 ## Controller activation and release review
 
@@ -149,14 +189,47 @@ not a transaction lock on main. Atomicity covers stable and the version tag.
 The canary is inline because a `GITHUB_TOKEN` push does not trigger another push
 workflow. There is no automatic rollback, tag deletion, model rerun, or retry loop.
 
+### Record an operator recovery
+
+A successful local recovery does not update an Actions-created deployment.
+Preserve the failed attempt and append a separate verified recovery record with:
+
+```sh
+python3 -I scripts/record_release_recovery.py \
+  --promotion-run-id ORIGINAL_FAILED_RUN \
+  --codex-bin /absolute/path/to/pinned/codex \
+  --out /absolute/path/to/recovery.json
+```
+
+The default is read-only. The command reconstructs the exact release identity
+from the original run's successful preflight log, verifies its human approval,
+checks both original attestations and the current full policy, requires the
+publication controller's `ALREADY_PROMOTED` result, and performs a fresh free
+stable-alias installation. Thus main must still match the candidate and the
+original certification artifacts must remain available. A log or artifact that
+has expired, a rerun, changed refs, or failed installation blocks reporting.
+
+After reviewing that result, the authorized operator can repeat with `--apply`.
+Every invocation verifies again; a JSON success flag from disk is never accepted
+as proof. This writes only deployment metadata for the exact candidate under
+task `tugling:recovery`, explicitly labeled `local-operator-verification`. It does
+not publish refs, approve an environment, or start certification. The original
+failed deployment is neither overwritten nor marked inactive. Sequential retries
+reuse the matching recovery record, including after a lost create response;
+ambiguous duplicates require inspection. Concurrent operators should not run it
+for the same intent. The final ref read is a freshness check, not a transaction
+lock on subsequent publication.
+
 ## Verification and limits
 
 Run `make verify` and `actionlint`. Tests use real disposable Git remotes and
 atomic pushes for publication, races, duplicate convergence, and canary recovery.
 Provider-boundary tests inject API/verified-result fixtures to test policy and
 unsafe archives; these synthetic fixtures do not prove a real CI attestation.
-Use the real pinned CLI for the free public installation smoke. The first live
-attested release remains a separate maintainer-approved certification and promotion.
+Use the real pinned CLI for the free public installation smoke and the actual
+installed App for an independent ruleset-visibility check. Unit fixtures do not
+prove the GitHub credential configuration. New live attested releases remain
+separate maintainer-approved certification and promotion operations.
 
 Each promotion job is limited to ten minutes. Git/CLI requests time out after
 120 seconds. Candidate package extraction is capped at 2,000 files and 16 MiB;
@@ -167,4 +240,5 @@ trusted roots; policy checks inspect only successfully verified statements.
 
 References: [GitHub attestation verification](https://cli.github.com/manual/gh_attestation_verify),
 [repository rulesets API](https://docs.github.com/en/rest/repos/rules),
+[GitHub App tokens in Actions](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow),
 [environment protection](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).

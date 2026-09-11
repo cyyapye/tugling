@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import copy
+from contextlib import redirect_stdout
+import io
 import json
+import os
 import stat
 import tempfile
 import unittest
@@ -223,6 +226,9 @@ class ReleaseProtectionTest(unittest.TestCase):
             "protection_rules": [{"type": "required_reviewers", "prevent_self_review": False,
                                   "reviewers": [{"type": "User", "reviewer": {"id": 4515813}}]}]}
         self.deployment = {"total_count": 1, "branch_policies": [{"name": "controller-*", "type": "tag"}]}
+        self.audit_environment = {**self.environment, "name": "tugling-release-policy", "id": 45,
+                                  "protection_rules": []}
+        self.audit_deployment = copy.deepcopy(self.deployment)
         self.reviews = [{"state": "approved", "user": {"id": 4515813}, "environments": [{"id": 44}]}]
 
     def api(self, path):
@@ -236,6 +242,10 @@ class ReleaseProtectionTest(unittest.TestCase):
             return self.environment
         if path.startswith("environments/tugling-stable/deployment-branch-policies"):
             return self.deployment
+        if path == "environments/tugling-release-policy":
+            return self.audit_environment
+        if path.startswith("environments/tugling-release-policy/deployment-branch-policies"):
+            return self.audit_deployment
         if path == "actions/runs/123/approvals":
             return self.reviews
         raise AssertionError(path)
@@ -243,7 +253,6 @@ class ReleaseProtectionTest(unittest.TestCase):
     def test_read_only_preflight_and_writer_both_check_configured_controls(self):
         with mock.patch.object(protection.evidence, "api", side_effect=self.api):
             protection.require_protections()
-            protection.require_protections(writer=True)
             protection.require_approval("123", self.environment)
 
     def test_disabled_ruleset_exclusion_or_bypass_blocks_writer(self):
@@ -255,16 +264,38 @@ class ReleaseProtectionTest(unittest.TestCase):
                 self.rulesets[0] = {**original, **changes}
                 with mock.patch.object(protection.evidence, "api", side_effect=self.api), \
                      self.assertRaises(evidence.EvidenceError):
-                    protection.require_protections(writer=True)
+                    protection.require_protections()
                 self.rulesets[0] = original
 
-    def test_reader_hidden_bypass_actors_must_be_verified_with_writer_permission(self):
+    def test_missing_bypass_actors_blocks_preflight_instead_of_claiming_policy_drift(self):
         for item in self.rulesets:
             del item["bypass_actors"]
         with mock.patch.object(protection.evidence, "api", side_effect=self.api):
+            with self.assertRaisesRegex(protection.ProtectionVisibilityError, "omitted bypass_actors"):
+                protection.require_protections()
+
+    def test_app_identity_is_used_only_to_inspect_rulesets(self):
+        observed = []
+
+        def provider(path, *, token=None):
+            observed.append((path, token))
+            response = copy.deepcopy(self.api(path))
+            if path.startswith("rulesets/") and token != "synthetic-app-token":
+                response.pop("bypass_actors", None)
+            return response
+
+        with mock.patch.object(protection.evidence, "api", side_effect=provider):
+            protection.require_protections(token="synthetic-app-token")
+        self.assertTrue(any(path.startswith("rulesets/") for path, _ in observed))
+        for path, token in observed:
+            self.assertEqual(token, "synthetic-app-token" if path.startswith("rulesets") else None)
+
+    def test_audit_credential_cannot_be_exposed_to_unreviewed_refs(self):
+        self.audit_deployment["branch_policies"].append({"name": "main", "type": "branch"})
+        self.audit_deployment["total_count"] = 2
+        with mock.patch.object(protection.evidence, "api", side_effect=self.api), \
+             self.assertRaisesRegex(evidence.EvidenceError, "policy credential environment"):
             protection.require_protections()
-            with self.assertRaisesRegex(evidence.EvidenceError, "bypass actors"):
-                protection.require_protections(writer=True)
 
     def test_approval_bypass_missing_reviewer_or_unprotected_dispatch_ref_is_rejected(self):
         for field, value in (("can_admins_bypass", True), ("protection_rules", []),
@@ -274,12 +305,12 @@ class ReleaseProtectionTest(unittest.TestCase):
                 self.environment[field] = value
                 with mock.patch.object(protection.evidence, "api", side_effect=self.api), \
                      self.assertRaises(evidence.EvidenceError):
-                    protection.require_protections(writer=True)
+                    protection.require_protections()
                 self.environment = original
         self.deployment["branch_policies"][0]["type"] = "branch"
         with mock.patch.object(protection.evidence, "api", side_effect=self.api), \
              self.assertRaises(evidence.EvidenceError):
-            protection.require_protections(writer=True)
+            protection.require_protections()
 
     def test_unapproved_wrong_reviewer_or_other_environment_cannot_publish(self):
         for reviews in ([], [{"state": "rejected", "user": {"id": 4515813}, "environments": [{"id": 44}]}],
@@ -294,6 +325,7 @@ class ReleaseProtectionTest(unittest.TestCase):
         request = {"controller": "a" * 40, "certification_controller": "a" * 40,
                    "candidate": "b" * 40, "version": "0.5.0", "certificate_digest": "c" * 64, "run_id": "123"}
         with mock.patch.object(promotion.protection, "require_protections", return_value=self.environment), \
+             mock.patch.dict(os.environ, {"TUGLING_POLICY_TOKEN": "synthetic-app-token"}), \
              mock.patch.object(promotion.protection, "require_approval") as approval, \
              mock.patch.object(promotion.evidence, "fetch_verified", side_effect=evidence.EvidenceError("rejected")), \
              mock.patch.object(promotion.controller, "promote") as write:
@@ -301,6 +333,61 @@ class ReleaseProtectionTest(unittest.TestCase):
                 promotion.verify_and_promote(request, apply=True)
             approval.assert_called_once()
             write.assert_not_called()
+
+    def test_both_phases_require_app_visibility_before_downloading_evidence(self):
+        for apply in (False, True):
+            with self.subTest(apply=apply), \
+                 mock.patch.dict(os.environ, {"TUGLING_POLICY_TOKEN": "synthetic-app-token"}), \
+                 mock.patch.object(promotion.protection, "require_protections",
+                     side_effect=protection.ProtectionVisibilityError("omitted bypass_actors")) as check, \
+                 mock.patch.object(promotion.evidence, "fetch_verified") as fetch, \
+                 mock.patch.object(promotion.controller, "promote") as write:
+                with self.assertRaises(protection.ProtectionVisibilityError):
+                    promotion.verify_and_promote({}, apply=apply)
+                check.assert_called_once_with(token="synthetic-app-token")
+                self.assertNotIn("TUGLING_POLICY_TOKEN", os.environ)
+                fetch.assert_not_called()
+                write.assert_not_called()
+
+    def test_missing_app_never_falls_back_to_repository_write_token(self):
+        with mock.patch.dict(os.environ, {"TUGLING_POLICY_TOKEN": "", "GH_TOKEN": "synthetic-writer"}), \
+             mock.patch.object(promotion.protection, "require_protections") as check:
+            with self.assertRaisesRegex(promotion.protection.ProtectionVisibilityError, "policy App token is missing"):
+                promotion.verify_and_promote({}, apply=False)
+            check.assert_not_called()
+
+    def test_subprocess_credential_selection_does_not_leak_app_token_or_debug_settings(self):
+        result = mock.Mock(returncode=0, stdout=b"{}")
+        with mock.patch.dict(os.environ, {"GH_TOKEN": "synthetic-writer", "GH_DEBUG": "api",
+                                         "TUGLING_POLICY_TOKEN": "synthetic-app-token"}), \
+             mock.patch.object(evidence.subprocess, "run", return_value=result) as run:
+            evidence.api("rulesets/1", token="synthetic-app-token")
+            env = run.call_args.kwargs["env"]
+            self.assertEqual(env["GH_TOKEN"], "synthetic-app-token")
+            self.assertNotIn("TUGLING_POLICY_TOKEN", env)
+            self.assertNotIn("GH_DEBUG", env)
+            self.assertNotIn("synthetic-app-token", str(run.call_args.args))
+            evidence.api("actions/runs/123")
+            self.assertEqual(run.call_args.kwargs["env"]["GH_TOKEN"], "synthetic-writer")
+
+    def test_cli_removes_app_credential_before_initial_git_checkout_checks(self):
+        def authorize(env):
+            self.assertNotIn("TUGLING_POLICY_TOKEN", env)
+            self.assertNotIn("TUGLING_POLICY_TOKEN", os.environ)
+            return {}
+
+        with tempfile.TemporaryDirectory() as directory, \
+             mock.patch.dict(os.environ, {"TUGLING_POLICY_TOKEN": "synthetic-app-token"}), \
+             mock.patch("sys.argv", ["promote_release", "verify", "--out", str(Path(directory) / "result.json")]), \
+             mock.patch.object(promotion, "authorize", side_effect=authorize), \
+             mock.patch.object(promotion, "verify_and_promote", side_effect=
+                 promotion.protection.ProtectionVisibilityError("omitted bypass_actors")) as verify, \
+             redirect_stdout(io.StringIO()):
+            self.assertEqual(promotion.main(), 1)
+            verify.assert_called_once_with({}, apply=False, policy_token="synthetic-app-token")
+            result = json.loads((Path(directory) / "result.json").read_text())
+            self.assertEqual(result["failure_kind"], "PROTECTION_ACCESS_MISSING")
+            self.assertNotIn("synthetic-app-token", json.dumps(result))
 
 
 if __name__ == "__main__":
