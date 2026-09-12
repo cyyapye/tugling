@@ -32,6 +32,10 @@ calling a model.
 
 ## Live smoke
 
+For the separate new-project, authorized-repair, and assessment-only cases, see
+[project setup diagnostics](../setup/README.md). Their bounded local runner can
+pin `gpt-6-astra` without changing the release matrix or certification runtime.
+
 Use an authenticated Codex CLI. Pin the model and reasoning effort so a later
 run is comparable:
 

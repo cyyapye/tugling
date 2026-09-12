@@ -1,77 +1,67 @@
 ---
 name: tugling
-description: Set up Tugling for a repository or carry a non-trivial repository change or bounded tracked-queue task from intent through verified handoff. Use when explicitly invoked, when adopting Tugling, or when the user asks to design, implement, fix, refactor, optimize, ship multi-step work, or complete the next checklist or backlog item even when current evidence may produce a no-op. Do not use for a simple factual answer, read-only status request, or trivial edit that does not need orchestration.
+description: Set up a project or carry multi-step repository work through verification. Use for Tugling adoption, project bootstrap, or delivery across engineering boundaries; skip simple explanations and isolated trivial edits.
 ---
 
 # Tugling
 
 Deliver the smallest complete change the repository can honestly prove.
 
-## Authority order
+## Continue within the request
 
-Resolve conflicts in this order:
+System and developer instructions and environment permissions govern execution.
+Within those limits, the user's request and existing authorization take precedence
+over repository guidance and skill defaults. Use current project code, commands,
+and applicable instructions to resolve implementation facts.
 
-1. The user's current request and explicit constraints.
-2. System permissions and approval boundaries.
-3. Root and path-specific repository instructions such as `AGENTS.md`.
-4. Current code, configuration, tests, CI, runbooks, and durable product docs.
-5. Tugling's defaults.
+Treat a request to implement or set up as permission to finish that work, including
+routine local verification and in-scope repairs. Resolve reversible details from
+context and continue to the requested finish condition. Ask only when a missing
+decision materially changes the outcome, scope, or authority; keep independent
+work moving while waiting. An assessment-only request remains assessment-only.
 
-Tugling never grants permission to merge, deploy, delete, spend, contact people, or mutate an external system.
+Tugling supplies no additional authority to merge, deploy, delete, spend, contact
+people, or mutate external systems. Reuse authorization already established for
+the action. When permission is missing, prepare the concrete, reviewable result
+before asking. If a skill instruction causes a pause, identify its file and exact
+instruction and explain the remaining boundary.
 
-## Set up a project
+## Load only what changes the work
 
-When the user asks to install, adopt, configure, or set up Tugling for a repository, open and read [references/project-setup.md](references/project-setup.md) before giving setup advice. Do not reconstruct that contract from project files or general memory. Start with read-only discovery, preserve existing project instructions, and make the adapter and CI files the smallest reviewable delta. Setup is not permission to change product code.
+- For project setup or adoption, read [project setup](references/project-setup.md).
+  It distinguishes assessment, adoption, and bootstrap, including their completion criteria.
+- For a material design tradeoff, consult the relevant [principles](references/principles.md).
+- For an explicit repeatable correction in a project with local learning enabled,
+  read [the learning loop](references/learning-loop.md).
 
-## Learn from a correction
+Use a focused skill when its decision is needed and it is available:
 
-When the user explicitly corrects a repeatable engineering decision and the project has enabled local learning, read [references/learning-loop.md](references/learning-loop.md). Do not capture ordinary preferences, secrets, private data, full transcripts, or one-off product decisions. Nothing leaves the project automatically.
+- `$delivery-plan`: a requested plan or unresolved work across meaningful boundaries.
+- `$scale-cost-review`: a design or change with a material volume, latency, or cost risk.
+- `$async-safety`: duplicate delivery, retry, ordering, or recovery across asynchronous state.
+- `$screenshot-first-ui`: a visible defect or material UI change needing visual proof.
+- `$skill-delivery`: creation or revision of a reusable skill.
+- `$repo-verify`: readiness, an unclear or failing verification contract, or changed judging machinery.
 
-## Load the principles
+For straightforward work with a clear native gate, run that gate directly.
+Read applicable project instructions and task-relevant sources; reuse context
+already inspected. Do not load every skill, principle, or project document.
 
-For non-trivial implementation work, read [references/principles.md](references/principles.md) before choosing the design. Apply principles proportionally. In the final handoff, name only a principle that changed a material decision and state that decision.
+## Finish with evidence
 
-## Route the work
+Define completion from the user's requested outcome and the repository's contract.
+For implementation, carry the change through the required local checks, inspect
+the affected behavior, and repair in-scope failures. Use focused checks while
+iterating; complete required final gates. Broaden or repeat testing only for new
+changes, failures, or unresolved risks. Scale additional proof to the behavior.
 
-Use the smallest focused skill that owns the main risk:
+For a bounded implementation that needs no change, `NOOP` requires the relevant
+native validation command and `git status --short --untracked-files=all` proving
+that no change was needed. Reading a queue or source file alone is insufficient.
+Use `ADVISORY` for requested advice and `BLOCKED` for an unmet required boundary.
+Never report a no-op as `LOCAL_PASS` or infer remote, merged, or deployed success
+from local checks. Preserve unrelated user changes.
 
-- `$delivery-plan` when the user asks for a plan or the work crosses meaningful boundaries.
-- `$scale-cost-review` for hot paths, collections, aggregates, background jobs, third-party fanout, or recurring cost.
-- `$async-safety` for queues, schedulers, webhooks, retries, replay, ordering, or state transitions.
-- `$screenshot-first-ui` when a visible defect is unclear or a material UI change needs current-run visual proof.
-- `$skill-delivery` when the artifact being created or revised is a reusable skill.
-- `$repo-verify` before claiming an implemented change is ready.
-
-Do not invoke every skill by default. One small change may need only repository instructions and `$repo-verify`.
-For a bounded no-op, run the relevant native check and inspect repository status directly; do not load `$repo-verify` unless the verification contract is ambiguous or failing.
-
-## Workflow
-
-1. Restate the observable outcome, invariants, explicit non-goals, and external actions that are or are not authorized.
-2. Read repository instructions and inspect current state before proposing new structure.
-3. Search for existing code, contracts, helpers, tests, and docs that should be reused or consolidated.
-4. Choose a plan proportional to reversibility and risk. Resolve product or architecture ambiguity before editing.
-5. Implement the smallest complete slice. Preserve unrelated user changes and avoid speculative compatibility layers.
-6. Verify with the repository's native gates and a proof channel matched to the changed behavior.
-7. Report the outcome first, then evidence, strongest proven state, and residual risk.
-
-## Honest stop conditions
-
-- If current evidence suggests the requested behavior already exists or the tracked queue is empty, `NOOP` requires both of these current-run proofs:
-  1. run the repository's native command that validates the bounded condition or queue; reading the source file alone is not a substitute
-  2. run `git status --short --untracked-files=all` and confirm no change was needed
-  The state name is part of the proof: report this outcome as `NOOP`, never `LOCAL_PASS`, even though the native validation command passed.
-  Do not invent work to justify the invocation or relabel the no-op as an implementation pass.
-- If the user requested diagnosis or review only, do not implement a fix.
-- If a missing decision would materially change the product or expand authority, stop and ask for it after exhausting safe read-only checks.
-- If verification is blocked, report the exact unverified boundary. Do not translate an inconclusive check into success.
-
-## Handoff
-
-Keep the final report compact:
-
-1. user-visible or operator-visible outcome
-2. material design decisions and any principle that changed them
-3. verification commands and real artifacts inspected
-4. strongest proven state: no-op, local, remote, merged, deployed, or observed in production
-5. remaining risk or next approval, if any
+Lead the handoff with the outcome, then the material decision, current evidence,
+strongest proven state, and any remaining boundary. Mention a principle only if
+it changed a decision; avoid a fixed report template for simple work.
