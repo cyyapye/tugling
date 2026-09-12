@@ -1,6 +1,6 @@
 ---
 name: skill-delivery
-description: Create or revise a reusable Codex skill with focused routing, concise instructions, UI metadata, positive and negative cases, structural validation, and proportional behavioral evaluation. Use when the user asks to add, update, extract, generalize, harden, or evaluate a skill. Do not use for one-off prompt writing that is not intended to become an installed skill.
+description: Create, revise, or evaluate a reusable Codex skill with precise routing and observable behavior checks. Use for skill authoring and improvements; skip one-off prompts.
 ---
 
 # Skill Delivery
@@ -18,6 +18,7 @@ A first draft is not automatically a trusted skill. Deliver the smallest instruc
 3. **Draft with the available skill creator**
    - Initialize the standard folder and `agents/openai.yaml`.
    - Keep frontmatter discriminating and the body limited to non-obvious guidance that changes behavior.
+   - Front-load the actual trigger in a short description. Preserve meaningful exclusions; avoid broad topic lists that attract unrelated work.
    - Put conditional detail in a linked reference only when it would otherwise burden every invocation.
 4. **Add evaluation cases**
    - Keep positive, negative, and holdout prompts outside the instruction body.
@@ -48,6 +49,8 @@ It is not complete for a consequential behavior correction until the candidate i
 - Do not turn one project's domain rule into a universal skill requirement.
 - Do not restate generic agent ability or system policy.
 - Do not require a fixed sequence when several approaches are safe.
+- Carry existing authorization through completion; do not insert a proposal-only pause into an implementation request.
+- Test completion, required approvals, and proportional verification on the intended model. Keep model-specific tuning out of project-wide rules unless the project intentionally requires that model.
 - Do not use evaluation prompts inside the skill; keep candidates blind to the scorecard.
 - Do not claim runtime or behavioral proof from frontmatter validation alone.
 

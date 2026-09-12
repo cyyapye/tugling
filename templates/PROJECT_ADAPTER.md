@@ -1,11 +1,23 @@
 # Tugling project adapter
 
-Use this as a starting section for a repository's `AGENTS.md` or equivalent contributor contract. Replace the angle-bracketed prompts with project facts and remove sections that do not apply. The repository contract overrides Tugling whenever it is stricter or more specific.
+Use this as an optional source of project-specific facts for `AGENTS.md`. Keep
+only rules that affect this repository, replace placeholders, and omit sections
+that do not apply. Link existing authority instead of copying it. Move specialized
+details to scoped instructions or docs with a clear condition for reading them.
+
+## Local work and completion
+
+- Bootstrap and supported runtime: `<native command and prerequisite source>`
+- Run the smallest real flow: `<dev or CLI command and expected behavior>`
+- Focused checks and canonical completion gate: `<native commands>`
+- Safe local operations within a setup/implementation request: `<disposable fixtures, isolated services, in-scope test repairs>`
+- Worktree isolation and cleanup: `<native ownership and teardown commands>`
+- Read only when relevant: `<document path and the decision it informs>`
 
 ## Authority and scope
 
 - Canonical repository and branch ownership: `<paths and branch rules>`
-- Actions that require explicit approval: `<merge, deploy, delete, spend, contact, migration, or other boundaries>`
+- Actions needing authority beyond routine local work: `<project-specific boundaries; reuse authorization already given>`
 - Sources of durable product intent: `<specs, ADRs, product docs, runbooks>`
 
 ## Product and data invariants
@@ -37,9 +49,6 @@ Use this as a starting section for a repository's `AGENTS.md` or equivalent cont
 
 ## Verification and release
 
-- Fast iteration commands: `<focused lint, type, unit, integration, or browser commands>`
-- Canonical local gate: `<command>`
-- Required second proof channel: `<real command, flow, profile, stored value, screenshot, or runtime smoke>`
+- Additional proof for behavior the native gate does not cover: `<flow, profile, stored value, screenshot, or runtime smoke when needed>`
 - Remote and deployed gates: `<CI, preview, exact revision, production observation>`
 - Evidence labels used by the project: `<for example LOCAL_PASS, REMOTE_PASS, DEPLOYED_PASS>`
-- Cleanup command: `<how to leave the repository and local services clean>`

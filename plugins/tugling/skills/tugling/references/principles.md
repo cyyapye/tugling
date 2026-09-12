@@ -1,6 +1,6 @@
 # The Tugling Twelve
 
-These principles are a decision vocabulary, not a ceremony. Apply only the ones that materially change the work. When naming one, state the decision it changed. Repository instructions may tighten these defaults and always remain authoritative.
+Consult the principles relevant to a material design tradeoff. Apply them within the user's scope and the repository's contract. When naming one, state the decision it changed.
 
 ## 1. Start with the outcome
 

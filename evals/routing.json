@@ -187,5 +187,61 @@
     "kind": "holdout",
     "should_trigger": true,
     "prompt": "Revise the existing skill that over-triggers, preserve its good cases, and prove the holdouts do not regress."
+  },
+  {
+    "id": "tugling-positive-greenfield-bootstrap",
+    "skill": "tugling",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Bootstrap this new Python CLI for Codex with native commands, concise instructions, repeatable worktree setup, and real fresh-checkout verification."
+  },
+  {
+    "id": "tugling-holdout-authorized-setup-repair",
+    "skill": "tugling",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "I already authorized local setup edits. Finish the broken bootstrap and verify it; the old proposal-first convention does not apply to this task."
+  },
+  {
+    "id": "tugling-negative-bootstrap-definition",
+    "skill": "tugling",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Explain what the word bootstrap means in this README sentence. Do not assess or set up the project."
+  },
+  {
+    "id": "plan-negative-settled-implementation",
+    "skill": "delivery-plan",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Implement the already approved one-file change exactly as described and run its existing focused test. The design and rollout are settled."
+  },
+  {
+    "id": "scale-negative-dashboard-copy",
+    "skill": "scale-cost-review",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Correct the spelling of this dashboard heading. Data access, rendering behavior, and workload remain unchanged."
+  },
+  {
+    "id": "async-negative-worker-comment",
+    "skill": "async-safety",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Fix the spelling of a comment in this worker file. Do not change delivery, state, retry behavior, or implementation."
+  },
+  {
+    "id": "verify-positive-already-run-gate",
+    "skill": "repo-verify",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Review readiness using these current successful native checks for the exact unchanged commit. Identify any real missing proof before repeating tests."
+  },
+  {
+    "id": "skill-positive-astra-description-audit",
+    "skill": "skill-delivery",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Shorten this reusable skill's description and remove unnecessary approval pauses while preserving its trigger boundaries and testing real behavior on Astra."
   }
 ]

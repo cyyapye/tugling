@@ -1,4 +1,4 @@
 interface:
   display_name: "Tugling"
-  short_description: "Set up or deliver a repo change with proof"
-  default_prompt: "Use $tugling to set up or deliver this repository work through verified handoff."
+  short_description: "Bootstrap projects and finish repository work"
+  default_prompt: "Use $tugling to complete this project setup or repository change through its required verification."

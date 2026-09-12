@@ -1,13 +1,13 @@
 ---
 name: scale-cost-review
-description: Review or guide scale-sensitive software designs with explicit simplicity, cardinality, latency, data-access, reliability, and operating-cost budgets. Use for collections, aggregates, ranking, dashboards, hot reads, bulk flows, schedulers, workers, webhooks, third-party syncs, or recurring workloads. Do not use for small isolated edits with no plausible growth or cost boundary unless the user asks.
+description: Review volume, latency, data-access, and operating-cost risks in hot paths, collections, or recurring workloads. Use for a material scale decision or requested review; skip unrelated isolated edits.
 ---
 
 # Scale Cost Review
 
 Prevent a design that passes a tiny demo while becoming slow, expensive, or operationally awkward at realistic volume.
 
-## Review order
+## Decisions to resolve
 
 1. **Simplest viable shape**
    - Describe the least machinery that satisfies the outcome.
@@ -35,15 +35,7 @@ Prevent a design that passes a tiny demo while becoming slow, expensive, or oper
 
 ## Output
 
-Use these sections for a design review:
-
-1. `Simplest viable shape`
-2. `Scale envelope`
-3. `Hot-path budget`
-4. `Data and serving shape`
-5. `Failure and cost envelope`
-6. `Verification plan`
-7. `Decision and blocked assumptions`
+Report the chosen shape, accepted budgets, measured evidence, and assumptions that affect the decision. Cover relevant decisions above without imposing a fixed section template.
 
 Report `ADVISORY` when the result is guidance and no accepted readiness boundary is shown to fail. Report `BLOCKED` when the inspected current or proposed design violates an explicit required envelope, or when a requested readiness claim lacks its required scale or query-shape proof. A read-only review can still prove that readiness is blocked.
 

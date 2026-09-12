@@ -1,92 +1,36 @@
 # Project setup
 
-Set up Tugling as a thin adapter over a repository's existing engineering contract. The repository remains authoritative; setup should expose its commands and invariants, not replace them.
+Set up a project for repeatable agent work. Preserve established commands and
+invariants, and add only the missing setup requested by the user.
 
-## 1. Assess without writing
+## Choose the requested outcome
 
-Inspect only what is needed to answer these questions:
+- **Assessment:** inspect and recommend; leave files and external configuration
+  unchanged. Consult the relevant reference only for the requested advice.
+- **Bootstrap:** for a new project or repair of its local development setup, read
+  [project-bootstrap.md](project-bootstrap.md). Establish the requested runnable
+  native workflow and prove it from fresh intended source.
+- **Adoption:** to connect an existing repository to Tugling, read
+  [project-adoption.md](project-adoption.md). Implement its small adapter and
+  pinned compatibility check when setup was requested.
 
-- Which root and path-specific instruction files govern work?
-- What is the canonical local verification command, and which focused commands shorten iteration?
-- Which CI workflow proves the committed revision?
-- Which product, data, security, interface, performance, and release rules are genuinely project-specific?
-- Is there a clean synthetic scenario that can dogfood the highest-value Tugling decision?
-- Which actions still require explicit authority?
+Combine these modes only when the request calls for them. Bootstrap alone does
+not require a Tugling source pin, dogfood case, or adoption CI. Adoption alone
+does not authorize unrelated product changes.
 
-Report missing or conflicting facts before proposing files. Do not run installation scripts, mutate a personal marketplace, or edit the repository during this assessment unless the user already authorized setup implementation.
+Infer routine choices from the request, manifests, native commands, applicable
+instructions, and task-relevant references. Reuse inspected context. Ask only
+for missing product, stack, or external-action decisions that materially change
+the result; continue independent local setup while waiting.
 
-## 2. Propose the smallest adapter
+Carry existing authorization through implementation, local verification, and
+in-scope repairs. A separate proposal approval is unnecessary unless the user
+requested it or a real boundary requires it. Setup does not implicitly install
+a global plugin, edit a personal marketplace, select a model, or provision a service.
 
-Prefer these project-owned files:
+## Complete the selected work
 
-```text
-.tugling/project.json       Machine-readable source, commands, and learning mode
-.tugling/dogfood.json       One synthetic external-project behavioral case
-AGENTS.md                   A short Tugling project adapter section
-.github/workflows/...       A deterministic pinned-source compatibility check
-.gitignore                  The local correction ledger path
-```
-
-Do not copy generic Tugling skills into the project. Do not duplicate all existing instructions inside `AGENTS.md`; link to the authoritative files and add only the routing facts Tugling needs.
-
-Use this configuration shape:
-
-```json
-{
-  "schema_version": 1,
-  "tugling": {
-    "repository": "https://github.com/OWNER/tugling",
-    "channel": "pinned",
-    "revision": "FULL_40_CHARACTER_COMMIT",
-    "version": "RELEASE_VERSION"
-  },
-  "project": {
-    "adapter": "AGENTS.md",
-    "instructions": ["AGENTS.md"],
-    "canonical_verify": ["make", "verify"],
-    "ci_workflow": ".github/workflows/tugling.yml",
-    "dogfood_case": ".tugling/dogfood.json"
-  },
-  "learning": {
-    "mode": "off",
-    "local_path": ".tugling/local/corrections.jsonl"
-  }
-}
-```
-
-Use an argv array for verification so CI never evaluates a shell string. A pinned channel requires the exact released commit. A stable channel follows the maintained stable branch and sets `revision` to `null`. A preview channel follows the default development branch and also sets `revision` to `null`. Prefer pinned for regulated, sensitive, or exact-revision workflows.
-
-The dogfood file must declare `data_policy` as `synthetic-only` and contain one behavioral case compatible with Tugling's external-project evaluator. Keep real source data, user records, transcripts, credentials, and private prompts out of it.
-
-## 3. Wire deterministic CI
-
-CI should check out the project, check out Tugling at the configured full revision into an isolated subdirectory, and run:
-
-```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
-  --repo <project-checkout> \
-  --source-root <tugling-checkout> \
-  --source-mode pinned
-```
-
-The project's native CI remains responsible for its build and test gates. The Tugling check verifies the adapter, source pin, dogfood case, instruction paths, and local-learning privacy boundary without calling a model or using the network.
-
-When setup includes real user-flow verification, use the optional
-[native flow map](../../repo-verify/references/project-flows.md). Map existing
-tests and their native launch, health, and cleanup lifecycle; keep ordinary
-adapter CI on validation only. This is optional and does not replace the
-canonical verification command or require enabling local learning.
-
-Run live model dogfood upstream or as an explicit maintainer action, not on every adopter pull request. The external case can be passed to `scripts/behavioral_eval.py project` from a clean local checkout.
-
-## 4. Verify setup
-
-Before calling setup complete:
-
-1. Run the project-contract check from the exact Tugling source named in the adapter.
-2. Run the repository's canonical local gate unless the user requested configuration-only work and the repository contract permits a narrower proof.
-3. Confirm the correction ledger path is ignored and untracked.
-4. Confirm the dogfood case is synthetic and contains no project secrets or private records.
-5. If pushed, wait for the exact project revision's native and Tugling CI checks.
-
-Report the Tugling version and revision, adapter paths, learning mode, local and remote evidence, and any update channel that remains intentionally unverified.
+Use the completion criteria in the selected reference. Assessment ends with
+`ADVISORY`; an unavailable required boundary is `BLOCKED`. Distinguish native
+command proof, configuration validation, observed app setup, and exact-revision
+CI. Report changed paths, current evidence, and any remaining boundary concisely.

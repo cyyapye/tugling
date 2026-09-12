@@ -1,6 +1,6 @@
 ---
 name: screenshot-first-ui
-description: Diagnose and verify user-visible interface problems from current screenshots or a running app before proposing pixel tweaks. Use for visual polish, unclear spacing or hierarchy, responsive defects, overflow, misleading affordances, screenshot regressions, or material UI changes that need desktop and mobile evidence. Do not use for branding inspiration or a net-new flow whose product structure is still undefined.
+description: Diagnose visual defects and verify material UI changes using current desktop/mobile evidence. Use for hierarchy, overflow, responsive behavior, or misleading affordances; skip branding and undefined new product flows.
 ---
 
 # Screenshot First Ui
@@ -48,7 +48,7 @@ When the user also asks for implementation:
 3. Inspect every generated image for hierarchy, clipping, overflow, density, contrast, focus, and misleading affordances.
 4. Run functional coverage for the interaction; a screenshot cannot prove behavior.
 5. Update a canonical baseline only after the new image is intentionally correct, then rerun without update mode.
-6. Use `$repo-verify` for the repository completion gate.
+6. Complete the repository's native gate; use `$repo-verify` if its contract is unclear, failing, or needs a readiness review.
 
 ## Handoff
 
