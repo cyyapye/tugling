@@ -138,13 +138,44 @@ pin to an unreleased candidate; exercise candidate setup in an isolated checkout
 
 Run live model dogfood upstream or as an explicit maintainer action, not on every adopter pull request. The external case can be passed to `scripts/behavioral_eval.py project` from a clean local checkout.
 
+## Automatic receipt retention
+
+The helper owns `.tugling/local/verification/managed-v1/`, identified by its
+`.owner` marker. Each `--run-flow` or `--run-required` invocation prunes expired
+and oldest inactive receipts before reserving a run, and again on completion,
+failure, or handled cancellation. Defaults are seven days, 64 receipts, and
+16 MiB. A receipt is capped at 256 KiB; active writers reserve that capacity and
+hold file locks. If active runs fill the budget, new native work fails before
+starting. A crashed writer releases its lock; even a partial receipt is eligible
+for subsequent retention. No receipt content is executed during cleanup.
+
+Projects may set `project.receipt_retention` in `.tugling/project.json` with all
+three integer fields: `max_age_seconds` (1–31536000), `max_files` (1–256), and
+`max_bytes` (262144–67108864). These limits cover helper receipts; product logs,
+downloads, builds, and backups need their own native ownership and capacity rules.
+
+Validation and receipt checks stay read-only. `--cleanup-evidence` explicitly
+applies retention without running native commands. Expiry occurs on invocation;
+if idle repositories need wall-clock expiry, wire that command through the
+project's trusted launcher and existing scheduler. No background service is
+installed. CI-upload retention is a separate setting. Preserve receipts needed
+for review in the project's bounded evidence archive before local expiry.
+
+Cleanup never recurses, follows symlinks, or removes hardlinks, unrecognized
+filenames, the corrections ledger, or legacy receipts outside `managed-v1`.
+Legacy evidence needs an explicitly scoped migration or existing project cleanup.
+Missing/mismatched ownership, filesystem errors, and directories exceeding 1024
+entries fail closed. These advisory locks coordinate helper processes on local
+macOS/Linux filesystems; they do not defend against a hostile process with the
+same user's filesystem access. Test the adopter's actual filesystem and scheduler.
+
 ## Verify enforcement
 
 Before calling setup complete:
 
 1. Run the project-contract check from the exact Tugling source named in the adapter.
 2. Run the repository's canonical local gate and complete required coverage; inspect a `REQUIRED_PASS` receipt plus the known-defect failure proof. For configuration-only work, state the narrower proof and outstanding enforcement.
-3. Confirm `.tugling/local/` is ignored and untracked even when correction learning is off. Use the project's bounded artifact cleanup policy for retained evidence.
+3. Confirm `.tugling/local/` is ignored and untracked even when correction learning is off. Verify automatic retention for helper receipts and the project's own generated artifacts; an operator reminder does not enforce expiry.
 4. Confirm the dogfood case is synthetic and contains no project secrets or private records.
 5. If pushed, wait for the exact project revision's native and Tugling CI checks.
 6. For a setup change intended to prevent recurrence, validate first-time setup

@@ -141,22 +141,24 @@ one outside wrapper for the canonical command, as described in
 ## Evidence and scope
 
 Each run writes a new permission-restricted JSON receipt under the ignored,
-untracked `.tugling/local/verification/` directory. This storage is independent
+untracked `.tugling/local/verification/managed-v1/` directory. This storage is independent
 of whether correction learning is enabled. It contains the project commit,
 config/map/helper digests, Tugling identity and checkout cleanliness, selected commands, exit results,
 cleanup outcome, timestamps, and whether the worktree stayed clean. It does not
 store command logs, environment variables, application data, or screenshots.
 Required receipts also contain the complete requirement-to-flow declaration.
 Native reports and screenshots remain in the project's existing artifact paths;
-inspect them when required by the project. Remove old local receipts through an
-explicitly scoped cleanup when no longer needed; nothing uploads automatically.
+inspect them when required by the project. Helper execution automatically bounds
+inactive receipts by age, count and bytes; see [receipt retention](../../tugling/references/project-enforcement.md#automatic-receipt-retention)
+for defaults and project overrides. Archive needed evidence before expiry.
+Receipt checks remain read-only; nothing uploads automatically.
 
 To check a receipt against the current clean checkout:
 
 ```text
 python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
-  --check-flow-evidence .tugling/local/verification/<run-id>.json --json
+  --check-flow-evidence .tugling/local/verification/managed-v1/<run-id>.json --json
 ```
 
 `FLOWS_PASS` proves only the selected native commands exited successfully for
@@ -171,7 +173,7 @@ Check complete required evidence with:
 ```text
 python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
-  --check-required-evidence .tugling/local/verification/<run-id>.json --json
+  --check-required-evidence .tugling/local/verification/managed-v1/<run-id>.json --json
 ```
 
 This requires a `REQUIRED_PASS` receipt, the exact current requirements and

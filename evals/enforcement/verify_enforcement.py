@@ -270,6 +270,12 @@ def run_gate(hook, root, source, *, extra=None):
     return result
 
 
+def receipt_paths(root):
+    directory = root / ".tugling/local/verification"
+    # Compare older candidates as well as the current owned retention layout.
+    return set(directory.glob("*.json")) | set((directory / "managed-v1").glob("*.json"))
+
+
 def require_receipt(hook, root, source, *, exclude=()):
     """Check native integration with the reviewed helper, not a printed label."""
     argv = [sys.executable, "-I", str(source / HELPER), "--repo", str(root),
@@ -284,7 +290,7 @@ def require_receipt(hook, root, source, *, exclude=()):
     leaves = [flow["argv"] for flow in report["verification"]["flows"] if flow["id"] in required_ids]
     require(gate_argv == canonical or canonical in leaves,
             "reviewer gate is neither canonical nor a required wrapper around the canonical command")
-    receipts = sorted(set((root / ".tugling/local/verification").glob("*.json")) - set(exclude))
+    receipts = sorted(receipt_paths(root) - set(exclude))
     require(1 <= len(receipts) <= 32, "gate did not produce bounded native receipts")
     for receipt in receipts:
         require(not receipt.is_symlink() and receipt.stat().st_size <= 256 * 1024,
@@ -538,7 +544,7 @@ def check_source_import(hook, root, source):
             file.write("\n/" + str(module.relative_to(alternate)) + "\n")
         require(not git(alternate, "status", "--porcelain=v1", "--untracked-files=all"),
                 "ignored import control unexpectedly dirtied source status")
-        prior = set((root / ".tugling/local/verification").glob("*.json"))
+        prior = receipt_paths(root)
         result = run_gate(hook, root, alternate)
         require(not marker.exists(), "ignored source module executed before helper isolation")
         if result["returncode"] == 0:
@@ -707,7 +713,7 @@ def check_ci(hook, root, source):
                     shell_argv = (["sh", "-e"] if shell == "sh" else
                                   ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail"] if shell else
                                   ["bash", "-e"])
-                    prior = set((project / ".tugling/local/verification").glob("*.json"))
+                    prior = receipt_paths(project)
                     result = command(cwd, shell_argv + ["-c", expand_github(step["run"], context, env)],
                                      extra=runtime, success=False)
                     require(not result["forced_cleanup"], "CI command left a running owned child after exit")

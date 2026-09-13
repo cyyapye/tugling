@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -24,6 +26,13 @@ VALID_LEARNING_MODES = {"off", "local"}
 FLOW_EXECUTION_ENV = "TUGLING_NATIVE_FLOW_ACTIVE"
 CANONICAL_EXECUTION_ENV = "TUGLING_CANONICAL_ACTIVE"
 REVISION_RE = re.compile(r"[0-9a-f]{40}")
+RECEIPT_DIRECTORY = ".tugling/local/verification/managed-v1"
+RECEIPT_OWNER = b"Tugling project verification receipts v1\n"
+RECEIPT_NAME = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json")
+MAX_RECEIPT_BYTES = 256 * 1024
+MAX_RECEIPT_ENTRIES = 1024
+DEFAULT_RECEIPT_RETENTION = {"max_age_seconds": 7 * 86400, "max_files": 64,
+                             "max_bytes": 16 * 1024 * 1024}
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
@@ -274,6 +283,175 @@ def evidence_file(root: Path, value: str) -> Path:
     return path
 
 
+def receipt_retention(value: Any) -> dict[str, int]:
+    policy = require_object(value, label="project.receipt_retention",
+                            keys=set(DEFAULT_RECEIPT_RETENTION))
+    limits = {"max_age_seconds": (1, 365 * 86400), "max_files": (1, 256),
+              "max_bytes": (MAX_RECEIPT_BYTES, 64 * 1024 * 1024)}
+    for key, (minimum, maximum) in limits.items():
+        if type(policy[key]) is not int or not minimum <= policy[key] <= maximum:
+            raise ContractError(f"receipt_retention.{key} must be {minimum} to {maximum}")
+    return dict(policy)
+
+
+@contextlib.contextmanager
+def defer_receipt_interrupts():
+    # Keep ownership registration and bounded teardown intact on SIGINT/SIGTERM.
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+    try:
+        yield
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+def receipt_entries(directory: int) -> list[str]:
+    names = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if len(names) == MAX_RECEIPT_ENTRIES:
+                raise ContractError("receipt directory exceeds the bounded scan; preserve and inspect it")
+            names.append(entry.name)
+    return names
+
+
+def regular_receipt_file(directory: int, name: str, flags: int) -> int:
+    descriptor = os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory)
+    info = os.fstat(descriptor)
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid():
+        os.close(descriptor)
+        raise ContractError(f"receipt store requires an owned regular file: {name}")
+    return descriptor
+
+
+@contextlib.contextmanager
+def receipt_store(root: Path):
+    """Lock a private namespace; never traverse links or recursively remove files."""
+    if os.name != "posix":
+        raise ContractError("receipt cleanup requires macOS or Linux file locking")
+    import fcntl
+
+    evidence_file(root, f"{RECEIPT_DIRECTORY}/probe.json")
+    with contextlib.ExitStack() as resources:
+        try:
+            directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            resources.callback(os.close, directory)
+            for part in RECEIPT_DIRECTORY.split("/"):
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=directory)
+                except FileExistsError:
+                    pass
+                directory = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                    dir_fd=directory)
+                resources.callback(os.close, directory)
+            lock = regular_receipt_file(directory, ".lock", os.O_RDWR | os.O_CREAT)
+            resources.callback(os.close, lock)
+            if os.fstat(lock).st_size:
+                raise ContractError("receipt store lock must be empty")
+            deadline = time.monotonic() + 2
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise ContractError("receipt cleanup is busy; no native command started")
+                    time.sleep(.02)
+            names = receipt_entries(directory)
+            if ".owner" not in names:
+                if set(names) != {".lock"}:
+                    raise ContractError("unmarked receipt directory contains files; preserve and inspect it")
+                marker = regular_receipt_file(directory, ".owner", os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+                with os.fdopen(marker, "wb") as output:
+                    output.write(RECEIPT_OWNER)
+            marker = regular_receipt_file(directory, ".owner", os.O_RDONLY)
+            with os.fdopen(marker, "rb") as source:
+                if source.read(len(RECEIPT_OWNER) + 1) != RECEIPT_OWNER:
+                    raise ContractError("receipt ownership marker differs; preserve and inspect it")
+            yield directory
+        except OSError as exc:
+            raise ContractError(f"receipt store unavailable: {exc}") from exc
+
+
+def prune_receipts(directory: int, policy: dict[str, int], *, reserve: bool = False) -> dict[str, int]:
+    """Called under the store lock. Active writers reserve one full receipt each."""
+    import fcntl
+
+    receipts = []
+    for name in receipt_entries(directory):
+        if not RECEIPT_NAME.fullmatch(name):
+            continue
+        info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid():
+            continue
+        descriptor = regular_receipt_file(directory, name, os.O_RDWR)
+        try:
+            active = False
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                active = True
+            current = os.fstat(descriptor)
+            if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                raise ContractError("receipt changed during cleanup; preserve and retry")
+            receipts.append((name, current, active))
+        finally:
+            os.close(descriptor)
+    count = len(receipts) + int(reserve)
+    budgeted = sum(max(info.st_size, MAX_RECEIPT_BYTES) if active else info.st_size
+                   for _, info, active in receipts) + int(reserve) * MAX_RECEIPT_BYTES
+    actual = sum(info.st_size for _, info, _ in receipts)
+    removed = removed_bytes = 0
+    cutoff = time.time() - policy["max_age_seconds"]
+    for name, info, active in sorted(receipts, key=lambda item: (item[1].st_mtime_ns, item[0])):
+        if active or (info.st_mtime > cutoff and count <= policy["max_files"]
+                      and budgeted <= policy["max_bytes"]):
+            continue
+        descriptor = regular_receipt_file(directory, name, os.O_RDWR)
+        try:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ContractError("receipt became active during cleanup; preserve and retry")
+            current = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            if (current.st_dev, current.st_ino, current.st_mtime_ns, current.st_size, current.st_nlink) != (
+                    info.st_dev, info.st_ino, info.st_mtime_ns, info.st_size, 1):
+                raise ContractError("receipt changed during cleanup; preserve and retry")
+            os.unlink(name, dir_fd=directory)
+            removed += 1
+            removed_bytes += info.st_size
+            count -= 1
+            budgeted -= info.st_size
+        finally:
+            os.close(descriptor)
+    if count > policy["max_files"] or budgeted > policy["max_bytes"]:
+        raise ContractError("active receipts exhaust retention capacity; no new native command started")
+    return {"removed_files": removed, "removed_bytes": removed_bytes,
+            "retained_files": len(receipts) - removed, "retained_bytes": actual - removed_bytes,
+            "active_files": sum(active for _, _, active in receipts), "budgeted_bytes": budgeted}
+
+
+def cleanup_receipts(root: Path, policy: dict[str, int]) -> dict[str, int]:
+    if os.name != "posix":
+        raise ContractError("receipt cleanup requires macOS or Linux file locking")
+    with defer_receipt_interrupts(), receipt_store(root) as directory:
+        return prune_receipts(directory, policy)
+
+
+def receipt_bytes(evidence: dict[str, Any]) -> bytes:
+    payload = (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    if len(payload) > MAX_RECEIPT_BYTES:
+        raise ContractError("verification receipt exceeds the 256 KiB per-run limit")
+    return payload
+
+
+def write_receipt(descriptor: int, evidence: dict[str, Any]) -> None:
+    payload = receipt_bytes(evidence)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    os.ftruncate(descriptor, 0)
+    with os.fdopen(descriptor, "wb", closefd=False) as output:
+        output.write(payload)
+
+
 def verification_identity(root: Path, config_path: Path, mapping: dict[str, Any]) -> dict[str, str]:
     if not config_path.is_relative_to(root):
         raise ContractError("flow execution requires a committed project config inside the repository")
@@ -303,11 +481,8 @@ def execute_flows(
         raise ContractError("selected flow timeout budget must not exceed 7200 seconds")
     identity = verification_identity(root, config_path, mapping)
     run_id = str(uuid.uuid4())
-    relative = f".tugling/local/verification/{run_id}.json"
-    path = evidence_file(root, relative)
-    # Reserve the private output before running commands; never overwrite an earlier run.
-    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    relative = f"{RECEIPT_DIRECTORY}/{run_id}.json"
+    name = f"{run_id}.json"
     evidence: dict[str, Any] = {"schema_version": 1, "kind": "tugling-native-flows",
         "run_id": run_id, **identity, "tugling": report["tugling"],
         "started_at": datetime.now(timezone.utc).isoformat(), "state": "FLOWS_FAIL",
@@ -315,7 +490,21 @@ def execute_flows(
     if required:
         evidence.update(kind="tugling-required-flows", state="REQUIRED_FAIL",
                         requirements=mapping["requirements"])
+    # Check the largest result shape before spending native work or disk capacity.
+    receipt_bytes({**evidence, "finished_at": "0" * 64, "results": [
+        {"id": flow_id, "argv": by_id[flow_id]["argv"], "exit_code": -9999999999,
+         "failure": "native-cleanup-incomplete", "forced_cleanup": False,
+         "duration_seconds": 9999999999.999} for flow_id in selected]})
+    policy = report["receipt_retention"]
+    descriptor = None
     try:
+        import fcntl
+
+        with defer_receipt_interrupts(), receipt_store(root) as directory:
+            prune_receipts(directory, policy, reserve=True)
+            descriptor = regular_receipt_file(directory, name, os.O_RDWR | os.O_CREAT | os.O_EXCL)
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            write_receipt(descriptor, evidence)
         for flow_id in selected:
             result = run_flow(root, by_id[flow_id])
             evidence["results"].append(result)
@@ -329,10 +518,19 @@ def execute_flows(
                 and all(result["failure"] is None for result in evidence["results"])):
             evidence["state"] = "REQUIRED_PASS" if required else "FLOWS_PASS"
     finally:
-        evidence["finished_at"] = datetime.now(timezone.utc).isoformat()
-        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-            json.dump(evidence, output, indent=2, sort_keys=True)
-            output.write("\n")
+        if descriptor is not None:
+            with defer_receipt_interrupts():
+                try:
+                    evidence["finished_at"] = datetime.now(timezone.utc).isoformat()
+                    write_receipt(descriptor, evidence)
+                    with receipt_store(root) as directory:
+                        current = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                        original = os.fstat(descriptor)
+                        if (current.st_dev, current.st_ino) != (original.st_dev, original.st_ino):
+                            raise ContractError("active receipt moved during verification")
+                        prune_receipts(directory, policy)
+                finally:
+                    os.close(descriptor)
     return {"state": evidence["state"], "path": relative, "evidence": evidence}
 
 
@@ -496,6 +694,7 @@ def validate_project(
     check_evidence: str | None = None,
     run_required: bool = False,
     check_required_evidence: str | None = None,
+    cleanup_evidence: bool = False,
 ) -> dict[str, Any]:
     root = root.resolve()
     config_path = config_path if config_path.is_absolute() else root / config_path
@@ -550,7 +749,7 @@ def validate_project(
         config.get("project"),
         label="project adapter project",
         keys={"adapter", "instructions", "canonical_verify", "ci_workflow", "dogfood_case"},
-        optional={"verification"},
+        optional={"verification", "receipt_retention"},
     )
     adapter_path, adapter_relative = relative_path(root, project.get("adapter"), label="project.adapter")
     if not adapter_path.is_file():
@@ -613,8 +812,9 @@ def validate_project(
     require_ignored(root, local_relative, label="learning.local_path")
 
     mapping = validate_verification_map(root, project["verification"]) if "verification" in project else None
+    policy = receipt_retention(project.get("receipt_retention", DEFAULT_RECEIPT_RETENTION))
     if sum(bool(value) for value in (run_native, run_flows, check_evidence,
-                                    run_required, check_required_evidence)) > 1:
+                                    run_required, check_required_evidence, cleanup_evidence)) > 1:
         raise ContractError("choose one of native verification, selected flows, or an evidence check")
     if run_native or run_flows or run_required:
         flow_execution_ancestry(root)
@@ -658,6 +858,8 @@ def validate_project(
         "native_verification": native_result,
         "verification": mapping,
         "flow_verification": None,
+        "receipt_retention": policy,
+        "receipt_cleanup": None,
     }
     if run_required:
         report["flow_verification"] = execute_flows(
@@ -671,6 +873,8 @@ def validate_project(
         report["flow_verification"] = execute_flows(root, config_path, report, run_flows)
     elif check_evidence:
         report["flow_verification"] = check_flow_evidence(root, config_path, report, check_evidence)
+    elif cleanup_evidence:
+        report["receipt_cleanup"] = cleanup_receipts(root, policy)
     if report["flow_verification"] and report["flow_verification"]["state"] not in {"FLOWS_PASS", "REQUIRED_PASS"}:
         report["status"] = "FAIL"
     return report
@@ -692,6 +896,8 @@ def build_parser() -> argparse.ArgumentParser:
     execution.add_argument("--run-required", action="store_true", help="run all flows covering declared project requirements")
     execution.add_argument("--check-flow-evidence", help="check a local receipt against the current clean commit")
     execution.add_argument("--check-required-evidence", help="require complete current evidence for all project requirements")
+    execution.add_argument("--cleanup-evidence", action="store_true",
+                           help="expire and bound helper-owned receipts without running native commands")
     parser.add_argument("--native-timeout", type=int, default=1800)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -700,7 +906,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     previous_handler = None
-    if args.run_flow or args.run_required:
+    if args.run_flow or args.run_required or args.cleanup_evidence:
         def interrupted(signum: int, frame: Any) -> None:
             raise KeyboardInterrupt
         previous_handler = signal.signal(signal.SIGTERM, interrupted)
@@ -718,6 +924,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             check_evidence=args.check_flow_evidence,
             run_required=args.run_required,
             check_required_evidence=args.check_required_evidence,
+            cleanup_evidence=args.cleanup_evidence,
         )
     except ContractError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -727,6 +934,8 @@ def main(argv: Iterable[str] | None = None) -> int:
             signal.signal(signal.SIGTERM, previous_handler)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
+    elif report["receipt_cleanup"] is not None:
+        print(f"RECEIPTS_CLEANED: {json.dumps(report['receipt_cleanup'], sort_keys=True)}")
     elif report["flow_verification"]:
         result = report["flow_verification"]
         scope = "all declared requirements" if args.run_required or args.check_required_evidence else "selected native flows only"
