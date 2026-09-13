@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -30,10 +31,43 @@ MAX_FILES = 2000
 MAX_BYTES = 16 * 1024 * 1024
 MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 TIMEOUT_SECONDS = 45
+TERMINATION_GRACE_SECONDS = 5
 
 
 class Inconclusive(RuntimeError):
     """The evaluator cannot establish the requested proof boundary."""
+
+
+class Cancelled(SystemExit):
+    def __init__(self, signum):
+        self.signum = signum
+        super().__init__(128 + signum)
+
+
+@contextmanager
+def cancellation_scope():
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def cancelled(signum, _frame):
+        raise Cancelled(signum)
+
+    signal.signal(signal.SIGTERM, cancelled)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+@contextmanager
+def cleanup_scope():
+    previous = {item: signal.getsignal(item) for item in (signal.SIGTERM, signal.SIGINT)}
+    try:
+        for item in previous:
+            signal.signal(item, signal.SIG_IGN)
+        yield
+    finally:
+        for item, handler in previous.items():
+            signal.signal(item, handler)
 
 
 def require(condition, message):
@@ -55,20 +89,27 @@ def environment(extra=None):
     return result
 
 
+@cleanup_scope()
 def stop_group(process):
     """Stop only the process group this invocation created, including orphans."""
     try:
-        os.killpg(process.pid, 0)
+        os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         return False
-    os.killpg(process.pid, signal.SIGTERM)
-    deadline = time.monotonic() + 0.5
+    # The native helper owns a separate flow group and allows up to three
+    # seconds for its teardown. Give it time to reap that group before killing
+    # the enclosing launcher/helper group.
+    deadline = time.monotonic() + TERMINATION_GRACE_SECONDS
     while time.monotonic() < deadline:
         process.poll()
         try:
             os.killpg(process.pid, 0)
         except ProcessLookupError:
             return True
+        except PermissionError:
+            # Darwin can briefly report EPERM while a signalled group is reaped.
+            # Keep waiting within the same deadline rather than claiming success.
+            pass
         time.sleep(0.02)
     try:
         os.killpg(process.pid, signal.SIGKILL)
@@ -78,6 +119,7 @@ def stop_group(process):
     return True
 
 
+@cancellation_scope()
 def command(root, argv, *, extra=None, success=True):
     """Bound output and terminate only this command's owned process group."""
     with tempfile.TemporaryFile() as output:
@@ -104,7 +146,7 @@ def command(root, argv, *, extra=None, success=True):
 
 
 def git(root, *args):
-    return command(root, ["git", *args])["output"].strip()
+    return command(root, ["git", "--no-replace-objects", *args])["output"].strip()
 
 
 def initialize(root):
@@ -228,9 +270,9 @@ def run_gate(hook, root, source, *, extra=None):
     return result
 
 
-def require_receipt(hook, root, source):
+def require_receipt(hook, root, source, *, exclude=()):
     """Check native integration with the reviewed helper, not a printed label."""
-    argv = [sys.executable, str(source / HELPER), "--repo", str(root),
+    argv = [sys.executable, "-I", str(source / HELPER), "--repo", str(root),
             "--source-root", str(source), "--source-mode", "pinned",
             "--config", hook.get("config", ".tugling/project.json"), "--json"]
     report = json.loads(command(root, argv)["output"])
@@ -242,7 +284,7 @@ def require_receipt(hook, root, source):
     leaves = [flow["argv"] for flow in report["verification"]["flows"] if flow["id"] in required_ids]
     require(gate_argv == canonical or canonical in leaves,
             "reviewer gate is neither canonical nor a required wrapper around the canonical command")
-    receipts = sorted((root / ".tugling/local/verification").glob("*.json"))
+    receipts = sorted(set((root / ".tugling/local/verification").glob("*.json")) - set(exclude))
     require(1 <= len(receipts) <= 32, "gate did not produce bounded native receipts")
     for receipt in receipts:
         require(not receipt.is_symlink() and receipt.stat().st_size <= 256 * 1024,
@@ -262,6 +304,107 @@ def scalar(value):
     if value.startswith("'") and value.endswith("'"):
         return value[1:-1].replace("''", "'")
     return value
+
+
+def environment_block(lines, indent):
+    result = {}
+    for index, line in enumerate(lines):
+        if line != " " * indent + "env:":
+            continue
+        for row in lines[index + 1:]:
+            if not row.strip() or row.lstrip().startswith("#"):
+                continue
+            depth = len(row) - len(row.lstrip())
+            if depth <= indent:
+                break
+            item = re.match(r"^\s*([\w-]+):\s*(.+)$", row)
+            supported(depth == indent + 2 and item is not None, "unsupported inherited workflow environment")
+            result[item[1]] = scalar(item[2])
+    return result
+
+
+def job_context(lines, step_start):
+    jobs = [index for index, row in enumerate(lines) if row == "jobs:"]
+    supported(len(jobs) == 1, "unsupported workflow jobs mapping")
+    jobs_end = next((index for index in range(jobs[0] + 1, len(lines))
+                     if lines[index].strip() and not lines[index].startswith((" ", "#"))), len(lines))
+    headers = [(index, match[1]) for index, row in enumerate(lines[jobs[0] + 1:jobs_end], jobs[0] + 1)
+               if (match := re.match(r"^  ([\w-]+):\s*$", row))]
+    matching = [(index, name) for index, name in headers if index < step_start]
+    supported(bool(matching), "workflow step has no supported parent job")
+    start, name = matching[-1]
+    supported(any(lines[index] == "    steps:" for index in range(start + 1, step_start)),
+              "unsupported workflow steps mapping")
+    stop = next((index for index, _name in headers if index > start), jobs_end)
+    rows = lines[start + 1:stop]
+    fields = {match[1]: scalar(match[2]) for row in rows
+              if (match := re.match(r"^    ([\w-]+):\s*(.*)$", row))}
+    supported("defaults" not in fields and not any(row.startswith("defaults:") for row in lines),
+              "unsupported workflow run defaults")
+    return {"id": name, "fields": fields, "rows": rows, "env": environment_block(rows, 4),
+            "workflow_env": environment_block(lines, 0)}
+
+
+def nested_mapping(lines, index, indent):
+    result = {}
+    for row in lines[index + 1:]:
+        if not row.strip() or row.lstrip().startswith("#"):
+            continue
+        depth = len(row) - len(row.lstrip())
+        if depth <= indent:
+            break
+        match = re.match(r"^\s*([\w-]+):\s*(.*)$", row)
+        supported(depth == indent + 2 and match is not None, "unsupported nested workflow policy")
+        result[match[1]] = scalar(match[2])
+    return result
+
+
+def workflow_policy(text, job):
+    lines = text.splitlines()
+    events = [(index, match[1]) for index, row in enumerate(lines)
+              if (match := re.match(r"^(?:on|['\"]on['\"]):\s*(.*)$", row))]
+    require(len(events) == 1, "CI has no unique automatic event declaration")
+    index, value = events[0]
+    if value.startswith("[") and value.endswith("]"):
+        enabled = {scalar(item.strip()) for item in value[1:-1].split(",")}
+    elif not value:
+        mapping = nested_mapping(lines, index, 0)
+        supported(all(value in {"", "null", "{}"} for value in mapping.values()),
+                  "unsupported CI event filters")
+        enabled = set(mapping)
+    else:
+        enabled = {scalar(value)}
+    require("pull_request_target" not in enabled, "CI uses a privileged pull-request event")
+    require({"push", "pull_request"}.issubset(enabled), "CI does not run automatically for both push and pull_request")
+    supported(enabled <= {"push", "pull_request", "workflow_dispatch"}, "unsupported CI event topology")
+
+    permissions = []
+    for rows, depth in ((lines, 0), (job["rows"], 4)):
+        for index, row in enumerate(rows):
+            match = re.match(r"^" + " " * depth + r"permissions:\s*(.*)$", row)
+            if match:
+                permissions.append((rows, index, depth, scalar(match[1])))
+    supported(bool(permissions), "CI needs an explicit read-only token permission declaration")
+    # A job-level declaration replaces the workflow-level token permissions.
+    rows, index, depth, value = permissions[-1]
+    require(value != "write-all", "CI required job grants write-all permissions")
+    if value:
+        supported(value in {"read-all", "{}"}, "unsupported CI token permission declaration")
+    else:
+        mapping = nested_mapping(rows, index, depth)
+        require("write" not in mapping.values(), "CI required job grants write permissions")
+        supported(all(value in {"read", "none"} for value in mapping.values()), "unsupported CI token permission value")
+
+
+def unconditional(scope, label):
+    if "if" in scope:
+        condition = scope["if"].strip().lower()
+        require(condition not in {"false", "${{ false }}"}, f"{label} is disabled")
+        supported(condition in {"true", "${{ true }}"}, f"unsupported {label} condition")
+    if "continue-on-error" in scope:
+        condition = scope["continue-on-error"].strip().lower()
+        require(condition not in {"true", "${{ true }}"}, f"{label} must be unconditional and fail closed")
+        supported(condition in {"false", "${{ false }}"}, f"unsupported {label} failure policy")
 
 
 def workflow_steps(text):
@@ -319,6 +462,7 @@ def workflow_steps(text):
                 supported(not nested or not any(row.strip() for row in nested),
                           "unsupported workflow scalar continuation")
                 step[key] = scalar(value)
+        step["_job"] = job_context(lines, start)
         steps.append(step)
     return steps
 
@@ -346,6 +490,63 @@ def clone_source(source, target):
     git(target, "checkout", "--detach", "--quiet", git(source, "rev-parse", "HEAD"))
 
 
+@cancellation_scope()
+def check_source_import(hook, root, source):
+    """New trust-boundary control: clean Git status does not isolate imports."""
+    with tempfile.TemporaryDirectory(prefix="tugling-enforcement-import-") as directory:
+        owned = Path(directory).resolve()
+        alternate = owned / "source"
+        clone_source(source, alternate)
+        module = alternate / HELPER.with_name("json.py")
+        supported(not module.exists(), "source already contains the import-control module path")
+        marker = owned / "ignored-module-executed"
+        module.write_text("with open(" + repr(str(marker)) + ", 'w') as stream:\n"
+                          "    stream.write('executed')\n"
+                          "raise RuntimeError('synthetic ignored-module substitution')\n")
+        with (alternate / ".git/info/exclude").open("a") as file:
+            file.write("\n/" + str(module.relative_to(alternate)) + "\n")
+        require(not git(alternate, "status", "--porcelain=v1", "--untracked-files=all"),
+                "ignored import control unexpectedly dirtied source status")
+        prior = set((root / ".tugling/local/verification").glob("*.json"))
+        result = run_gate(hook, root, alternate)
+        require(not marker.exists(), "ignored source module executed before helper isolation")
+        if result["returncode"] == 0:
+            require_receipt(hook, root, alternate, exclude=prior)
+        return "source_rejected" if result["returncode"] else "isolated_helper_passed"
+
+
+@cancellation_scope()
+def check_replacement_source(hook, root, source):
+    """New trust-boundary control: a pinned name must select raw Git objects."""
+    with tempfile.TemporaryDirectory(prefix="tugling-enforcement-replace-") as directory:
+        owned = Path(directory).resolve()
+        alternate = owned / "source"
+        clone_source(source, alternate)
+        revision = git(alternate, "rev-parse", "HEAD")
+        marker = owned / "replacement-helper-executed"
+        (alternate / HELPER).write_text("with open(" + repr(str(marker)) + ", 'w') as stream:\n"
+                                       "    stream.write('executed')\n"
+                                       "raise RuntimeError('synthetic Git replacement substitution')\n")
+        git(alternate, "add", str(HELPER))
+        tree = git(alternate, "write-tree")
+        replacement = git(alternate, "-c", "user.name=Synthetic Oracle", "-c", "user.email=oracle@example.invalid",
+                          "commit-tree", tree, "-p", revision, "-m", "Synthetic replacement control")
+        git(alternate, "replace", revision, replacement)
+        # Deliberately observe what a replacement-aware, status-only guard sees.
+        status = command(alternate, ["git", "status", "--porcelain=v1", "--untracked-files=all"])["output"]
+        require(not status.strip(), "replacement-aware source status unexpectedly differs")
+        aware = command(alternate, ["git", "rev-parse", f"{revision}:{HELPER}"])["output"].strip()
+        require(aware != git(alternate, "rev-parse", f"{revision}:{HELPER}"),
+                "Git replacement control did not substitute the pinned helper object")
+        # Do not supply a reviewer/caller environment setting that hides this
+        # trust defect. The launcher must force raw-object reads itself.
+        gate = {**hook["gate"], "env": {key: value for key, value in hook["gate"].get("env", {}).items()
+                                      if key != "GIT_NO_REPLACE_OBJECTS"}}
+        result = run_gate({**hook, "gate": gate}, root, alternate)
+        require(result["returncode"] != 0 and not marker.exists(),
+                "Git replacement helper was accepted or executed before raw-object validation")
+
+
 def checkout_path(workspace, value):
     relative = Path(value or ".")
     supported(not relative.is_absolute() and ".." not in relative.parts and "${{" not in str(relative),
@@ -353,76 +554,125 @@ def checkout_path(workspace, value):
     return workspace / relative
 
 
+@cancellation_scope()
 def check_ci(hook, root, source):
     config = hook["ci"]
     path = root / config["workflow"]
     require(path.resolve() in [root / name for name in source_files(root)], "CI workflow is not intended source")
     text = path.read_text()
-    require(not re.search(r"(?:contents|actions|id-token|pull-requests):\s*write\b", text),
-            "fixture CI must remain unprivileged")
     steps = workflow_steps(text)
     checkout = steps[config["checkout_step"]]
+    workflow_policy(text, checkout["_job"])
     assertion = steps[config["identity_step"]]
+    supported("gate_step" in config, "reviewer must bind the actual CI required gate step")
+    require(type(config["gate_step"]) is int and 0 <= config["gate_step"] < len(steps), "CI required gate step is missing")
+    gate = steps[config["gate_step"]]
     pr_revision = config.get("pr_revision")
     supported(pr_revision in {"head", "merge"}, "reviewer must declare the accepted PR head or merge identity")
     require(checkout.get("uses", "").startswith("actions/checkout@"), "CI checkout hook does not select checkout")
     require(config["checkout_step"] < config["identity_step"], "CI identity assertion precedes checkout")
-    for selected in (checkout, assertion):
-        require("continue-on-error" not in selected and "if" not in selected,
-                "CI identity proof must be unconditional and fail closed")
+    require(config["identity_step"] <= config["gate_step"], "CI required gate precedes identity verification")
+    for selected in (checkout, assertion, gate):
+        supported(selected["_job"]["id"] == checkout["_job"]["id"], "unsupported CI proof across separate jobs")
+        unconditional(selected["_job"]["fields"], "CI required job")
+        unconditional(selected, "CI selected step")
+    supported(not {"needs", "strategy"}.intersection(checkout["_job"]["fields"]),
+              "unsupported CI dependency or matrix topology")
+    supported(re.fullmatch(r"ubuntu-(?:latest|\d{2}\.\d{2})", checkout["_job"]["fields"].get("runs-on", "")),
+              "CI proof requires a supported Linux runner")
     ref = checkout.get("with", {}).get("ref")
     require(isinstance(ref, str) and ref.strip(), "CI project checkout has no explicit revision")
-    script = assertion.get("run")
-    require(isinstance(script, str) and script.strip(), "CI identity hook needs executable run content")
-    supported(assertion.get("shell", "bash") in {"bash", "sh", "bash --noprofile --norc -e -o pipefail {0}"},
-              "unsupported CI identity shell")
+    for selected in (assertion, gate):
+        require(isinstance(selected.get("run"), str) and selected["run"].strip(), "CI selected step needs executable run content")
+        supported(selected.get("shell", "bash") in {"bash", "sh", "bash --noprofile --norc -e -o pipefail {0}"},
+                  "unsupported CI execution shell")
     with tempfile.TemporaryDirectory(prefix="tugling-enforcement-ci-") as directory:
         workspace = Path(directory).resolve() / "workspace"
         project = checkout_path(workspace, checkout.get("with", {}).get("path", "."))
         project.parent.mkdir(parents=True, exist_ok=True)
         copy_source(root, project)
-        ci_source = source
-        if "source_checkout_step" in config:
-            source_step = steps[config["source_checkout_step"]]
-            require(source_step.get("uses", "").startswith("actions/checkout@") and
-                    config["source_checkout_step"] < config["identity_step"],
-                    "source checkout hook must precede CI execution")
-            source_with = source_step.get("with", {})
-            require(source_with.get("ref") == git(source, "rev-parse", "HEAD"),
-                    "CI source checkout must select the reviewed candidate revision")
-            ci_source = checkout_path(workspace, source_with.get("path", "."))
-            supported(ci_source != project and not ci_source.exists(), "overlapping CI checkout paths")
-            clone_source(source, ci_source)
+        supported("source_checkout_step" in config, "reviewer must bind CI's actual pinned source checkout")
+        source_step = steps[config["source_checkout_step"]]
+        require(source_step.get("uses", "").startswith("actions/checkout@") and
+                config["source_checkout_step"] < config["gate_step"],
+                "source checkout hook must precede CI execution")
+        supported(source_step["_job"]["id"] == checkout["_job"]["id"], "unsupported CI source checkout across jobs")
+        unconditional(source_step, "CI source checkout")
+        source_with = source_step.get("with", {})
+        adapter = json.loads((project / hook.get("config", ".tugling/project.json")).read_text())
+        repository = adapter["tugling"]["repository"].removeprefix("https://github.com/").rstrip("/").removesuffix(".git")
+        require(source_with.get("repository", "").lower() == repository.lower(),
+                "CI source checkout repository differs from the accepted adapter source")
+        require(source_with.get("ref") == git(source, "rev-parse", "HEAD"),
+                "CI source checkout must select the reviewed candidate revision")
+        ci_source = checkout_path(workspace, source_with.get("path", "."))
+        supported(ci_source != project and not ci_source.exists(), "overlapping CI checkout paths")
+        clone_source(source, ci_source)
         head = git(project, "rev-parse", "HEAD")
         other = "f" * 40 if head != "f" * 40 else "e" * 40
-        _, gate_env = invocation(hook, project, ci_source)
+
+        def context_for(event, expected):
+            context = {"github.event.pull_request.head.sha": "", "github.sha": expected,
+                       "github.workspace": str(workspace)}
+            if event == "pull_request":
+                context["github.event.pull_request.head.sha"] = expected if pr_revision == "head" else other
+                context["github.sha"] = expected if pr_revision == "merge" else other
+            return context
+
+        def execute(selected, event, context):
+            env = {"CI": "true", "GITHUB_SHA": context["github.sha"], "GITHUB_EVENT_NAME": event,
+                   "GITHUB_WORKSPACE": str(workspace)}
+            job = selected["_job"]
+            for layer in (job["workflow_env"], job["env"], selected.get("env", {})):
+                for key, value in layer.items():
+                    env[key] = expand_github(value, context, env)
+            working = expand_github(selected.get("working-directory", "."), context, env)
+            cwd = (workspace / working).resolve()
+            supported(cwd == project, "CI execution directory does not resolve to the selected project checkout")
+            shell = selected.get("shell")
+            shell_argv = (["sh", "-e"] if shell == "sh" else
+                          ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail"] if shell else
+                          ["bash", "-e"])
+            result = command(cwd, shell_argv + ["-c", expand_github(selected["run"], context, env)],
+                             extra=env, success=False)
+            require(not result["forced_cleanup"], "CI command left a running owned child after exit")
+            return result
+
         for event in ("pull_request", "push"):
             for matches in (True, False):
                 expected = head if matches else other
-                context = {"github.event.pull_request.head.sha": "",
-                           "github.sha": expected, "github.workspace": str(workspace)}
-                if event == "pull_request":
-                    context["github.event.pull_request.head.sha"] = expected if pr_revision == "head" else other
-                    context["github.sha"] = expected if pr_revision == "merge" else other
+                context = context_for(event, expected)
                 require(expand_github(ref, context, {}) == expected,
                         f"CI checkout does not select the intended {event} revision")
-                env = {**gate_env, "GITHUB_SHA": context["github.sha"], "GITHUB_EVENT_NAME": event,
-                       "GITHUB_WORKSPACE": str(workspace)}
-                for key, value in assertion.get("env", {}).items():
-                    env[key] = expand_github(value, context, env)
-                working = expand_github(assertion.get("working-directory", "."), context, env)
-                cwd = (workspace / working).resolve()
-                supported(cwd == project, "CI execution directory does not resolve to the selected project checkout")
-                result = command(cwd, ["bash", "-e", "-o", "pipefail", "-c", expand_github(script, context, env)],
-                                 extra=env, success=False)
-                require(not result["forced_cleanup"], "CI command left a running owned child after exit")
+                prior = set((project / ".tugling/local/verification").glob("*.json"))
+                result = execute(assertion, event, context)
                 require((result["returncode"] == 0) == matches,
                         f"CI identity assertion failed its {event} {'matching' if matches else 'mismatched'} revision control: "
                         + result["output"][-1500:])
+                if matches:
+                    if config["gate_step"] != config["identity_step"]:
+                        result = execute(gate, event, context)
+                    require(result["returncode"] == 0, "CI required gate failed: " + result["output"][-1500:])
+                    require_receipt(hook, project, ci_source, exclude=prior)
+        # A receipt alone cannot show that the CI command propagates native
+        # failure (for example, `make verify || true`). Exercise its real path.
+        product = project / "quota_sync.py"
+        product.write_text(product.read_text().replace("POLL_SECONDS = 30", "POLL_SECONDS = 1"))
+        commit(project)
+        for event in ("pull_request", "push"):
+            context = context_for(event, git(project, "rev-parse", "HEAD"))
+            if config["gate_step"] != config["identity_step"]:
+                require(execute(assertion, event, context)["returncode"] == 0,
+                        "CI identity assertion rejected the committed defect control")
+            require(execute(gate, event, context)["returncode"] != 0,
+                    f"CI required gate swallowed a real native failure for {event}")
     return {"workflow": config["workflow"], "local_identity_controls": 4,
+            "fresh_required_receipts": 2, "native_failure_propagated": True,
+            "native_failure_events": ["pull_request", "push"],
             "pull_request_identity": pr_revision, "hosted_ci_executed": False}
 
 
+@cancellation_scope()
 def verify(root, hook):
     require(hook.get("schema_version") == 1, "unsupported reviewer invocation schema")
     source = Path(hook["source_root"]).resolve()
@@ -499,6 +749,10 @@ def verify(root, hook):
         require(run_gate(hook, good, alternate)["returncode"] != 0 and not sentinel.exists(),
                 "mismatched helper was accepted or executed before source validation")
         checks.append("mismatched_helper_rejected_before_execution")
+        import_control = check_source_import(hook, good, source)
+        checks.append("ignored_source_import_did_not_execute")
+        check_replacement_source(hook, good, source)
+        checks.append("replacement_objects_cannot_substitute_helper")
         ci = check_ci(hook, good, source)
         checks.append("ci_revision_identity_controls")
         require(run_gate(hook, good, source)["returncode"] == 0, "restored good gate failed")
@@ -506,9 +760,11 @@ def verify(root, hook):
     require(tree_snapshot(root) == before, "oracle changed caller project")
     return {"schema_version": 1, "state": "LOCAL_ENFORCEMENT_PASS", "checks": checks,
             "source_revision": revision, "native_resource": "fake-third-party-request-quota",
+            "source_import_control": import_control,
             "ci": ci, "model_calls": 0, "release_certification": False}
 
 
+@cancellation_scope()
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -535,6 +791,9 @@ def main(argv=None):
             result = {"state": "ADVISORY_ZERO_CHANGE"}
         else:
             result = verify(args.repo.resolve(), json.loads(args.invocation.read_text()))
+    except (Cancelled, KeyboardInterrupt) as exc:
+        print(json.dumps({"state": "ORACLE_INCONCLUSIVE", "error": "cancelled; owned execution cleaned up"}))
+        return exc.code if isinstance(exc, Cancelled) else 130
     except AssertionError as exc:
         print(json.dumps({"state": "ORACLE_FAIL", "error": str(exc)}))
         return 1

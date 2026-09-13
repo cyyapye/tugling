@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -49,7 +51,7 @@ import sys
 source = Path(os.environ['REVIEWED_SOURCE']).resolve()
 helper = source / 'plugins/tugling/scripts/project_contract.py'
 def git(*args):
-    return subprocess.check_output(['git', '-C', str(source), *args], text=True).strip()
+    return subprocess.check_output(['git', '--no-replace-objects', '-C', str(source), *args], text=True).strip()
 
 pin = json.loads(Path('.tugling/project.json').read_text())['tugling']['revision']
 if Path(git('rev-parse', '--show-toplevel')).resolve() != source:
@@ -59,10 +61,10 @@ if git('rev-parse', 'HEAD') != pin or git('status', '--porcelain=v1', '--untrack
 relative = str(helper.relative_to(source))
 if helper.is_symlink() or git('ls-files', '--error-unmatch', '--', relative) != relative:
     raise SystemExit('Helper must be tracked source')
-body = subprocess.check_output(['git', '-C', str(source), 'show', 'HEAD:' + relative])
+body = subprocess.check_output(['git', '--no-replace-objects', '-C', str(source), 'show', 'HEAD:' + relative])
 if helper.read_bytes() != body:
     raise SystemExit('Helper bytes differ')
-raise SystemExit(subprocess.call([sys.executable, str(helper), '--repo', '.',
+raise SystemExit(subprocess.call([sys.executable, '-I', str(helper), '--repo', '.',
                                  '--source-root', str(source), '--source-mode', 'pinned', '--run-required']))
 '''
 
@@ -78,12 +80,23 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          path: project
+      - uses: actions/checkout@v4
+        with:
+          repository: example/tugling
+          ref: REVIEWED_SOURCE_SHA
+          path: tugling
       - name: Verify checked-out identity
+        working-directory: project
         env:
           EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
-      - run: make verify
+      - name: Required native gate
+        working-directory: project
+        env:
+          REVIEWED_SOURCE: ${{ github.workspace }}/tugling
+        run: make verify
 '''
 
 
@@ -105,7 +118,8 @@ class EnforcementEvalTest(unittest.TestCase):
         self.hook = {"schema_version": 1, "source_root": str(self.source),
                      "gate": {"argv": ["make", "verify"], "env": {"REVIEWED_SOURCE": "{source}"}},
                      "ci": {"workflow": ".github/workflows/verify.yml", "checkout_step": 0,
-                            "identity_step": 1, "pr_revision": "head"}}
+                            "source_checkout_step": 1, "identity_step": 2,
+                            "gate_step": 3, "pr_revision": "head"}}
 
     def complete(self):
         """A small independent reference setup for exercising the oracle itself."""
@@ -119,7 +133,8 @@ class EnforcementEvalTest(unittest.TestCase):
             for name in oracle.methods((oracle.FIXTURE / oracle.TEST_FILE).read_text()))))
         makefile = root / "Makefile"
         makefile.write_text(makefile.read_text().replace("verify: test", "verify:\n\t$(PYTHON) gate.py"))
-        (root / ".github/workflows/verify.yml").write_text(WORKFLOW)
+        self.workflow = WORKFLOW.replace("REVIEWED_SOURCE_SHA", oracle.git(self.source, "rev-parse", "HEAD"))
+        (root / ".github/workflows/verify.yml").write_text(self.workflow)
         tugling = root / ".tugling"
         tugling.mkdir()
         mapping = {"schema_version": 1, "flows": [{
@@ -219,11 +234,11 @@ class EnforcementEvalTest(unittest.TestCase):
     def test_ci_checks_real_identity_and_explicit_pr_revision(self):
         self.complete()
         path = self.project / ".github/workflows/verify.yml"
-        for defective, reason in ((WORKFLOW.replace("ref: ${{ github.event.pull_request.head.sha || github.sha }}", "ref: ${{ github.sha }}"),
+        for defective, reason in ((self.workflow.replace("ref: ${{ github.event.pull_request.head.sha || github.sha }}", "ref: ${{ github.sha }}"),
                                     "intended pull_request"),
-                                   (WORKFLOW.replace('test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"', "git status --short"),
+                                   (self.workflow.replace('test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"', "git status --short"),
                                     "mismatched"),
-                                   (WORKFLOW.replace("        run: |", "        continue-on-error: true\n        run: |"),
+                                   (self.workflow.replace("        run: |", "        continue-on-error: true\n        run: |"),
                                     "unconditional")):
             with self.subTest(reason=reason):
                 path.write_text(defective)
@@ -256,6 +271,24 @@ class EnforcementEvalTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "mismatched helper"):
             oracle.verify(self.project, self.hook)
 
+    def test_source_import_control_rejects_a_launcher_without_isolation(self):
+        self.complete()
+        self.assertEqual(oracle.check_source_import(self.hook, self.project, self.source),
+                         "isolated_helper_passed")
+        (self.project / "gate.py").write_text(WRAPPER.replace("[sys.executable, '-I', str(helper)",
+                                                            "[sys.executable, str(helper)"))
+        oracle.commit(self.project)
+        with self.assertRaisesRegex(AssertionError, "ignored source module executed"):
+            oracle.check_source_import(self.hook, self.project, self.source)
+
+    def test_replacement_source_control_requires_forced_raw_object_reads(self):
+        self.complete()
+        oracle.check_replacement_source(self.hook, self.project, self.source)
+        (self.project / "gate.py").write_text(WRAPPER.replace("'--no-replace-objects', ", ""))
+        oracle.commit(self.project)
+        with self.assertRaisesRegex(AssertionError, "Git replacement helper"):
+            oracle.check_replacement_source(self.hook, self.project, self.source)
+
     def test_reviewer_cannot_choose_an_unrelated_gate(self):
         self.complete()
         path = self.project / ".tugling/project.json"
@@ -266,18 +299,22 @@ class EnforcementEvalTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "neither canonical"):
             oracle.verify(self.project, self.hook)
 
-    def test_unrecognized_ci_expression_is_inconclusive_not_a_failed_setup(self):
+    def test_unsupported_ci_configuration_is_inconclusive_not_a_failed_setup(self):
         self.complete()
         path = self.project / ".github/workflows/verify.yml"
-        path.write_text(WORKFLOW.replace("${{ github.event.pull_request.head.sha || github.sha }}", "${{ matrix.revision }}"))
-        oracle.commit(self.project)
-        with self.assertRaisesRegex(oracle.Inconclusive, "unsupported workflow expression"):
-            oracle.check_ci(self.hook, self.project, self.source)
+        for workflow, reason in ((self.workflow.replace("${{ github.event.pull_request.head.sha || github.sha }}", "${{ matrix.revision }}"),
+                                  "unsupported workflow expression"),
+                                 (self.workflow.replace("runs-on: ubuntu-latest", "runs-on: windows-latest"), "Linux runner")):
+            with self.subTest(reason=reason):
+                path.write_text(workflow)
+                oracle.commit(self.project)
+                with self.assertRaisesRegex(oracle.Inconclusive, reason):
+                    oracle.check_ci(self.hook, self.project, self.source)
 
     def test_explicit_merge_identity_is_labelled_and_rejects_mismatches(self):
         self.complete()
         path = self.project / ".github/workflows/verify.yml"
-        path.write_text(WORKFLOW.replace("${{ github.event.pull_request.head.sha || github.sha }}", "${{ github.sha }}"))
+        path.write_text(self.workflow.replace("${{ github.event.pull_request.head.sha || github.sha }}", "${{ github.sha }}"))
         oracle.commit(self.project)
         self.hook["ci"]["pr_revision"] = "merge"
         result = oracle.check_ci(self.hook, self.project, self.source)
@@ -286,27 +323,67 @@ class EnforcementEvalTest(unittest.TestCase):
 
     def test_ci_sibling_checkouts_execute_combined_identity_and_real_gate(self):
         self.complete()
-        pin = oracle.git(self.source, "rev-parse", "HEAD")
         path = self.project / ".github/workflows/verify.yml"
-        text = WORKFLOW.replace("          persist-credentials: false", "          persist-credentials: false\n          path: project")
-        text = text.replace("      - name: Verify checked-out identity",
-                            "      - uses: actions/checkout@v4\n        with:\n          repository: example/tugling\n"
-                            f"          ref: {pin}\n          path: tugling\n"
-                            "      - name: Verify checked-out identity\n        working-directory: project")
+        text = self.workflow.split("      - name: Required native gate\n")[0]
         text = text.replace("          EXPECTED_REVISION:", "          REVIEWED_SOURCE: ${{ github.workspace }}/tugling\n          EXPECTED_REVISION:")
         text = text.replace('          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"',
                             '          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"\n          make verify')
         path.write_text(text)
         oracle.commit(self.project)
-        self.hook["ci"].update(identity_step=2, source_checkout_step=1)
+        self.hook["ci"]["gate_step"] = 2
         self.assertEqual(oracle.check_ci(self.hook, self.project, self.source)["local_identity_controls"], 4)
 
-    def test_command_cleans_child_even_when_its_launcher_exits_successfully(self):
-        script = "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); print(p.pid)"
-        result = oracle.command(self.project, [sys.executable, "-c", script])
-        self.assertEqual(result["returncode"], 0)
-        self.assertTrue(result["forced_cleanup"])
-        pid = int(result["output"].strip())
+    def test_ci_requires_an_enabled_actual_gate_and_its_workflow_environment(self):
+        self.complete()
+        path = self.project / ".github/workflows/verify.yml"
+        variants = (
+            (self.workflow.replace("        run: make verify", "        run: 'true'"), "receipts"),
+            (self.workflow.split("      - name: Required native gate\n")[0], "gate step is missing"),
+            (self.workflow.replace("  test:\n", "  test:\n    if: false\n"), "job is disabled"),
+            (self.workflow + "    if: false\n", "job is disabled"),
+            (self.workflow.replace("  test:\n", "  test:\n    continue-on-error: true\n"), "unconditional"),
+            (self.workflow + "    continue-on-error: true\n", "unconditional"),
+            (self.workflow.replace("      - name: Required native gate\n", "      - name: Required native gate\n        if: false\n"), "step is disabled"),
+            (self.workflow.replace("      - name: Required native gate\n", "      - name: Required native gate\n        continue-on-error: true\n"), "unconditional"),
+            (self.workflow.replace("          REVIEWED_SOURCE: ${{ github.workspace }}/tugling\n", ""), "CI required gate failed"),
+            (self.workflow.replace("          repository: example/tugling\n", ""), "repository differs"),
+            (self.workflow.replace("repository: example/tugling", "repository: example/other"), "repository differs"),
+            (self.workflow.replace("on: [push, pull_request]", "on: [workflow_dispatch]"), "automatically"),
+            (self.workflow.replace("on: [push, pull_request]", "on: [push, pull_request_target]"), "privileged"),
+            (self.workflow.replace("permissions:\n  contents: read\n", "permissions: write-all\n"), "write-all"),
+            (self.workflow.replace("        run: make verify", "        run: make verify || true"), "swallowed"),
+            (self.workflow.replace("        run: make verify", "        run: make verify | cat"), "swallowed"),
+            (self.workflow.replace("        run: make verify", "        run: make verify || test \"$GITHUB_EVENT_NAME\" = push"), "failure for push"),
+        )
+        for workflow, reason in variants:
+            with self.subTest(reason=reason):
+                path.write_text(workflow)
+                oracle.commit(self.project)
+                with self.assertRaisesRegex(AssertionError, reason):
+                    oracle.check_ci(self.hook, self.project, self.source)
+
+    def test_ci_honors_trailing_job_environment_and_permission_override(self):
+        self.complete()
+        workflow = self.workflow.replace("          REVIEWED_SOURCE: ${{ github.workspace }}/tugling\n", "")
+        workflow = workflow.replace("permissions:\n  contents: read\n", "permissions: write-all\n")
+        workflow += ("    env:\n      REVIEWED_SOURCE: ${{ github.workspace }}/tugling\n"
+                     "    permissions:\n      contents: read\n")
+        (self.project / ".github/workflows/verify.yml").write_text(workflow)
+        oracle.commit(self.project)
+        result = oracle.check_ci(self.hook, self.project, self.source)
+        self.assertEqual(result["fresh_required_receipts"], 2)
+        self.assertTrue(result["native_failure_propagated"])
+
+    def test_ci_runs_the_declared_sh_interpreter(self):
+        self.complete()
+        workflow = self.workflow.replace("        run: make verify",
+                                         '        shell: sh\n        run: |\n          test "$0" = sh\n          make verify')
+        (self.project / ".github/workflows/verify.yml").write_text(workflow)
+        oracle.commit(self.project)
+        self.assertEqual(oracle.check_ci(self.hook, self.project, self.source)["native_failure_events"],
+                         ["pull_request", "push"])
+
+    def assert_stopped(self, pid):
         for _ in range(100):
             try:
                 os.kill(pid, 0)
@@ -316,7 +393,74 @@ class EnforcementEvalTest(unittest.TestCase):
             if status.exists() and status.read_text().split()[2] == "Z":
                 return
             time.sleep(0.02)
-        self.fail("oracle left its owned child running")
+        self.fail(f"oracle left its owned child running: {pid}")
+
+    def test_sigterm_cleans_native_helper_child_and_owned_scratch_only(self):
+        self.complete()
+        # The real helper creates another process group for this native flow.
+        # Ignoring TERM makes its three-second forced cleanup path observable.
+        (self.project / "checks.py").write_text(
+            "import os, signal, time\nfrom pathlib import Path\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "Path('.tugling/local/leaf.pid').write_text(str(os.getpid()))\n"
+            "time.sleep(30)\n")
+        oracle.commit(self.project)
+        marker = self.directory / "scratch.path"
+        worker = self.directory / "cancel_worker.py"
+        worker.write_text(
+            "import importlib.util, json, tempfile\nfrom pathlib import Path\n"
+            f"spec = importlib.util.spec_from_file_location('oracle', {str(ROOT / 'evals/enforcement/verify_enforcement.py')!r})\n"
+            "oracle = importlib.util.module_from_spec(spec); spec.loader.exec_module(oracle)\n"
+            f"with oracle.cancellation_scope(), tempfile.TemporaryDirectory(prefix='cancel-owned-', dir={str(self.directory)!r}) as directory:\n"
+            "    scratch = Path(directory) / 'project'\n"
+            f"    oracle.copy_source(Path({str(self.project)!r}), scratch)\n"
+            f"    Path({str(marker)!r}).write_text(str(scratch))\n"
+            f"    oracle.command(scratch, ['make', 'verify'], extra={{'REVIEWED_SOURCE': {str(self.source)!r}}})\n")
+        unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+        process = subprocess.Popen([sys.executable, str(worker)], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+        leaf = None
+        try:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if marker.exists():
+                    scratch = Path(marker.read_text())
+                    pidfile = scratch / ".tugling/local/leaf.pid"
+                    if pidfile.exists():
+                        leaf = int(pidfile.read_text())
+                        break
+                self.assertIsNone(process.poll(), "oracle worker exited before native execution")
+                time.sleep(0.02)
+            self.assertIsNotNone(leaf, "native child did not start within the fixture budget")
+            process.terminate()
+            self.assertEqual(process.wait(timeout=10), 128 + signal.SIGTERM)
+            self.assert_stopped(leaf)
+            self.assertFalse(scratch.parent.exists(), "cancellation retained owned scratch files")
+            self.assertIsNone(unrelated.poll(), "oracle cancellation stopped an unrelated process")
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+            process.wait(timeout=5)
+            # On a regression, clean only the specifically observed native group.
+            if leaf is not None:
+                try:
+                    os.killpg(leaf, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            unrelated.terminate()
+            unrelated.wait(timeout=5)
+
+    def test_command_cleans_child_even_when_its_launcher_exits_successfully(self):
+        script = "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); print(p.pid)"
+        result = oracle.command(self.project, [sys.executable, "-c", script])
+        self.assertEqual(result["returncode"], 0)
+        self.assertTrue(result["forced_cleanup"])
+        pid = int(result["output"].strip())
+        self.assert_stopped(pid)
 
     def test_case_prompts_keep_advisory_boundary_and_do_not_supply_mutation_hints(self):
         cases = json.loads((ROOT / "evals/enforcement/cases.json").read_text())["cases"]

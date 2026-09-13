@@ -44,7 +44,9 @@ commands without forcing setup implementation filenames:
   "ci": {
     "workflow": ".github/workflows/verify.yml",
     "checkout_step": 0,
-    "identity_step": 1,
+    "source_checkout_step": 1,
+    "identity_step": 2,
+    "gate_step": 3,
     "pr_revision": "head"
   }
 }
@@ -58,19 +60,25 @@ caller-selectable source setting exposed by the finished project. The optional
 required receipts. The selected gate must be the declared canonical command or
 an outer required wrapper whose mapped native flows execute that command.
 
-CI indices select the project checkout and the actual executable identity
-assertion among workflow steps, starting at zero. Declare `pr_revision` as `head`
+CI indices select the project/source checkouts, actual executable identity
+assertion, and required native gate among workflow steps, starting at zero.
+Use the same identity/gate index when one run block does both. Declare `pr_revision` as `head`
 or `merge` from the reviewed project/workflow contract; the task does not impose
 one universal PR identity. Explicit merge-commit evidence is labelled as such
-and cannot establish exact-head verification. The optional `source_checkout_step`
-identifies the exact-pinned Tugling checkout when a run block uses it. The oracle
+and cannot establish exact-head verification. `source_checkout_step` identifies
+the Tugling checkout, whose repository and revision must match the adapter. The oracle
 reproduces the real sibling checkout paths, so a combined identity assertion and
-native gate executes normally with no mocked verification command.
-The small stdlib reader
-supports ordinary step mappings, step-local environment variables, run blocks,
-and `github.event.pull_request.head.sha || github.sha` expressions. It executes
+native gate executes normally with no mocked verification command. The local
+invocation's environment is never injected into CI. Each successful CI control
+must produce fresh helper-validated required evidence, and the actual gate must
+propagate a committed native defect for both push and pull requests. Disabled or allowed-failure jobs/steps,
+missing automatic push/PR triggers, and effective write permissions are rejected.
+The small stdlib reader supports ordinary job/step mappings, inherited workflow
+and job environments (including trailing job fields), step environments, run blocks,
+the declared bash/sh shell conventions, and
+`github.event.pull_request.head.sha || github.sha` expressions. It executes
 that code for matching and mismatched pull-request and push revisions. Unsupported
-workflow syntax or a missing runner returns `ORACLE_INCONCLUSIVE` (exit 2), not
+workflow filters, matrix/dependency topology, syntax, or a missing runner returns `ORACLE_INCONCLUSIVE` (exit 2), not
 evidence the setup failed. An observed failed criterion returns `ORACLE_FAIL`
 (exit 1). Adapt an unsupported binding only after independent review, without
 changing the frozen criterion or coaching the setup task.
@@ -95,8 +103,17 @@ cannot masquerade as catching a defect. It requires:
   `assume-unchanged` only in the disposable source clone, whose Git status must
   remain clean. A clean-status check alone cannot satisfy this control; the
   wrapper must reject the index flag or verify the actual tracked helper bytes.
+- An ignored adjacent `json.py` cannot execute when the verified helper imports
+  the standard library. The launcher may reject the contaminated source or run
+  the isolated helper and produce fresh required evidence. The oracle's own
+  trusted helper reads also use Python `-I`.
+- A local Git replacement commit cannot substitute different helper bytes while
+  retaining the pinned HEAD name and apparently clean replacement-aware status.
+  The launcher must force raw-object reads before execution; the oracle supplies
+  no ambient `GIT_NO_REPLACE_OBJECTS` setting to repair a weak launcher.
 - Explicit CI revision selection and executable identity assertions that reject
-  a different checked-out commit, followed by a restored good gate.
+  a different checked-out commit; fresh real required execution and native
+  failure propagation through the enabled CI gate; a restored good local gate.
 
 Unittest has no reporter plugin override in this fixture. Selection controls
 exercise its actual public narrowing interface; stack-specific reporter overrides
@@ -106,9 +123,24 @@ are preserved. A removed existing case fails; changed test bodies require
 independent semantic review and return `ORACLE_INCONCLUSIVE`, since additional
 assertions can strengthen a test without changing its required identity.
 
+The CI command proof supports ordinary Ubuntu runner labels. Windows, macOS,
+custom runners, and other unmodeled execution platforms are inconclusive; this
+diagnostic does not emulate their operating systems or shell defaults.
+
+The adjacent-module import and Git replacement controls were added after
+independent adopter probes demonstrated execution of substituted code despite
+the existing source checks. They are new acceptance controls. Keep results from
+the earlier control set distinct from regrading under these additional trust
+boundaries. The oracle's own ordinary Git reads force `--no-replace-objects`;
+replacement-aware observations occur only inside the owned negative control.
+
 All commands run offline with a credential-free environment, bounded output and
 timeouts. Source snapshots are capped at 2,000 files and 16 MiB each. Disposable
 trees and logs are owned by the oracle's temporary context and removed on exit.
+SIGTERM and Python interruption unwind the execution and temporary-file scopes.
+Teardown allows five seconds for the native helper to clean its separate flow
+group before terminating the enclosing group. Unrelated processes are preserved;
+uncatchable process termination cannot provide this cleanup guarantee.
 The caller project must remain unchanged. The result is **local native and CI
 identity-control proof**; it does not claim GitHub execution, merge protection,
 model improvement, elapsed-time improvement, certification, or release promotion.
