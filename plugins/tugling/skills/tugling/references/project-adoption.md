@@ -54,7 +54,7 @@ The dogfood file must declare `data_policy` as `synthetic-only` and contain one 
 CI should check out the project, check out Tugling at the configured full revision into an isolated subdirectory, and run:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> \
   --source-root <tugling-checkout> \
   --source-mode pinned

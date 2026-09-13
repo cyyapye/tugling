@@ -58,7 +58,7 @@ build/CI wiring; changing product behavior still needs task authority.
 Validate the adapter with the reviewed Tugling source:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> \
   --source-root <tugling-checkout> \
   --source-mode pinned
@@ -82,6 +82,14 @@ An ignored nested directory can inherit a parent's clean Git identity while
 containing an untracked replacement helper. Validation inside that replacement
 runs too late; source validation must precede its execution. Reuse an existing
 launcher that establishes this boundary rather than adding a second wrapper.
+
+Bind the helper's imported code as well as its main file. Launch this single-file,
+standard-library Python helper with `-I` for validation, execution, and receipt
+checks. An ignored adjacent `json.py` can execute during import even when the
+helper bytes and Git status are correct. Demonstrate that such a module never
+executes; either reject the contaminated source first or isolate the import path
+and validate the real result. Apply the same boundary to other runtimes' module
+paths and startup hooks when they can substitute code from a supplied source.
 
 When `make verify` owns the required gate, route it through that launcher to
 `--run-required` and map independent native leaf commands. When the required

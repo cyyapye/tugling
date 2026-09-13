@@ -92,14 +92,14 @@ The ordinary project-contract command also validates a configured map. It never
 executes mapped commands without an execution flag:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned
 ```
 
 Run selected flows from a clean committed project checkout:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
   --run-flow dashboard --json
 ```
@@ -123,7 +123,7 @@ credential, background service, or scheduled job.
 For complete required coverage, run this from a clean committed project checkout:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
   --run-required --json
 ```
@@ -154,7 +154,7 @@ explicitly scoped cleanup when no longer needed; nothing uploads automatically.
 To check a receipt against the current clean checkout:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
   --check-flow-evidence .tugling/local/verification/<run-id>.json --json
 ```
@@ -169,7 +169,7 @@ receipt is a freshness and scope aid, not a signed release attestation.
 Check complete required evidence with:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
   --check-required-evidence .tugling/local/verification/<run-id>.json --json
 ```
