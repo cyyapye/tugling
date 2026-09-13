@@ -1,6 +1,6 @@
 ---
 name: async-safety
-description: Design, implement, or review asynchronous workflows for duplicate delivery, retries, ordering, replay, idempotent transitions, terminal failures, and operator recovery. Use for queues, schedulers, webhooks, background workers, event consumers, batch jobs, and exactly-once-like claims. Do not use when the real risk is a purely synchronous request with no asynchronous state transition.
+description: Design or verify duplicate handling, retries, ordering, and recovery for queues, webhooks, schedulers, and workers. Use when asynchronous delivery affects durable state; skip purely synchronous changes.
 ---
 
 # Async Safety
@@ -28,7 +28,7 @@ Say `Not applicable` for an irrelevant bucket instead of silently omitting it.
 2. Search for existing event types, dedupe stores, transition helpers, retry classifiers, queues, schedulers, metrics, and recovery commands.
 3. Keep provider, vendor, and transport payloads at the adapter boundary. Shared workflow state should express domain events and transitions.
 4. Assume at-least-once delivery unless a stronger contract is documented and independently enforced.
-5. Implement in boundary order: message schema, state and dedupe behavior, producer, consumer, runtime rails, recovery path, docs.
+5. Keep message schema, durable transitions, producer/consumer behavior, runtime rails, and recovery consistent across the changed boundaries.
 6. Prove duplicate convergence, stale and out-of-order handling, retry exhaustion, terminal failure, and operator recovery with deterministic cases.
 7. For deployed rails, distinguish local simulation from applied configuration and a current-run smoke.
 

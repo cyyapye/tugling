@@ -1,6 +1,6 @@
 ---
 name: delivery-plan
-description: Create or revise an executable implementation plan grounded in the current repository. Use when the user asks for a plan, rollout plan, migration plan, chunking strategy, or wants a feature, fix, refactor, or infrastructure change scoped before coding. Do not trigger for implementation-only work whose product contract and boundaries are already settled.
+description: Plan a repository change, migration, or rollout before implementation. Use when sequencing, scope, or cross-boundary decisions need resolution; skip implementation with an already settled plan.
 ---
 
 # Delivery Plan
@@ -10,7 +10,7 @@ Produce a plan another engineer or agent can execute without reopening its core 
 ## Ground first
 
 1. Read root and path-specific repository instructions.
-2. Inspect current code, verification commands, CI, durable product docs, and relevant architecture decisions.
+2. Inspect the current code, commands, CI, and product or architecture docs needed for the decisions in scope; reuse already established context.
 3. Search for existing implementations, utilities, data models, and plans before proposing new ones.
 4. Treat current code and configuration as implementation truth when an old plan has drifted. A plan is not a current-state record.
 

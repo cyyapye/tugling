@@ -1,6 +1,6 @@
 ---
 name: repo-verify
-description: Verify a repository change with its native commands, review the integrity of changed tests and CI, fix in-scope failures when authorized, and report the strongest proven state. Use when the user asks to run checks, validate readiness, make a change merge-ready, investigate failing local verification, reconcile local results with CI or committed files, or confirm work is complete. Do not use a generic gate when the repository already defines one.
+description: Verify readiness with repository-native checks and commit evidence. Use for verification requests, failing or unclear gates, or changes to tests and CI; preserve the project's completion contract.
 ---
 
 # Repo Verify
@@ -13,6 +13,9 @@ Prefer repository truth over a universal checklist.
 2. Inspect the changed files and classify the affected surfaces.
 3. Find the canonical commands in the build files, test docs, package scripts, and CI workflows.
 4. Use the narrowest relevant check while iterating, then return to the canonical completion gate unless the repository or task justifies a narrower final gate.
+
+Reuse current evidence for unchanged files and commands. Once required checks pass,
+repeat or broaden them only after a relevant change, failure, or unresolved risk.
 
 When the project declares a verification map or the user asks to map real user
 flows to native checks, read [references/project-flows.md](references/project-flows.md).
@@ -42,7 +45,7 @@ Classify the change as increasing, preserving, or reducing assurance. A modified
 1. Run the chosen repository-native command.
 2. Summarize failures by surface and probable changed-scope cause.
 3. If the user authorized implementation, apply the smallest in-scope fix and rerun the focused check before the full gate.
-4. Match a second proof channel to the risk: real CLI invocation, stored-value readback, integration path, browser flow, screenshot inspection, profile, migration replay, or deployed smoke.
+4. Add a proof channel when the existing checks leave a material behavior unproven: real CLI invocation, stored-value readback, integration path, browser flow, screenshot inspection, profile, migration replay, or deployed smoke. Required project evidence still applies.
 5. If code was pushed as part of the authorized task, inspect relevant remote checks to terminal state. Do not infer remote success from local success.
 
 When a module or support file exists locally but CI cannot find it, check repository state before changing code:
@@ -61,7 +64,7 @@ On-disk presence is not proof that a file exists in the commit.
 Report the strongest state actually proven:
 
 - `NOOP`: the bounded requested work was shown to be already satisfied or absent, the relevant check passed, and repository status confirms no change was needed.
-- `LOCAL_PASS`: canonical local gate and matched local artifact proof passed.
+- `LOCAL_PASS`: required local gate and the behavior proof appropriate to the change passed. Existing native checks may supply both; a second harness is unnecessary when they already prove the outcome.
 - `REMOTE_PASS`: relevant checks passed for the exact pushed revision.
 - `MERGED_PASS`: post-merge checks passed for the merged revision.
 - `DEPLOYED_PASS`: the exact revision was deployed and a current-run smoke passed.

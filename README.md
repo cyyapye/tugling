@@ -10,7 +10,7 @@ It is intentionally portable. Tugling supplies reusable engineering judgment; ea
 
 | Skill | Job |
 | --- | --- |
-| `$tugling` | Route a non-trivial repository change from intent to verified handoff. |
+| `$tugling` | Bootstrap a project, adopt Tugling, or carry multi-step work through verification. |
 | `$delivery-plan` | Produce an executable, repository-grounded implementation plan. |
 | `$scale-cost-review` | Review simplicity, cardinality, hot-path performance, and operating cost. |
 | `$async-safety` | Design duplicate-safe, replay-safe asynchronous workflows. |
@@ -43,7 +43,7 @@ The repository is also shaped as a GitHub-backed marketplace. Workspace admins c
 In a new thread opened on the project, start with:
 
 ```text
-Use $tugling to set up this project. Assess it read-only first, then propose the smallest adapter and pinned CI contract before writing.
+Use $tugling to set up this project. Inspect its conventions, implement the smallest adapter and pinned CI contract, and complete the required verification. Continue through routine local repairs; ask only for decisions that materially change scope or authority.
 ```
 
 The intended setup delta is deliberately small:
@@ -53,6 +53,17 @@ The intended setup delta is deliberately small:
 - one committed synthetic case at `.tugling/dogfood.json`;
 - a deterministic CI check that validates the source pin and adapter without calling a model;
 - an ignored `.tugling/local/` directory only when local learning is enabled.
+
+For a new project, describe the stack and smallest runnable outcome:
+
+```text
+Use $tugling to bootstrap this new Python CLI project. Create a minimal runnable command, native tests, repeatable bootstrap and cleanup, concise AGENTS.md, and Codex worktree setup. Prove it works from a fresh checkout.
+```
+
+The [bootstrap workflow](plugins/tugling/skills/tugling/references/project-bootstrap.md)
+establishes the native development contract before adding an adoption adapter.
+It reuses the selected stack and asks only for material missing choices. For an
+assessment without edits, explicitly request “assess setup and propose changes only.”
 
 The bundled project check is dependency-free:
 
@@ -90,7 +101,7 @@ Tugling does not grant permission to merge, deploy, delete, contact people, spen
 
 ## Develop
 
-Select the checked-in [`tugling` local environment](.codex/environments/environment.toml) when creating a Codex worktree. Its setup checks that `python3`, Git, and Make are on `PATH`, then runs `make verify`. The environment also provides **Verify** (`make verify`) and **Test** (`make test`) actions in the app.
+Development requires Python 3.11+, Git, and Make. Select the checked-in [`tugling` local environment](.codex/environments/environment.toml) when creating a Codex worktree. Its setup checks that `python3`, Git, and Make are on `PATH`, then runs `make verify`. The environment also provides **Verify** (`make verify`) and **Test** (`make test`) actions in the app.
 
 You can run the same verification from a terminal:
 
@@ -117,6 +128,8 @@ Stable promotion is intentionally separate from ordinary CI. The optional [relea
 Promotion verifies both CI-attested evidence files for the exact candidate and approved certification run, waits for maintainer environment approval, and atomically publishes `stable` plus an immutable version tag. A fresh runner then installs through the public `stable` alias and checks the exact promoted commit without calling a model. The writer executes only the independently pinned controller and rechecks provenance and GitHub protection settings. Missing controller pins keep promotion disabled. See [Release controller](docs/release-controller.md) for activation, protection boundaries, and recovery. Adopter repositories keep deterministic, model-free CI.
 
 Tugling does not hard-code a model per skill. Pin models in comparable evaluations first; add a recommendation only after repeated evidence shows a meaningful quality, latency, or cost tradeoff for that skill.
+
+The instructions follow OpenAI's [Astra guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra): precise descriptions, conditional references, completion within existing authorization, and proportional verification. These remain portable defaults. Astra-specific evaluation uses `gpt-6-astra` explicitly; it does not change a project's model or the separately reviewed release certification runtime.
 
 ## Design choices
 

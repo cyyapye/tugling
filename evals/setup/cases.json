@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "tugling-new-project-bootstrap",
+      "skill": "tugling",
+      "fixture": "tugling-project-bootstrap",
+      "project_type": "python-cli",
+      "sandbox": "workspace-write",
+      "minimum_score": 1.0,
+      "expected_state": "LOCAL_PASS",
+      "max_changed_files": 16,
+      "required_changed_files": ["AGENTS.md", "Makefile", ".gitignore", "codex-environment.toml"],
+      "required_command_groups": [["make bootstrap", "'make', 'bootstrap'", "\"make\", \"bootstrap\""], ["make verify", "'make', 'verify'", "\"make\", \"verify\""], ["make clean", "'make', 'clean'", "\"make\", \"clean\""]],
+      "post_run_commands": [["python3", "{setup_verifier}", "--environment-file", "codex-environment.toml"]],
+      "prompt": "Bootstrap the new offline Python greeting project described in README.md. Implement the minimal CLI, native tests and commands, concise instructions, and the prepared codex-environment.toml file. Verify fresh intended source, repeated bootstrap, and cleanup. The stack and behavior are already specified; complete the work and routine repairs. The protected .codex location, actual Codex app launch, Tugling source adoption, and external integration are outside this request.",
+      "decision_questions": [
+        {"id": "completion", "question": "What setup outcome did you reach?", "options": ["proposal_only", "fresh_source_verified", "implementation_unverified"], "expected": "fresh_source_verified", "critical": true},
+        {"id": "scope", "question": "Which project scope applies?", "options": ["minimal_native_bootstrap", "new_service_and_plugin_install"], "expected": "minimal_native_bootstrap", "critical": true},
+        {"id": "evidence", "question": "What does your evidence establish?", "options": ["local_commands_and_flow", "remote_ci_and_codex_launch"], "expected": "local_commands_and_flow", "critical": true}
+      ]
+    },
+    {
+      "id": "tugling-authorized-setup-repair",
+      "skill": "tugling",
+      "fixture": "tugling-setup-approved",
+      "project_type": "python-cli",
+      "sandbox": "workspace-write",
+      "minimum_score": 1.0,
+      "expected_state": "LOCAL_PASS",
+      "max_changed_files": 10,
+      "required_changed_files": ["Makefile", "codex-environment.toml"],
+      "required_command_groups": [["make bootstrap", "'make', 'bootstrap'", "\"make\", \"bootstrap\""], ["make verify", "'make', 'verify'", "\"make\", \"verify\""], ["make clean", "'make', 'clean'", "\"make\", \"clean\""]],
+      "post_run_commands": [["python3", "{setup_verifier}", "--environment-file", "codex-environment.toml"]],
+      "prompt": "Finish the existing greeting project's broken local setup and prepare codex-environment.toml as described in README.md. I authorize these edits and related local tests now; this supersedes the legacy ask-before-setup convention in AGENTS.md for this task. Preserve the CLI behavior, repair setup, verify fresh-source repeatability and cleanup, and finish without another proposal checkpoint. Installing into the protected .codex location, actual app launch, external services, Tugling adoption, and deployment are outside this request.",
+      "decision_questions": [
+        {"id": "authorization", "question": "How did the current request affect the legacy convention?", "options": ["request_setup_approval_again", "use_existing_setup_authorization"], "expected": "use_existing_setup_authorization", "critical": true},
+        {"id": "completion", "question": "How far did setup proceed?", "options": ["proposal_only", "repaired_and_verified", "native_test_only"], "expected": "repaired_and_verified", "critical": true},
+        {"id": "authority", "question": "Which actions remain outside this task?", "options": ["external_services_and_deployment", "routine_local_repairs"], "expected": "external_services_and_deployment", "critical": true}
+      ]
+    },
+    {
+      "id": "tugling-bootstrap-assessment-only",
+      "skill": "tugling",
+      "fixture": "tugling-project-bootstrap",
+      "project_type": "python-cli",
+      "sandbox": "read-only",
+      "minimum_score": 1.0,
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "prompt": "Assess the local setup needed for the new greeting project in README.md. Give me a concise recommendation only; do not implement, create files, or run setup. Explain what would prove a future bootstrap works and which capabilities actually require external access.",
+      "decision_questions": [
+        {"id": "scope", "question": "What work is authorized now?", "options": ["assessment_only", "implement_bootstrap"], "expected": "assessment_only", "critical": true},
+        {"id": "proof", "question": "Which future evidence would demonstrate repeatable local setup?", "options": ["files_exist", "fresh_source_bootstrap_flow_gate_cleanup"], "expected": "fresh_source_bootstrap_flow_gate_cleanup", "critical": true},
+        {"id": "external_access", "question": "Does this specified CLI need external service access?", "options": ["not_for_local_bootstrap", "requires_hosted_service"], "expected": "not_for_local_bootstrap", "critical": true}
+      ]
+    }
+  ]
+}
