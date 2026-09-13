@@ -54,6 +54,9 @@ class ReleaseControllerTest(unittest.TestCase):
         self.certificate.write_text(json.dumps(value))
         self.remote = self.root / "remote.git"
         self.git(self.root, "clone", "--bare", str(self.repo), str(self.remote))
+        # The local receive-pack process has its own maintenance policy. Client
+        # maintenance.auto=false does not disable receive-triggered background GC.
+        self.git(self.remote, "config", "receive.autogc", "false")
         self.digest = hashlib.sha256(self.certificate.read_bytes()).hexdigest()
 
     def git(self, root: Path, *args: str) -> str:
@@ -252,6 +255,26 @@ class ReleaseControllerTest(unittest.TestCase):
                                if event.get("event") == "child_start"
                                and {"maintenance", "gc"} & set(event.get("argv", []))]
                 self.assertEqual(maintenance, [])
+
+    def test_disposable_receive_does_not_start_background_gc(self) -> None:
+        self.assertEqual(self.git(self.remote, "config", "--get", "receive.autogc"), "false")
+        # Prove the positive control synchronously so the test cannot itself
+        # leave a detached GC writer racing TemporaryDirectory cleanup.
+        self.git(self.remote, "config", "gc.autoDetach", "false")
+        self.git(self.remote, "config", "maintenance.autoDetach", "false")
+        for enabled in (True, False):
+            with self.subTest(receive_autogc=enabled):
+                self.git(self.remote, "config", "receive.autogc", str(enabled).lower())
+                self.git(self.repo, "commit", "--allow-empty", "--quiet", "-m", f"receive control {enabled}")
+                trace = self.root / f"receive-{enabled}-trace.jsonl"
+                env = {**controller.git_env(), "GIT_TRACE2_EVENT": str(trace)}
+                with mock.patch.object(controller, "git_env", return_value=env):
+                    self.git(self.repo, "push", str(self.remote), "main")
+                events = [json.loads(line) for line in trace.read_text().splitlines()]
+                maintenance = [event["argv"] for event in events
+                               if event.get("event") == "child_start"
+                               and {"maintenance", "gc"} & set(event.get("argv", []))]
+                self.assertEqual(bool(maintenance), enabled)
 
     def test_isolated_cli_rejects_wrong_controller_before_network_access(self) -> None:
         poison = self.root / "pythonpath"
