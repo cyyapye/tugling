@@ -78,6 +78,10 @@ Use a project-owned launcher before executing a helper from a supplied source
 checkout. Verify the supplied directory is the actual Git root, its revision is
 the reviewed pin, and its tracked contents are clean. Reject symlinked helpers,
 index skip/assume flags, and helper bytes that differ from that commit's Git blob.
+Read raw objects with Git replacements disabled (`git --no-replace-objects`);
+replacement refs can otherwise substitute bytes behind the same displayed SHA.
+Neutralize ambient Git routing variables and disable repository fsmonitor hooks
+for these identity and status reads.
 An ignored nested directory can inherit a parent's clean Git identity while
 containing an untracked replacement helper. Validation inside that replacement
 runs too late; source validation must precede its execution. Reuse an existing
