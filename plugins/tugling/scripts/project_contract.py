@@ -21,6 +21,8 @@ from typing import Any, Iterable
 DEFAULT_CONFIG = Path(".tugling/project.json")
 VALID_CHANNELS = {"pinned", "stable", "preview"}
 VALID_LEARNING_MODES = {"off", "local"}
+FLOW_EXECUTION_ENV = "TUGLING_NATIVE_FLOW_ACTIVE"
+CANONICAL_EXECUTION_ENV = "TUGLING_CANONICAL_ACTIVE"
 REVISION_RE = re.compile(r"[0-9a-f]{40}")
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -40,12 +42,13 @@ def run(
     cwd: Path,
     timeout: int = 120,
     check: bool = False,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     try:
         completed = subprocess.run(
             argv,
             cwd=cwd,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1"},
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1", **(env or {})},
             stdin=subprocess.DEVNULL,
             text=True,
             capture_output=True,
@@ -92,6 +95,7 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
     path, relative = committed_file(root, value, label="project.verification")
     mapping = require_object(
         read_json(path), label="verification map", keys={"schema_version", "flows"},
+        optional={"requirements"},
     )
     assert_no_embedded_secrets(mapping)
     if type(mapping["schema_version"]) is not int or mapping["schema_version"] != 1:
@@ -133,7 +137,58 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
             for key in ("launch", "health", "cleanup"):
                 if not isinstance(runtime[key], str) or not runtime[key].strip():
                     raise ContractError(f"flow {flow_id}: document native runtime {key}")
-    return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "flows": flows}
+    requirements = mapping.get("requirements")
+    if "requirements" in mapping:
+        if not isinstance(requirements, list) or not 1 <= len(requirements) <= 64:
+            raise ContractError("verification requirements must contain 1 to 64 project rules")
+        requirement_ids: set[str] = set()
+        for requirement in requirements:
+            require_object(requirement, label="verification requirement", keys={
+                "id", "description", "sources", "flows",
+            })
+            rule_id = requirement["id"]
+            if (not isinstance(rule_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", rule_id)
+                    or rule_id in requirement_ids):
+                raise ContractError("verification requirement ids must be unique lowercase names")
+            requirement_ids.add(rule_id)
+            if not isinstance(requirement["description"], str) or not requirement["description"].strip():
+                raise ContractError(f"requirement {rule_id}: describe the accepted project rule")
+            sources = requirement["sources"]
+            if not isinstance(sources, list) or not sources:
+                raise ContractError(f"requirement {rule_id}: name the authoritative policy sources")
+            for source in sources:
+                committed_file(root, source, label=f"requirement {rule_id} source")
+            checks = requirement["flows"]
+            if (not isinstance(checks, list) or not checks
+                    or not all(isinstance(key, str) and key in seen for key in checks)
+                    or len(set(checks)) != len(checks)):
+                raise ContractError(f"requirement {rule_id}: map to distinct existing native flows")
+    return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "flows": flows, "requirements": requirements}
+
+
+def required_flow_ids(mapping: dict[str, Any] | None) -> list[str]:
+    if mapping is None or not mapping.get("requirements"):
+        raise ContractError("required verification needs project.verification with non-empty requirements")
+    required = {flow_id for rule in mapping["requirements"] for flow_id in rule["flows"]}
+    # Preserve the map's reviewed execution order and run shared checks once.
+    return [flow["id"] for flow in mapping["flows"] if flow["id"] in required]
+
+
+def flow_execution_ancestry(root: Path, *, canonical: bool = False) -> list[str]:
+    """Refuse project cycles while permitting checks of independent fixture repos."""
+    try:
+        variable = CANONICAL_EXECUTION_ENV if canonical else FLOW_EXECUTION_ENV
+        ancestry = json.loads(os.environ.get(variable, "[]"))
+    except (ValueError, TypeError) as exc:
+        raise ContractError("invalid native flow execution ancestry") from exc
+    if (not isinstance(ancestry, list) or len(ancestry) >= 32
+            or not all(isinstance(value, str) for value in ancestry)):
+        raise ContractError("invalid or excessive native flow execution ancestry")
+    project = str(root.resolve())
+    if project in ancestry:
+        raise ContractError("recursive native flow execution is not allowed; map leaf test commands")
+    return [*ancestry, project]
 
 
 def clean_revision(root: Path) -> str:
@@ -184,7 +239,8 @@ def run_flow(root: Path, flow: dict[str, Any]) -> dict[str, Any]:
         process = subprocess.Popen(
             flow["argv"], cwd=root, stdin=subprocess.DEVNULL, stdout=sys.stderr,
             stderr=sys.stderr, start_new_session=True,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1"},
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1",
+                 FLOW_EXECUTION_ENV: json.dumps(flow_execution_ancestry(root))},
         )
         result["exit_code"] = process.wait(timeout=flow["timeout_seconds"])
         if result["exit_code"] != 0:
@@ -230,14 +286,18 @@ def verification_identity(root: Path, config_path: Path, mapping: dict[str, Any]
 
 def execute_flows(
     root: Path, config_path: Path, report: dict[str, Any], selected: list[str],
+    *, required: bool = False,
 ) -> dict[str, Any]:
     if os.name != "posix":
         raise ContractError("flow execution requires POSIX process-group cleanup (macOS or Linux)")
+    flow_execution_ancestry(root)
     mapping = report["verification"]
     if mapping is None:
         raise ContractError("--run-flow requires project.verification")
+    if required and selected != required_flow_ids(mapping):
+        raise ContractError("required verification must execute the complete required flow set")
     by_id = {flow["id"]: flow for flow in mapping["flows"]}
-    if len(set(selected)) != len(selected) or any(flow_id not in by_id for flow_id in selected):
+    if not selected or len(set(selected)) != len(selected) or any(flow_id not in by_id for flow_id in selected):
         raise ContractError("--run-flow requires distinct ids present in the verification map")
     if sum(by_id[flow_id]["timeout_seconds"] for flow_id in selected) > 7200:
         raise ContractError("selected flow timeout budget must not exceed 7200 seconds")
@@ -252,6 +312,9 @@ def execute_flows(
         "run_id": run_id, **identity, "tugling": report["tugling"],
         "started_at": datetime.now(timezone.utc).isoformat(), "state": "FLOWS_FAIL",
         "requested_flows": selected, "results": [], "worktree_unchanged": False}
+    if required:
+        evidence.update(kind="tugling-required-flows", state="REQUIRED_FAIL",
+                        requirements=mapping["requirements"])
     try:
         for flow_id in selected:
             result = run_flow(root, by_id[flow_id])
@@ -264,7 +327,7 @@ def execute_flows(
             pass
         if (len(evidence["results"]) == len(selected) and evidence["worktree_unchanged"]
                 and all(result["failure"] is None for result in evidence["results"])):
-            evidence["state"] = "FLOWS_PASS"
+            evidence["state"] = "REQUIRED_PASS" if required else "FLOWS_PASS"
     finally:
         evidence["finished_at"] = datetime.now(timezone.utc).isoformat()
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
@@ -275,6 +338,7 @@ def execute_flows(
 
 def check_flow_evidence(
     root: Path, config_path: Path, report: dict[str, Any], relative: str,
+    *, required: bool = False,
 ) -> dict[str, Any]:
     """Check freshness and scope of a local receipt; this is not an attestation."""
     mapping = report["verification"]
@@ -287,9 +351,14 @@ def check_flow_evidence(
     by_id = {flow["id"]: flow for flow in mapping["flows"]}
     selected = evidence.get("requested_flows")
     results = evidence.get("results")
+    success_state = "REQUIRED_PASS" if required else "FLOWS_PASS"
+    kind = "tugling-required-flows" if required else "tugling-native-flows"
+    if required and (selected != required_flow_ids(mapping)
+                     or evidence.get("requirements") != mapping["requirements"]):
+        raise ContractError("required evidence must cover every current project requirement")
     if (type(evidence.get("schema_version")) is not int or evidence["schema_version"] != 1
-            or evidence.get("kind") != "tugling-native-flows"
-            or evidence.get("state") != "FLOWS_PASS" or evidence.get("worktree_unchanged") is not True
+            or evidence.get("kind") != kind
+            or evidence.get("state") != success_state or evidence.get("worktree_unchanged") is not True
             or not isinstance(selected, list) or not selected
             or not all(isinstance(key, str) and key in by_id for key in selected)
             or len(set(selected)) != len(selected)
@@ -302,7 +371,7 @@ def check_flow_evidence(
                 or "failure" not in result or result["failure"] is not None
                 or result.get("forced_cleanup") is not False):
             raise ContractError("flow evidence contains an unsuccessful or mismatched command")
-    return {"state": "FLOWS_PASS", "path": relative, "evidence": evidence}
+    return {"state": success_state, "path": relative, "evidence": evidence}
 
 
 def relative_path(root: Path, value: Any, *, label: str) -> tuple[Path, str]:
@@ -425,6 +494,8 @@ def validate_project(
     native_timeout: int = 1800,
     run_flows: list[str] | None = None,
     check_evidence: str | None = None,
+    run_required: bool = False,
+    check_required_evidence: str | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
     config_path = config_path if config_path.is_absolute() else root / config_path
@@ -542,12 +613,17 @@ def validate_project(
     require_ignored(root, local_relative, label="learning.local_path")
 
     mapping = validate_verification_map(root, project["verification"]) if "verification" in project else None
-    if sum(bool(value) for value in (run_native, run_flows, check_evidence)) > 1:
+    if sum(bool(value) for value in (run_native, run_flows, check_evidence,
+                                    run_required, check_required_evidence)) > 1:
         raise ContractError("choose one of native verification, selected flows, or an evidence check")
+    if run_native or run_flows or run_required:
+        flow_execution_ancestry(root)
 
     native_result: dict[str, Any] | None = None
     if run_native:
-        completed = run(verify_argv, cwd=root, timeout=native_timeout)
+        completed = run(verify_argv, cwd=root, timeout=native_timeout, env={
+            CANONICAL_EXECUTION_ENV: json.dumps(flow_execution_ancestry(root, canonical=True)),
+        })
         native_result = {
             "argv": verify_argv,
             "exit_code": completed.returncode,
@@ -583,11 +659,19 @@ def validate_project(
         "verification": mapping,
         "flow_verification": None,
     }
-    if run_flows:
+    if run_required:
+        report["flow_verification"] = execute_flows(
+            root, config_path, report, required_flow_ids(mapping), required=True,
+        )
+    elif check_required_evidence:
+        report["flow_verification"] = check_flow_evidence(
+            root, config_path, report, check_required_evidence, required=True,
+        )
+    elif run_flows:
         report["flow_verification"] = execute_flows(root, config_path, report, run_flows)
     elif check_evidence:
         report["flow_verification"] = check_flow_evidence(root, config_path, report, check_evidence)
-    if report["flow_verification"] and report["flow_verification"]["state"] != "FLOWS_PASS":
+    if report["flow_verification"] and report["flow_verification"]["state"] not in {"FLOWS_PASS", "REQUIRED_PASS"}:
         report["status"] = "FAIL"
     return report
 
@@ -605,7 +689,9 @@ def build_parser() -> argparse.ArgumentParser:
     execution = parser.add_mutually_exclusive_group()
     execution.add_argument("--run-native", action="store_true")
     execution.add_argument("--run-flow", action="append", help="run one mapped native flow; repeat for a selection")
+    execution.add_argument("--run-required", action="store_true", help="run all flows covering declared project requirements")
     execution.add_argument("--check-flow-evidence", help="check a local receipt against the current clean commit")
+    execution.add_argument("--check-required-evidence", help="require complete current evidence for all project requirements")
     parser.add_argument("--native-timeout", type=int, default=1800)
     parser.add_argument("--json", action="store_true")
     return parser
@@ -614,7 +700,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     previous_handler = None
-    if args.run_flow:
+    if args.run_flow or args.run_required:
         def interrupted(signum: int, frame: Any) -> None:
             raise KeyboardInterrupt
         previous_handler = signal.signal(signal.SIGTERM, interrupted)
@@ -630,6 +716,8 @@ def main(argv: Iterable[str] | None = None) -> int:
             native_timeout=args.native_timeout,
             run_flows=args.run_flow,
             check_evidence=args.check_flow_evidence,
+            run_required=args.run_required,
+            check_required_evidence=args.check_required_evidence,
         )
     except ContractError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -641,7 +729,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
     elif report["flow_verification"]:
         result = report["flow_verification"]
-        print(f"{result['state']}: {result['path']} (selected native flows only; canonical gate unexecuted)")
+        scope = "all declared requirements" if args.run_required or args.check_required_evidence else "selected native flows only"
+        print(f"{result['state']}: {result['path']} ({scope}; canonical and remote readiness require their own evidence)")
     else:
         print(
             "Tugling project contract passed: "

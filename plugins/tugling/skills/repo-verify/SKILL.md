@@ -16,8 +16,12 @@ Prefer repository truth over a universal checklist.
 
 When the project declares a verification map or the user asks to map real user
 flows to native checks, read [references/project-flows.md](references/project-flows.md).
-Treat a map as routing to existing tests. Its validation is not a flow run, and a
-selected-flow receipt is not a canonical, remote, or deployed pass.
+Review whether changed project rules have native assertions and required mappings.
+Run the complete declared requirements through the canonical gate or
+`--run-required`, without duplicating execution. Map validation and selected-flow
+receipts cannot satisfy required verification. Check required evidence against the
+current clean commit before citing it; report uncovered rules or missing required
+results as a readiness gap. A required pass alone does not prove remote CI or deployment.
 
 ## Review verification integrity
 

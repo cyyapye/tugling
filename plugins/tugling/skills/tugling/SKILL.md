@@ -21,7 +21,7 @@ Tugling never grants permission to merge, deploy, delete, spend, contact people,
 
 ## Set up a project
 
-When the user asks to install, adopt, configure, or set up Tugling for a repository, open and read [references/project-setup.md](references/project-setup.md) before giving setup advice. Do not reconstruct that contract from project files or general memory. Start with read-only discovery, preserve existing project instructions, and make the adapter and CI files the smallest reviewable delta. Setup is not permission to change product code.
+When the user asks to install, adopt, configure, or set up Tugling for a repository, or enforce its project rules, open and read [references/project-setup.md](references/project-setup.md). Start with read-only discovery and preserve existing instructions. Full setup includes native assertions for accepted rules, a required verification map, and canonical/CI wiring with a demonstrated failure. Configuration-only requests stay within that scope. Setup is not permission to change product behavior or external branch protections.
 
 ## Learn from a correction
 
@@ -52,7 +52,7 @@ For a bounded no-op, run the relevant native check and inspect repository status
 3. Search for existing code, contracts, helpers, tests, and docs that should be reused or consolidated.
 4. Choose a plan proportional to reversibility and risk. Resolve product or architecture ambiguity before editing.
 5. Implement the smallest complete slice. Preserve unrelated user changes and avoid speculative compatibility layers.
-6. Verify with the repository's native gates and a proof channel matched to the changed behavior.
+6. Verify with the repository's native gates and a proof channel matched to the changed behavior. When the change introduces or alters a project rule or resource boundary, update its native assertion and required mapping; use `$repo-verify` to check completeness.
 7. Report the outcome first, then evidence, strongest proven state, and residual risk.
 
 ## Honest stop conditions
