@@ -106,8 +106,19 @@ clean committed project checkout. Use an isolated checkout when unrelated work
 is dirty; preserve that work instead of committing or discarding it for the gate.
 
 CI checks out the project and the accepted Tugling revision into **sibling**
-directories, or uses an explicitly ignored source directory. An untracked nested
-checkout makes the project dirty and is refused. Select the intended project revision explicitly in CI and assert `git rev-parse
+directories outside one another, with native commands running from the project
+directory. Git ignore does not exclude a nested source checkout from test
+discovery, formatting, or packaging. Keep the helper's fixtures outside the
+project tree.
+
+Use that exact CI layout for the fresh-checkout proof. Check native discovery
+against the accepted case inventory and resolve tools, configuration, and
+lockfiles from the project directory. Then execute the actual required command
+and environment used by CI. A passing local run in a different layout does not
+prove this wiring; use the CI layout for the one complete run rather than
+duplicating the suite.
+
+Select the intended project revision explicitly in CI and assert `git rev-parse
 HEAD` against that expected identity before execution. A pull-request checkout
 may default to a synthetic merge commit: use the PR head when claiming head
 verification, or label merge-commit evidence as such. Preserve useful existing
