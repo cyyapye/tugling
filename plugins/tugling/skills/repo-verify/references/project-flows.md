@@ -78,8 +78,11 @@ Do not add unused categories or fictitious limits just to fill a template.
 The helper rejects invalid declarations and missing/untracked/symlinked sources.
 It cannot determine whether a rule was omitted or a native assertion actually
 enforces its description. Review coverage and demonstrate a known defect makes
-the native assertion fail through the required entry point. Required empty or
-skipped suites must fail in the native runner. Existing maps may omit
+the native assertion fail through the required entry point. Required empty, omitted, filtered, or
+skipped cases must fail in the native runner. Validate individual case membership
+and outcomes where ordinary discovery can silently lose tests; counts or files
+alone are insufficient. See [native enforcement](../../tugling/references/project-enforcement.md)
+for runner integrity, source-launcher trust, and explicit CI revision proof. Existing maps may omit
 `requirements` for compatibility; that is not required enforcement, and
 `--run-required` refuses an absent or empty declaration.
 

@@ -32,9 +32,21 @@ the project contract; do not silently omit an accepted rule to obtain a pass.
 Demonstrate that a relevant known defect fails through the required entry point
 in an isolated synthetic checkout, then restore the good implementation and
 show it passes. Include a focused-pass/full-required-fail case when distinct
-checks exist. Configure the native runner to fail when required tests are
-missing or skipped; the helper can observe a process exit, not infer assertions
-from its name. Keep test changes reviewable and preserve required local artifacts.
+checks exist. Configure native completion to account for the reviewed required test set, not
+just whichever cases discovery still finds. Where omission can exit successfully,
+compare stable individual case identities and outcomes against a committed,
+reviewed inventory; include runner variants and explicit existing exclusions.
+File presence and a total count cannot detect deleting or replacing one case in
+a nonempty file. Inventory refresh is a separate maintainer action, never part
+of required execution. This proves membership, not assertion quality: inspect
+changed assertions as well.
+
+Keep focused iteration available, but reject selection and reporter overrides at
+the required entry point. Filters, skip/only markers, environment variables, and
+runner arguments must not narrow required execution or replace its accounting.
+Exercise the real native runner with a removed case, a skipped case, and a filter
+that would otherwise return success. Preserve established platform exclusions
+explicitly instead of adding retries or silently accepting missing coverage.
 
 For a configuration-only request, add only the authorized adapter/configuration
 and report missing assertions or integration as incomplete enforcement. A
@@ -62,27 +74,34 @@ required helper → an existing self-contained canonical command, with the helpe
 outside that command. Do not wire both directions or run the same suite twice.
 The inherited execution guard rejects recursive native helper calls.
 
-For example, when `make verify` owns the required gate:
+Use a project-owned launcher before executing a helper from a supplied source
+checkout. Verify the supplied directory is the actual Git root, its revision is
+the reviewed pin, and its tracked contents are clean. Reject symlinked helpers,
+index skip/assume flags, and helper bytes that differ from that commit's Git blob.
+An ignored nested directory can inherit a parent's clean Git identity while
+containing an untracked replacement helper. Validation inside that replacement
+runs too late; source validation must precede its execution. Reuse an existing
+launcher that establishes this boundary rather than adding a second wrapper.
 
-```make
-.PHONY: verify verify-required
-verify: verify-required
+When `make verify` owns the required gate, route it through that launcher to
+`--run-required` and map independent native leaf commands. When the required
+helper wraps an already self-contained `make verify`, keep the launcher outside
+that canonical command.
 
-verify-required:
-	@test -n "$(TUGLING_SOURCE)" || { echo "Set TUGLING_SOURCE to the reviewed checkout" >&2; exit 1; }
-	python3 "$(TUGLING_SOURCE)/plugins/tugling/scripts/project_contract.py" \
-	  --repo . --source-root "$(TUGLING_SOURCE)" --source-mode pinned --run-required
-```
-
-Merge this dependency into the existing target. Map its independent native
-commands, never `make verify` itself in this arrangement. For local iteration,
+Merge with the existing build targets; preserve one execution direction. For local iteration,
 run the leaf commands while editing; required execution binds evidence to a
 clean committed project checkout. Use an isolated checkout when unrelated work
 is dirty; preserve that work instead of committing or discarding it for the gate.
 
 CI checks out the project and the accepted Tugling revision into **sibling**
 directories, or uses an explicitly ignored source directory. An untracked nested
-checkout makes the project dirty and is refused. Run the same canonical command
+checkout makes the project dirty and is refused. Select the intended project revision explicitly in CI and assert `git rev-parse
+HEAD` against that expected identity before execution. A pull-request checkout
+may default to a synthetic merge commit: use the PR head when claiming head
+verification, or label merge-commit evidence as such. Preserve useful existing
+merge checks without presenting them as proof for different source bytes.
+
+Run the same canonical command
 with the reviewed source path, so a missing declaration or failed check exits
 nonzero. Execute the required gate in each CI job; do not reuse an old local
 receipt as evidence that this job ran. Required checks must not be optional,
@@ -105,6 +124,9 @@ Before calling setup complete:
 3. Confirm `.tugling/local/` is ignored and untracked even when correction learning is off. Use the project's bounded artifact cleanup policy for retained evidence.
 4. Confirm the dogfood case is synthetic and contains no project secrets or private records.
 5. If pushed, wait for the exact project revision's native and Tugling CI checks.
+6. For a setup change intended to prevent recurrence, validate first-time setup
+   from untouched source before testing a repeat no-op. A clean repeat on a
+   manually corrected setup does not prove the first setup was complete.
 
 Report the Tugling version and revision, adapter paths, learning mode, rule-to-test
 coverage, local/remote/merge enforcement evidence, and unresolved boundaries.
