@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "tugling-first-enforcement-setup",
+      "fixture": "quota-service",
+      "expected_state": "LOCAL_PASS",
+      "prompt": "Set up this existing offline project for Tugling with its accepted rules enforced by native checks and the ordinary CI gate. Use the reviewed candidate source provided for this isolated task. Preserve product behavior, existing assertions, and focused local iteration. Complete the adapter, required coverage, native and CI integration, and local verification. Keep evidence local and explain the exact source and strongest proven outcome. This authorizes local implementation and commits in this disposable project; publishing, hosted settings changes, paid certification, and release promotion are outside scope."
+    },
+    {
+      "id": "tugling-enforcement-assessment-only",
+      "fixture": "quota-service",
+      "expected_state": "ADVISORY",
+      "max_changed_files": 0,
+      "prompt": "Assess what this existing offline project needs for Tugling setup and native enforcement of its accepted rules. Recommend the work and evidence needed, but do not implement, create files, run setup, or change external configuration."
+    }
+  ]
+}
