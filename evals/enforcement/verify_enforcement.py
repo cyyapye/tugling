@@ -474,13 +474,44 @@ def expand_github(value, context, env):
         values = []
         for part in parts:
             if part.startswith("env."):
-                supported(part[4:] in env, f"unresolved workflow environment: {part}")
-                values.append(env[part[4:]])
+                supported(re.fullmatch(r"env\.[A-Za-z_][A-Za-z0-9_-]*", part),
+                          f"unsupported workflow expression: {part}")
+                # GitHub evaluates a missing property as an empty string. A
+                # missing pin handoff must not be replaced with the expected pin.
+                values.append(env.get(part[4:], ""))
             else:
                 supported(part in context, f"unsupported workflow expression: {part}")
                 values.append(context[part])
         return next((item for item in values if item), "")
     return re.sub(r"\$\{\{(.*?)\}\}", substitute, value)
+
+
+def workflow_environment(layer, context, inherited):
+    supported(isinstance(layer, dict) and all(isinstance(value, str) for value in layer.values()),
+              "unsupported workflow environment mapping")
+    supported(not any(key.startswith(("GITHUB_", "RUNNER_")) for key in layer),
+              "unsupported override of runner-provided environment")
+    # Entries in one env mapping do not become available to sibling entries.
+    return {**inherited, **{key: expand_github(value, context, inherited) for key, value in layer.items()}}
+
+
+def github_environment_file(path):
+    """Read the bounded single-line file-command grammar after a real step."""
+    supported(not path.is_symlink() and path.is_file() and path.stat().st_size <= 64 * 1024,
+              "unsupported GITHUB_ENV file")
+    updates = {}
+    rows = path.read_text().splitlines()
+    supported(len(rows) <= 256, "GITHUB_ENV exceeds the supported entry budget")
+    for row in rows:
+        if not row:
+            continue
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)=(.*)", row)
+        supported(match is not None, "unsupported GITHUB_ENV command (only single-line assignments are modeled)")
+        key, value = match.groups()
+        supported(not key.startswith(("GITHUB_", "RUNNER_")) and key != "NODE_OPTIONS",
+                  "unsupported GITHUB_ENV reserved-variable update")
+        updates[key] = value
+    return updates
 
 
 def clone_source(source, target):
@@ -584,92 +615,131 @@ def check_ci(hook, root, source):
     require(isinstance(ref, str) and ref.strip(), "CI project checkout has no explicit revision")
     for selected in (assertion, gate):
         require(isinstance(selected.get("run"), str) and selected["run"].strip(), "CI selected step needs executable run content")
-        supported(selected.get("shell", "bash") in {"bash", "sh", "bash --noprofile --norc -e -o pipefail {0}"},
-                  "unsupported CI execution shell")
-    with tempfile.TemporaryDirectory(prefix="tugling-enforcement-ci-") as directory:
-        workspace = Path(directory).resolve() / "workspace"
-        project = checkout_path(workspace, checkout.get("with", {}).get("path", "."))
-        project.parent.mkdir(parents=True, exist_ok=True)
-        copy_source(root, project)
-        supported("source_checkout_step" in config, "reviewer must bind CI's actual pinned source checkout")
-        source_step = steps[config["source_checkout_step"]]
-        require(source_step.get("uses", "").startswith("actions/checkout@") and
-                config["source_checkout_step"] < config["gate_step"],
-                "source checkout hook must precede CI execution")
-        supported(source_step["_job"]["id"] == checkout["_job"]["id"], "unsupported CI source checkout across jobs")
-        unconditional(source_step, "CI source checkout")
-        source_with = source_step.get("with", {})
-        adapter = json.loads((project / hook.get("config", ".tugling/project.json")).read_text())
-        repository = adapter["tugling"]["repository"].removeprefix("https://github.com/").rstrip("/").removesuffix(".git")
-        require(source_with.get("repository", "").lower() == repository.lower(),
-                "CI source checkout repository differs from the accepted adapter source")
-        require(source_with.get("ref") == git(source, "rev-parse", "HEAD"),
-                "CI source checkout must select the reviewed candidate revision")
-        ci_source = checkout_path(workspace, source_with.get("path", "."))
-        supported(ci_source != project and not ci_source.exists(), "overlapping CI checkout paths")
-        clone_source(source, ci_source)
-        head = git(project, "rev-parse", "HEAD")
-        other = "f" * 40 if head != "f" * 40 else "e" * 40
+    supported("source_checkout_step" in config, "reviewer must bind CI's actual pinned source checkout")
+    source_step = steps[config["source_checkout_step"]]
+    require(source_step.get("uses", "").startswith("actions/checkout@") and
+            config["checkout_step"] != config["source_checkout_step"] < config["gate_step"],
+            "source checkout hook must precede CI execution")
+    supported(source_step["_job"]["id"] == checkout["_job"]["id"], "unsupported CI source checkout across jobs")
+    source_with = source_step.get("with", {})
+    adapter = json.loads((root / hook.get("config", ".tugling/project.json")).read_text())
+    repository = adapter["tugling"]["repository"].removeprefix("https://github.com/").rstrip("/").removesuffix(".git")
+    revision = git(source, "rev-parse", "HEAD")
+    require(adapter["tugling"]["revision"] == revision, "adapter differs from the reviewed source revision")
+    selected_steps = [(index, step) for index, step in enumerate(steps[:config["gate_step"] + 1])
+                      if step["_job"]["id"] == checkout["_job"]["id"]]
+    supported(len(selected_steps) <= 32, "CI job exceeds the supported step budget")
+    declared_python_versions = []
+    required_indices = {config[key] for key in ("checkout_step", "source_checkout_step", "identity_step", "gate_step")}
+    for index, step in selected_steps:
+        if index in required_indices:
+            unconditional(step, "CI selected step")
+        else:
+            # Optional preparation steps can legitimately be conditional. Until
+            # their branches are modeled, do not call that a failed required gate.
+            supported(not {"if", "continue-on-error"}.intersection(step),
+                      "unsupported CI preparation condition or failure policy")
+        if index in {config["checkout_step"], config["source_checkout_step"]}:
+            continue
+        if "run" in step:
+            supported(step.get("shell", "bash") in {"bash", "sh", "bash --noprofile --norc -e -o pipefail {0}"},
+                      "unsupported CI execution shell")
+        else:
+            # Runtime provisioning is declared, never downloaded or represented
+            # as host/runtime parity by this offline command diagnostic.
+            inputs = step.get("with", {})
+            supported(step.get("uses", "").startswith("actions/setup-python@") and
+                      set(inputs) == {"python-version"} and
+                      re.fullmatch(r"3\.\d+(?:\.\d+)?", inputs["python-version"]),
+                      "unsupported CI action or runtime provisioning inputs")
+            declared_python_versions.append(inputs["python-version"])
 
-        def context_for(event, expected):
+    def control(event, *, matches=True, defect=False):
+        # No environment file, source checkout or receipt survives into another
+        # control. Each observed pin must be produced by this job's real steps.
+        with tempfile.TemporaryDirectory(prefix="tugling-enforcement-ci-") as directory:
+            owned = Path(directory).resolve()
+            workspace = owned / "workspace"
+            project = checkout_path(workspace, checkout.get("with", {}).get("path", "."))
+            project.parent.mkdir(parents=True, exist_ok=True)
+            copy_source(root, project)
+            if defect:
+                product = project / "quota_sync.py"
+                product.write_text(product.read_text().replace("POLL_SECONDS = 30", "POLL_SECONDS = 1"))
+                commit(project)
+            head = git(project, "rev-parse", "HEAD")
+            other = "f" * 40 if head != "f" * 40 else "e" * 40
+            expected = head if matches else other
             context = {"github.event.pull_request.head.sha": "", "github.sha": expected,
                        "github.workspace": str(workspace)}
             if event == "pull_request":
                 context["github.event.pull_request.head.sha"] = expected if pr_revision == "head" else other
                 context["github.sha"] = expected if pr_revision == "merge" else other
-            return context
+            job = checkout["_job"]
+            variables = workflow_environment(job["workflow_env"], context, {})
+            variables = workflow_environment(job["env"], context, variables)
+            ci_source = None
+            project_checked_out = False
+            for index, step in selected_steps:
+                env = workflow_environment(step.get("env", {}), context, variables)
+                if index == config["checkout_step"]:
+                    require(expand_github(ref, context, env) == expected,
+                            f"CI checkout does not select the intended {event} revision")
+                    project_checked_out = True
+                elif index == config["source_checkout_step"]:
+                    require(expand_github(source_with.get("repository", ""), context, env).lower() == repository.lower(),
+                            "CI source checkout repository differs from the accepted adapter source")
+                    require(expand_github(source_with.get("ref", ""), context, env) == revision,
+                            "CI source checkout must select the reviewed candidate revision")
+                    ci_source = checkout_path(workspace, source_with.get("path", "."))
+                    supported(ci_source != project and not ci_source.exists(), "overlapping CI checkout paths")
+                    clone_source(source, ci_source)
+                elif "run" in step:
+                    supported(project_checked_out, "unsupported shell execution before project checkout")
+                    working = expand_github(step.get("working-directory", "."), context, env)
+                    cwd = (workspace / working).resolve()
+                    supported(cwd == project, "CI execution directory does not resolve to the selected project checkout")
+                    env_file = owned / f"environment-{index}"
+                    env_file.touch()
+                    runtime = {"CI": "true", **env, "GITHUB_SHA": context["github.sha"], "GITHUB_EVENT_NAME": event,
+                               "GITHUB_WORKSPACE": str(workspace), "GITHUB_ENV": str(env_file)}
+                    shell = step.get("shell")
+                    shell_argv = (["sh", "-e"] if shell == "sh" else
+                                  ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail"] if shell else
+                                  ["bash", "-e"])
+                    prior = set((project / ".tugling/local/verification").glob("*.json"))
+                    result = command(cwd, shell_argv + ["-c", expand_github(step["run"], context, env)],
+                                     extra=runtime, success=False)
+                    require(not result["forced_cleanup"], "CI command left a running owned child after exit")
+                    if index == config["identity_step"] and not (defect and index == config["gate_step"]):
+                        require((result["returncode"] == 0) == matches,
+                                f"CI identity assertion failed its {event} {'matching' if matches else 'mismatched'} revision control: "
+                                + result["output"][-1500:])
+                        if not matches:
+                            return
+                    if index == config["gate_step"]:
+                        require(ci_source is not None, "CI gate ran before its reviewed source checkout")
+                        if defect:
+                            require(result["returncode"] != 0,
+                                    f"CI required gate swallowed a real native failure for {event}")
+                        else:
+                            require(result["returncode"] == 0, "CI required gate failed: " + result["output"][-1500:])
+                            require_receipt(hook, project, ci_source, exclude=prior)
+                        return
+                    require(result["returncode"] == 0, "CI preparation step failed: " + result["output"][-1500:])
+                    variables.update(github_environment_file(env_file))
+            raise Inconclusive("CI control did not reach its bound identity or gate")
 
-        def execute(selected, event, context):
-            env = {"CI": "true", "GITHUB_SHA": context["github.sha"], "GITHUB_EVENT_NAME": event,
-                   "GITHUB_WORKSPACE": str(workspace)}
-            job = selected["_job"]
-            for layer in (job["workflow_env"], job["env"], selected.get("env", {})):
-                for key, value in layer.items():
-                    env[key] = expand_github(value, context, env)
-            working = expand_github(selected.get("working-directory", "."), context, env)
-            cwd = (workspace / working).resolve()
-            supported(cwd == project, "CI execution directory does not resolve to the selected project checkout")
-            shell = selected.get("shell")
-            shell_argv = (["sh", "-e"] if shell == "sh" else
-                          ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail"] if shell else
-                          ["bash", "-e"])
-            result = command(cwd, shell_argv + ["-c", expand_github(selected["run"], context, env)],
-                             extra=env, success=False)
-            require(not result["forced_cleanup"], "CI command left a running owned child after exit")
-            return result
-
-        for event in ("pull_request", "push"):
-            for matches in (True, False):
-                expected = head if matches else other
-                context = context_for(event, expected)
-                require(expand_github(ref, context, {}) == expected,
-                        f"CI checkout does not select the intended {event} revision")
-                prior = set((project / ".tugling/local/verification").glob("*.json"))
-                result = execute(assertion, event, context)
-                require((result["returncode"] == 0) == matches,
-                        f"CI identity assertion failed its {event} {'matching' if matches else 'mismatched'} revision control: "
-                        + result["output"][-1500:])
-                if matches:
-                    if config["gate_step"] != config["identity_step"]:
-                        result = execute(gate, event, context)
-                    require(result["returncode"] == 0, "CI required gate failed: " + result["output"][-1500:])
-                    require_receipt(hook, project, ci_source, exclude=prior)
-        # A receipt alone cannot show that the CI command propagates native
-        # failure (for example, `make verify || true`). Exercise its real path.
-        product = project / "quota_sync.py"
-        product.write_text(product.read_text().replace("POLL_SECONDS = 30", "POLL_SECONDS = 1"))
-        commit(project)
-        for event in ("pull_request", "push"):
-            context = context_for(event, git(project, "rev-parse", "HEAD"))
-            if config["gate_step"] != config["identity_step"]:
-                require(execute(assertion, event, context)["returncode"] == 0,
-                        "CI identity assertion rejected the committed defect control")
-            require(execute(gate, event, context)["returncode"] != 0,
-                    f"CI required gate swallowed a real native failure for {event}")
+    for event in ("pull_request", "push"):
+        control(event)
+        control(event, matches=False)
+        control(event, defect=True)
     return {"workflow": config["workflow"], "local_identity_controls": 4,
             "fresh_required_receipts": 2, "native_failure_propagated": True,
             "native_failure_events": ["pull_request", "push"],
-            "pull_request_identity": pr_revision, "hosted_ci_executed": False}
+            "pull_request_identity": pr_revision, "hosted_ci_executed": False,
+            "host_python_version": sys.version.split()[0], "declared_python_versions": declared_python_versions,
+            "runtime_provisioned": False}
 
 
 @cancellation_scope()

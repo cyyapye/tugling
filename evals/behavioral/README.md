@@ -23,6 +23,10 @@ from the common project-source inspection and decision checks. If a grading
 defect is found, preserve the original runs and label corrected regrades; do not
 count an impossible control requirement as behavioral lift.
 
+The ignored-support-file case accepts both `git status` and the equivalent
+`git --no-optional-locks status` inspection. Adding this shared spelling fixes
+command matching; corrected regrades carry no skill-improvement claim.
+
 ## CI-safe checks
 
 Ordinary PR and push CI never calls a model. An optional, separately enabled

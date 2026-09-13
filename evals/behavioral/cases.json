@@ -417,7 +417,8 @@
           "make verify"
         ],
         [
-          "git status"
+          "git status",
+          "git --no-optional-locks status"
         ],
     [
       "git check-ignore",

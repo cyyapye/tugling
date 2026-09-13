@@ -75,9 +75,18 @@ propagate a committed native defect for both push and pull requests. Disabled or
 missing automatic push/PR triggers, and effective write permissions are rejected.
 The small stdlib reader supports ordinary job/step mappings, inherited workflow
 and job environments (including trailing job fields), step environments, run blocks,
-the declared bash/sh shell conventions, and
-`github.event.pull_request.head.sha || github.sha` expressions. It executes
-that code for matching and mismatched pull-request and push revisions. Unsupported
+the declared bash/sh shell conventions, `env.NAME`, and
+`github.event.pull_request.head.sha || github.sha` expressions. Checkout repository
+and ref values may be literal or resolved from the actual workflow environment.
+Shell steps run in their job order through the bound gate. Each gets a fresh
+`GITHUB_ENV` file; single-line `NAME=value` assignments become available only to
+later steps. Step-local environment entries do not leak into later steps, and
+same-mapping entries are evaluated against the inherited environment. No expected
+source pin is injected: its observed value must match both the adapter and the
+reviewed source. Each identity/defect control uses a fresh disposable workspace.
+The reader bounds a job to 32 steps and an environment file to 64 KiB/256 lines;
+multiline file commands and reserved-variable updates are inconclusive.
+It executes that code for matching and mismatched pull-request and push revisions. Unsupported
 workflow filters, matrix/dependency topology, syntax, or a missing runner returns `ORACLE_INCONCLUSIVE` (exit 2), not
 evidence the setup failed. An observed failed criterion returns `ORACLE_FAIL`
 (exit 1). Adapt an unsupported binding only after independent review, without
@@ -126,6 +135,21 @@ assertions can strengthen a test without changing its required identity.
 The CI command proof supports ordinary Ubuntu runner labels. Windows, macOS,
 custom runners, and other unmodeled execution platforms are inconclusive; this
 diagnostic does not emulate their operating systems or shell defaults.
+Plain `actions/setup-python` declarations with a numeric Python 3 version are
+recognized as runtime provisioning declarations. They are not executed. Results
+record the declared Python versions, the oracle host's Python version, and
+`runtime_provisioned: false`; local command proof does not establish runner or
+interpreter parity. Other actions or provisioning inputs are inconclusive.
+
+The ordered environment support is an explicit **post-run supported-grammar
+correction**. Independent review of a completed setup found that the earlier
+reader compared checkout pins as literal YAML and did not execute the
+`GITHUB_ENV` handoff. Both environment expressions and later-step file-command
+values are supported by [GitHub's environment command contract](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable).
+The correction does not relax the identity, exact source pin, real gate, fresh
+receipt, or both-event failure-propagation criteria. Preserve the frozen reader,
+its original results, and raw model output; label regrading under this expanded
+grammar separately. A reader limitation must not be reported as a product defect.
 
 The adjacent-module import and Git replacement controls were added after
 independent adopter probes demonstrated execution of substituted code despite

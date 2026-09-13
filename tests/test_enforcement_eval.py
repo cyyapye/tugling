@@ -99,6 +99,57 @@ jobs:
         run: make verify
 '''
 
+DYNAMIC_WORKFLOW = '''name: Native
+on: [push, pull_request]
+permissions:
+  contents: read
+env:
+  REVIEWED_SOURCE: unset-at-workflow-scope
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      REVIEWED_SOURCE: ${{ github.workspace }}/tugling
+      SOURCE_REVISION: not-pinned-yet
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_REVISION }}
+          path: project
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify identity and read the project pin
+        working-directory: project
+        env:
+          IDENTITY_ONLY: present
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+          python3 -I - <<'PY'
+          import json, os
+          from pathlib import Path
+          pin = json.loads(Path('.tugling/project.json').read_text())['tugling']
+          revision = pin['revision']
+          repository = pin['repository'].removeprefix('https://github.com/')
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write(f'SOURCE_REVISION={revision}\\nSOURCE_REPOSITORY={repository}\\n')
+          assert os.environ['SOURCE_REVISION'] == 'not-pinned-yet'
+          assert os.environ['IDENTITY_ONLY'] == 'present'
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.SOURCE_REVISION }}
+          path: tugling
+      - name: Required native gate
+        working-directory: project
+        run: |
+          test "${IDENTITY_ONLY-unset}" = unset
+          make verify
+'''
+
 
 class EnforcementEvalTest(unittest.TestCase):
     def setUp(self):
@@ -382,6 +433,76 @@ class EnforcementEvalTest(unittest.TestCase):
         oracle.commit(self.project)
         self.assertEqual(oracle.check_ci(self.hook, self.project, self.source)["native_failure_events"],
                          ["pull_request", "push"])
+
+    def dynamic_ci(self):
+        self.complete()
+        self.hook['ci'].update(source_checkout_step=3, identity_step=2, gate_step=4)
+        path = self.project / '.github/workflows/verify.yml'
+        path.write_text(DYNAMIC_WORKFLOW)
+        oracle.commit(self.project)
+        return path
+
+    def test_ci_dynamic_pin_uses_actual_ordered_environment_handoff(self):
+        self.dynamic_ci()
+        result = oracle.check_ci(self.hook, self.project, self.source)
+        self.assertEqual(result['local_identity_controls'], 4)
+        self.assertEqual(result['fresh_required_receipts'], 2)
+        self.assertEqual(result['native_failure_events'], ['pull_request', 'push'])
+        self.assertFalse(result['runtime_provisioned'])
+        self.assertEqual(result['declared_python_versions'], ['3.11'])
+        self.assertEqual(result['host_python_version'], sys.version.split()[0])
+
+    def test_ci_dynamic_pin_rejects_missing_wrong_and_later_overridden_values(self):
+        path = self.dynamic_ci()
+        variants = (
+            (DYNAMIC_WORKFLOW.replace("revision = pin['revision']", "revision = 'e' * 40"),
+             'reviewed candidate revision'),
+            (DYNAMIC_WORKFLOW.replace("repository = pin['repository'].removeprefix('https://github.com/')",
+                                      "repository = 'example/unrelated'"), 'repository differs'),
+            (DYNAMIC_WORKFLOW.replace("with open(os.environ['GITHUB_ENV'], 'a') as stream:",
+                                      "with open(os.devnull, 'w') as stream:"), 'repository differs'),
+            (DYNAMIC_WORKFLOW.replace('SOURCE_REVISION={revision}\\nSOURCE_REPOSITORY={repository}\\n',
+                                      'SOURCE_REPOSITORY={repository}\\n'), 'reviewed candidate revision'),
+            (DYNAMIC_WORKFLOW.replace('          ref: ${{ env.SOURCE_REVISION }}',
+                                      '          ref: ${{ env.EXPECTED_REVISION }}'), 'reviewed candidate revision'),
+        )
+        for workflow, reason in variants:
+            with self.subTest(reason=reason):
+                path.write_text(workflow)
+                oracle.commit(self.project)
+                with self.assertRaisesRegex(AssertionError, reason):
+                    oracle.check_ci(self.hook, self.project, self.source)
+        # An intervening real command must replace the earlier handoff value.
+        workflow = DYNAMIC_WORKFLOW.replace(
+            '      - uses: actions/checkout@v4\n        with:\n          repository:',
+            "      - name: Later pin override\n        working-directory: project\n"
+            "        run: echo SOURCE_REVISION=not-the-pin >> \"$GITHUB_ENV\"\n"
+            '      - uses: actions/checkout@v4\n        with:\n          repository:')
+        self.hook['ci'].update(source_checkout_step=4, gate_step=5)
+        path.write_text(workflow)
+        oracle.commit(self.project)
+        with self.assertRaisesRegex(AssertionError, 'reviewed candidate revision'):
+            oracle.check_ci(self.hook, self.project, self.source)
+
+    def test_ci_dynamic_pin_unsupported_handoffs_are_inconclusive(self):
+        path = self.dynamic_ci()
+        variants = (
+            (DYNAMIC_WORKFLOW.replace('${{ env.SOURCE_REVISION }}', '${{ steps.pin.outputs.revision }}'),
+             'unsupported workflow expression'),
+            (DYNAMIC_WORKFLOW.replace('SOURCE_REVISION={revision}\\nSOURCE_REPOSITORY={repository}\\n',
+                                      'SOURCE_REVISION<<PIN\\n{revision}\\nPIN\\n'), 'GITHUB_ENV'),
+            (DYNAMIC_WORKFLOW.replace('actions/setup-python@v5', 'example/unmodeled-action@v1'),
+             'unsupported CI action'),
+            (DYNAMIC_WORKFLOW.replace('      - uses: actions/setup-python@v5',
+                                      '      - uses: actions/setup-python@v5\n        if: false'),
+             'preparation condition'),
+        )
+        for workflow, reason in variants:
+            with self.subTest(reason=reason):
+                path.write_text(workflow)
+                oracle.commit(self.project)
+                with self.assertRaisesRegex(oracle.Inconclusive, reason):
+                    oracle.check_ci(self.hook, self.project, self.source)
 
     def assert_stopped(self, pid):
         for _ in range(100):
