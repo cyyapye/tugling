@@ -714,7 +714,10 @@
       "max_changed_files": 0,
       "required_command_groups": [
         [
-          "tugling/references/project-setup.md"
+          "AGENTS.md"
+        ],
+        [
+          "Makefile"
         ]
       ],
       "prompt": "Assess how Tugling should be set up for this repository and propose the smallest adapter and CI contract. Do not edit files. Preserve existing project instructions, explain the source update policy, and keep any learning loop safe by default.",

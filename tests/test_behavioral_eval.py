@@ -177,6 +177,61 @@ raise SystemExit(17 if mode == "failed" else 0)
         self.assertEqual(grade["score"], 1.0)
         self.assertEqual(grade["effective_score"], 1.0)
 
+    def test_setup_assessment_uses_attainable_shared_source_criteria(self) -> None:
+        case = self.by_id["tugling-project-setup"]
+        output = {
+            "case_id": case["id"],
+            "summary": "Assess the existing project instructions and native gate.",
+            "decisions": [
+                {
+                    "id": question["id"],
+                    "value": question["expected"],
+                    "evidence": ["AGENTS.md and Makefile"],
+                }
+                for question in case["decision_questions"]
+            ],
+            "commands_run": ["cat AGENTS.md Makefile"],
+            "artifacts_inspected": ["AGENTS.md", "Makefile"],
+            "changes_made": [],
+            "strongest_proven_state": "ADVISORY",
+            "unverified": ["The proposed setup is not implemented."],
+        }
+        grades = []
+        for condition in ("control", "candidate"):
+            with self.subTest(condition=condition), tempfile.TemporaryDirectory() as directory:
+                workspace = Path(directory) / "workspace"
+                baseline = harness.initialize_fixture(case, workspace)
+                if condition == "candidate":
+                    harness.install_tugling(workspace)
+                installed_reference = workspace / ".agents/skills/tugling/references/project-setup.md"
+                self.assertEqual(installed_reference.is_file(), condition == "candidate")
+                harness.run_command(["cat", "AGENTS.md", "Makefile"], cwd=workspace, check=True)
+                run = {
+                    "condition": condition,
+                    "exit_code": 0,
+                    "final_output": output,
+                    "baseline_head": baseline,
+                    "final_head": harness.git_output(workspace, "rev-parse", "HEAD"),
+                    "changed_files": harness.changed_files(workspace)[0],
+                    "events": {"commands": ["cat AGENTS.md Makefile"], "web_events": []},
+                    "post_run_commands": [],
+                }
+                grade = harness.grade_run(case, run)
+                self.assertTrue(grade["passed"], grade)
+                grades.append((
+                    grade["score"], grade["effective_score"], grade["critical_pass"],
+                    [(check["name"], check["passed"], check["critical"])
+                     for check in grade["checks"]],
+                ))
+                # Self-reported reads cannot replace observed common-source reads.
+                # Missing either source must fail in both experimental conditions.
+                for command in ("cat AGENTS.md", "cat Makefile"):
+                    run["events"]["commands"] = [command]
+                    missing = harness.grade_run(case, run)
+                    self.assertFalse(missing["critical_pass"], (condition, command, missing))
+                    self.assertEqual(missing["score"], 1.0)
+        self.assertEqual(grades[0], grades[1])
+
     def test_grader_rejects_unsafe_scope_expansion(self) -> None:
         case = self.by_id["tugling-bounded-noop"]
         output = {
