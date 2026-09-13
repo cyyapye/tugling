@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -371,6 +372,78 @@ class EnforcementEvalTest(unittest.TestCase):
         result = oracle.check_ci(self.hook, self.project, self.source)
         self.assertEqual(result["pull_request_identity"], "merge")
         self.assertEqual(result["local_identity_controls"], 4)
+
+    def test_ci_declines_unmodeled_runtime_before_executing_controls(self):
+        self.complete()
+        path = self.project / ".github/workflows/verify.yml"
+        variants = (
+            ("    container: alpine:3.20\n", "job runtime or policy"),
+            ("    container:\n      image: alpine:3.20\n", "job runtime or policy"),
+            ("    services:\n      database:\n        image: postgres:17\n", "job runtime or policy"),
+            ("    environment: protected\n", "job runtime or policy"),
+            ("    timeout-minutes: ${{ matrix.limit }}\n", "declared timeout"),
+            ('    "container": alpine:3.20\n', "job mapping"),
+            ("    runs-on: ubuntu-latest\n", "duplicate workflow job field"),
+        )
+        for field, reason in variants:
+            # GitHub permits job fields before or after the steps mapping.
+            for workflow in (self.workflow.replace("    steps:\n", field + "    steps:\n"),
+                             self.workflow + field):
+                with self.subTest(field=field, trailing=workflow.endswith(field)):
+                    path.write_text(workflow)
+                    oracle.commit(self.project)
+                    before = oracle.tree_snapshot(self.project)
+                    with self.assertRaisesRegex(oracle.Inconclusive, reason):
+                        oracle.check_ci(self.hook, self.project, self.source)
+                    self.assertEqual(oracle.tree_snapshot(self.project), before)
+
+    def test_ci_declines_unmodeled_step_and_checkout_semantics(self):
+        self.complete()
+        path = self.project / ".github/workflows/verify.yml"
+        variants = (
+            (self.workflow.replace("        run: make verify", "        timeout-minutes: 0\n        run: make verify"),
+             "declared timeout"),
+            (self.workflow.replace("        run: make verify", "        with:\n          unknown: value\n        run: make verify"),
+             "step runtime or policy"),
+        )
+        for field in ("sparse-checkout: only-a-subset", "submodules: true", "lfs: true", "clean: false",
+                      "repository: example/unrelated-project"):
+            workflow = self.workflow.replace("          path: project\n", f"          path: project\n          {field}\n")
+            variants += ((workflow, "checkout materialization inputs"),)
+        variants += ((self.workflow.replace("          path: tugling\n", "          path: tugling\n          sparse-checkout: plugins\n"),
+                      "checkout materialization inputs"),)
+        for workflow, reason in variants:
+            with self.subTest(workflow=workflow):
+                path.write_text(workflow)
+                oracle.commit(self.project)
+                before = oracle.tree_snapshot(self.project)
+                with self.assertRaisesRegex(oracle.Inconclusive, reason):
+                    oracle.check_ci(self.hook, self.project, self.source)
+                self.assertEqual(oracle.tree_snapshot(self.project), before)
+
+    def test_ci_preserves_declared_deadlines_and_stops_expired_commands(self):
+        self.complete()
+        workflow = self.workflow.replace("    steps:\n", "    timeout-minutes: 5\n    steps:\n")
+        workflow = workflow.replace("        run: make verify", "        timeout-minutes: 1\n        run: make verify")
+        (self.project / ".github/workflows/verify.yml").write_text(workflow)
+        oracle.commit(self.project)
+        actual = oracle.command
+        deadlines = []
+        def observed(*args, **kwargs):
+            if kwargs.get("extra", {}).get("GITHUB_EVENT_NAME"):
+                deadlines.append(kwargs.get("expires_at"))
+            return actual(*args, **kwargs)
+        with mock.patch.object(oracle, "command", side_effect=observed):
+            self.assertEqual(oracle.check_ci(self.hook, self.project, self.source)["fresh_required_receipts"], 2)
+        self.assertTrue(deadlines and all(value is not None for value in deadlines))
+        marker = self.project / "never-started"
+        with self.assertRaisesRegex(oracle.Inconclusive, "timeout expired before execution"):
+            actual(self.project, [sys.executable, "-c", "from pathlib import Path; Path('never-started').touch()"],
+                   expires_at=time.monotonic() - 1)
+        self.assertFalse(marker.exists())
+        with self.assertRaisesRegex(oracle.Inconclusive, "bounded execution: timeout"):
+            actual(self.project, [sys.executable, "-c", "import time; time.sleep(10)"],
+                   expires_at=time.monotonic() + 0.1)
 
     def test_ci_sibling_checkouts_execute_combined_identity_and_real_gate(self):
         self.complete()

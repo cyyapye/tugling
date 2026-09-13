@@ -133,8 +133,16 @@ independent semantic review and return `ORACLE_INCONCLUSIVE`, since additional
 assertions can strengthen a test without changing its required identity.
 
 The CI command proof supports ordinary Ubuntu runner labels. Windows, macOS,
-custom runners, and other unmodeled execution platforms are inconclusive; this
-diagnostic does not emulate their operating systems or shell defaults.
+custom runners, job containers and services are inconclusive; this diagnostic
+does not emulate their operating systems, dependencies or shell defaults.
+Unmodeled job/step policies, including protected environments, are also
+inconclusive before any control runs. Numeric job and step timeouts bound local
+shell execution in addition to the oracle's own command limit; a job deadline is
+shared across its steps. Unmodeled timeout expressions are inconclusive. Checkout inputs that
+alter materialization, such as sparse checkout, submodules and LFS, require
+separate evidence. The supported checkout inputs are the reviewed ref/path,
+source repository and credential-persistence declaration. Unsupported or
+duplicate job fields cannot silently fall back to the oracle host.
 Plain `actions/setup-python` declarations with a numeric Python 3 version are
 recognized as runtime provisioning declarations. They are not executed. Results
 record the declared Python versions, the oracle host's Python version, and
