@@ -28,8 +28,8 @@ instruction and explain the remaining boundary.
 
 ## Load only what changes the work
 
-- For project setup or adoption, read [project setup](references/project-setup.md).
-  It distinguishes assessment, adoption, and bootstrap, including their completion criteria.
+- For project setup, adoption, or native rule enforcement, read [project setup](references/project-setup.md).
+  It distinguishes assessment, adoption, bootstrap, and enforcement, including their completion criteria.
 - For a material design tradeoff, consult the relevant [principles](references/principles.md).
 - For an explicit repeatable correction in a project with local learning enabled,
   read [the learning loop](references/learning-loop.md).

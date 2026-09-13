@@ -12,9 +12,10 @@ Prefer these project-owned files:
 ```text
 .tugling/project.json       Machine-readable source, commands, and learning mode
 .tugling/dogfood.json       One synthetic external-project behavioral case
+.tugling/verification.json  Accepted rules mapped to required native checks
 AGENTS.md                   A short Tugling project adapter section
 .github/workflows/...       A deterministic pinned-source compatibility check
-.gitignore                  The local correction ledger path
+.gitignore                  Ignored local receipts and correction ledger
 ```
 
 Do not copy generic Tugling skills into the project. Do not duplicate all existing instructions inside `AGENTS.md`; link to the authoritative files and add only the routing facts Tugling needs.
@@ -53,7 +54,7 @@ The dogfood file must declare `data_policy` as `synthetic-only` and contain one 
 CI should check out the project, check out Tugling at the configured full revision into an isolated subdirectory, and run:
 
 ```text
-python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
+python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> \
   --source-root <tugling-checkout> \
   --source-mode pinned
@@ -61,18 +62,19 @@ python3 <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
 
 The project's native CI remains responsible for its build and test gates. The Tugling check verifies the adapter, source pin, dogfood case, instruction paths, and local-learning privacy boundary without calling a model or using the network.
 
-When setup includes real user-flow verification, use the optional
-[native flow map](../../repo-verify/references/project-flows.md). Map existing
-tests and their native launch, health, and cleanup lifecycle; keep ordinary
-adapter CI on validation only. This is optional and does not replace the
-canonical verification command or require enabling local learning.
+For full adoption, read [native enforcement](project-enforcement.md). Reuse or
+add native assertions for accepted rules, declare the required map, and wire one
+complete canonical/CI execution path. A configuration-only request may stop at
+adapter validation and report the remaining enforcement work. Do not silently
+replace an accepted release pin with an unreleased candidate; use an isolated
+pilot when candidate setup was authorized.
 
 Run live model dogfood upstream or as an explicit maintainer action, not on every adopter pull request. The external case can be passed to `scripts/behavioral_eval.py project` from a clean local checkout.
 
 ## Verify adoption
 
 1. Run the project-contract check from the exact Tugling source named in the adapter.
-2. Run the repository's canonical local gate unless the user requested configuration-only work and the repository contract permits a narrower proof. Repair in-scope failures and rerun affected checks within existing authorization.
+2. For full adoption, complete the native enforcement reference, including required receipts and known-defect failure proof. Run the repository's canonical local gate unless the user requested configuration-only work and the repository contract permits a narrower proof. Repair in-scope failures and rerun affected checks within existing authorization.
 3. Confirm the correction ledger path is ignored and untracked.
 4. Confirm the dogfood case is synthetic and contains no project secrets or private records.
 5. If pushed, wait for the exact project revision's native and Tugling CI checks.

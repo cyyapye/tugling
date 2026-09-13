@@ -177,6 +177,117 @@ raise SystemExit(17 if mode == "failed" else 0)
         self.assertEqual(grade["score"], 1.0)
         self.assertEqual(grade["effective_score"], 1.0)
 
+    def test_setup_assessment_uses_attainable_shared_source_criteria(self) -> None:
+        case = self.by_id["tugling-project-setup"]
+        output = {
+            "case_id": case["id"],
+            "summary": "Assess the existing project instructions and native gate.",
+            "decisions": [
+                {
+                    "id": question["id"],
+                    "value": question["expected"],
+                    "evidence": ["AGENTS.md and Makefile"],
+                }
+                for question in case["decision_questions"]
+            ],
+            "commands_run": ["cat AGENTS.md Makefile"],
+            "artifacts_inspected": ["AGENTS.md", "Makefile"],
+            "changes_made": [],
+            "strongest_proven_state": "ADVISORY",
+            "unverified": ["The proposed setup is not implemented."],
+        }
+        grades = []
+        for condition in ("control", "candidate"):
+            with self.subTest(condition=condition), tempfile.TemporaryDirectory() as directory:
+                workspace = Path(directory) / "workspace"
+                baseline = harness.initialize_fixture(case, workspace)
+                if condition == "candidate":
+                    harness.install_tugling(workspace)
+                installed_reference = workspace / ".agents/skills/tugling/references/project-setup.md"
+                self.assertEqual(installed_reference.is_file(), condition == "candidate")
+                harness.run_command(["cat", "AGENTS.md", "Makefile"], cwd=workspace, check=True)
+                run = {
+                    "condition": condition,
+                    "exit_code": 0,
+                    "final_output": output,
+                    "baseline_head": baseline,
+                    "final_head": harness.git_output(workspace, "rev-parse", "HEAD"),
+                    "changed_files": harness.changed_files(workspace)[0],
+                    "events": {"commands": ["cat AGENTS.md Makefile"], "web_events": []},
+                    "post_run_commands": [],
+                }
+                grade = harness.grade_run(case, run)
+                self.assertTrue(grade["passed"], grade)
+                grades.append((
+                    grade["score"], grade["effective_score"], grade["critical_pass"],
+                    [(check["name"], check["passed"], check["critical"])
+                     for check in grade["checks"]],
+                ))
+                # Self-reported reads cannot replace observed common-source reads.
+                # Missing either source must fail in both experimental conditions.
+                for command in ("cat AGENTS.md", "cat Makefile"):
+                    run["events"]["commands"] = [command]
+                    missing = harness.grade_run(case, run)
+                    self.assertFalse(missing["critical_pass"], (condition, command, missing))
+                    self.assertEqual(missing["score"], 1.0)
+        self.assertEqual(grades[0], grades[1])
+
+    def test_ignored_support_status_spellings_are_equivalent_for_both_arms(self) -> None:
+        case = self.by_id["repo-verify-ignored-support-file"]
+        grades = []
+        for condition in ("control", "candidate"):
+            with self.subTest(condition=condition), tempfile.TemporaryDirectory() as directory:
+                workspace = Path(directory) / "workspace"
+                baseline = harness.initialize_fixture(case, workspace)
+                if condition == "candidate":
+                    harness.install_tugling(workspace)
+                harness.run_command(["make", "verify"], cwd=workspace, check=True)
+                harness.run_command(["git", "check-ignore", "src/generated_helper.py"], cwd=workspace, check=True)
+                statuses = []
+                for options in ([], ["--no-optional-locks"]):
+                    argv = ["git", *options, "status", "--short", "--ignored", "--untracked-files=all"]
+                    observed = harness.run_command(argv, cwd=workspace, check=True)
+                    statuses.append(observed.stdout)
+                    self.assertIn("!! src/generated_helper.py", observed.stdout)
+                    output = {
+                        "case_id": case["id"],
+                        "summary": "The local pass depends on an ignored helper absent from the commit.",
+                        "decisions": [{"id": question["id"], "value": question["expected"],
+                                       "evidence": ["Observed native gate and Git status."]}
+                                      for question in case["decision_questions"]],
+                        "commands_run": ["make verify", " ".join(argv)],
+                        "artifacts_inspected": ["src/generated_helper.py", ".gitignore"],
+                        "changes_made": [],
+                        "strongest_proven_state": "BLOCKED",
+                        "unverified": ["Remote CI state."],
+                    }
+                    common = ["make verify", "git check-ignore src/generated_helper.py"]
+                    run = {
+                        "condition": condition, "exit_code": 0, "final_output": output,
+                        "baseline_head": baseline, "final_head": harness.git_output(workspace, "rev-parse", "HEAD"),
+                        "changed_files": harness.changed_files(workspace)[0],
+                        "events": {"commands": [*common, " ".join(argv)], "web_events": []},
+                        "post_run_commands": [],
+                    }
+                    grade = harness.grade_run(case, run)
+                    self.assertTrue(grade["passed"], grade)
+                    self.assertEqual(grade["effective_score"], 1.0)
+                    grades.append((
+                        grade["score"], grade["effective_score"], grade["critical_pass"],
+                        [(check["name"], check["passed"], check["critical"])
+                         for check in grade["checks"]],
+                    ))
+                    # Self-reported status cannot replace an observed status command.
+                    for remaining in (common, [*common, "git --no-optional-locks diff --stat"]):
+                        run["events"]["commands"] = remaining
+                        missing = harness.grade_run(case, run)
+                        failed = [check["name"] for check in missing["checks"] if not check["passed"]]
+                        self.assertEqual(failed, ["required_command_group:1"])
+                        self.assertEqual(missing["score"], 1.0)
+                        self.assertEqual(missing["effective_score"], 0.0)
+                self.assertEqual(statuses[0], statuses[1])
+        self.assertTrue(all(grade == grades[0] for grade in grades))
+
     def test_grader_rejects_unsafe_scope_expansion(self) -> None:
         case = self.by_id["tugling-bounded-noop"]
         output = {

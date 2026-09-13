@@ -243,5 +243,33 @@
     "kind": "positive",
     "should_trigger": true,
     "prompt": "Shorten this reusable skill's description and remove unnecessary approval pauses while preserving its trigger boundaries and testing real behavior on Astra."
+  },
+  {
+    "id": "tugling-positive-enforce-native-rules",
+    "skill": "tugling",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Set up Tugling in this existing project so its accepted workflow, shared UI, resource, and cleanup rules are enforced by native checks in our canonical command and CI."
+  },
+  {
+    "id": "tugling-holdout-configuration-only",
+    "skill": "tugling",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "Configure Tugling's adapter only. Leave product code, native tests, and hosted settings alone, and identify any remaining gaps in enforcement."
+  },
+  {
+    "id": "tugling-negative-enforcement-explanation",
+    "skill": "tugling",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Explain whether the existing native checks use ordinary code or a model judge. Do not inspect or change the repository."
+  },
+  {
+    "id": "verify-holdout-partial-required-proof",
+    "skill": "repo-verify",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "A selected UI flow passed, but the map also declares an API-call budget and artifact cleanup as required. Check whether this commit has complete readiness evidence."
   }
 ]

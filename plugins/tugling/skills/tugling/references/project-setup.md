@@ -12,7 +12,11 @@ invariants, and add only the missing setup requested by the user.
   native workflow and prove it from fresh intended source.
 - **Adoption:** to connect an existing repository to Tugling, read
   [project-adoption.md](project-adoption.md). Implement its small adapter and
-  pinned compatibility check when setup was requested.
+  pinned compatibility check when setup was requested. Full adoption includes
+  native enforcement; a configuration-only request keeps that narrower scope.
+- **Enforcement:** to enforce accepted project rules, read
+  [project-enforcement.md](project-enforcement.md). Add native assertions, a
+  required map, and canonical/CI execution with demonstrated failure proof.
 
 Combine these modes only when the request calls for them. Bootstrap alone does
 not require a Tugling source pin, dogfood case, or adoption CI. Adoption alone
