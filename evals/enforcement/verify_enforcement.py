@@ -120,12 +120,15 @@ def stop_group(process):
 
 
 @cancellation_scope()
-def command(root, argv, *, extra=None, success=True):
+def command(root, argv, *, extra=None, success=True, expires_at=None):
     """Bound output and terminate only this command's owned process group."""
+    supported(expires_at is None or time.monotonic() < expires_at, "CI declared timeout expired before execution")
     with tempfile.TemporaryFile() as output:
         process = subprocess.Popen(argv, cwd=root, env=environment(extra),
                                    stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
         deadline = time.monotonic() + TIMEOUT_SECONDS
+        if expires_at is not None:
+            deadline = min(deadline, expires_at)
         stopped = None
         try:
             while process.poll() is None:
@@ -315,8 +318,10 @@ def scalar(value):
 def environment_block(lines, indent):
     result = {}
     for index, line in enumerate(lines):
-        if line != " " * indent + "env:":
+        declaration = re.match(r"^" + " " * indent + r"env:\s*(.*)$", line)
+        if declaration is None:
             continue
+        supported(not declaration[1], "unsupported inline workflow environment")
         for row in lines[index + 1:]:
             if not row.strip() or row.lstrip().startswith("#"):
                 continue
@@ -325,6 +330,7 @@ def environment_block(lines, indent):
                 break
             item = re.match(r"^\s*([\w-]+):\s*(.+)$", row)
             supported(depth == indent + 2 and item is not None, "unsupported inherited workflow environment")
+            supported(item[1] not in result, "unsupported duplicate workflow environment variable")
             result[item[1]] = scalar(item[2])
     return result
 
@@ -343,8 +349,14 @@ def job_context(lines, step_start):
               "unsupported workflow steps mapping")
     stop = next((index for index, _name in headers if index > start), jobs_end)
     rows = lines[start + 1:stop]
-    fields = {match[1]: scalar(match[2]) for row in rows
-              if (match := re.match(r"^    ([\w-]+):\s*(.*)$", row))}
+    fields = {}
+    for row in rows:
+        if not row.strip() or row.lstrip().startswith("#") or len(row) - len(row.lstrip()) != 4:
+            continue
+        match = re.match(r"^    ([\w-]+):\s*(.*)$", row)
+        supported(match is not None, "unsupported workflow job mapping")
+        supported(match[1] not in fields, "unsupported duplicate workflow job field")
+        fields[match[1]] = scalar(match[2])
     supported("defaults" not in fields and not any(row.startswith("defaults:") for row in lines),
               "unsupported workflow run defaults")
     return {"id": name, "fields": fields, "rows": rows, "env": environment_block(rows, 4),
@@ -367,6 +379,17 @@ def nested_mapping(lines, index, indent):
 
 def workflow_policy(text, job):
     lines = text.splitlines()
+    fields = {}
+    for row in lines:
+        if not row.strip() or row.startswith((" ", "#")):
+            continue
+        match = re.match(r"^(on|'on'|\"on\"|[\w-]+):\s*(.*)$", row)
+        supported(match is not None, "unsupported workflow top-level mapping")
+        key = scalar(match[1])
+        supported(key not in fields, "unsupported duplicate workflow field")
+        fields[key] = scalar(match[2])
+    supported(set(fields) <= {"name", "run-name", "on", "permissions", "env", "jobs"},
+              "unsupported workflow policy or defaults")
     events = [(index, match[1]) for index, row in enumerate(lines)
               if (match := re.match(r"^(?:on|['\"]on['\"]):\s*(.*)$", row))]
     require(len(events) == 1, "CI has no unique automatic event declaration")
@@ -413,6 +436,15 @@ def unconditional(scope, label):
         supported(condition in {"false", "${{ false }}"}, f"unsupported {label} failure policy")
 
 
+def timeout_seconds(scope):
+    if "timeout-minutes" not in scope:
+        return None
+    value = scope["timeout-minutes"]
+    supported(isinstance(value, str) and re.fullmatch(r"[1-9]\d*", value) is not None
+              and int(value) <= 360, "unsupported CI declared timeout")
+    return int(value) * 60
+
+
 def workflow_steps(text):
     """Parse the simple step mappings used by this offline fixture.
 
@@ -445,6 +477,7 @@ def workflow_steps(text):
             supported(match is not None and len(match[1]) == indent + 2,
                       "unsupported workflow step layout")
             key, value = match.group(2), match.group(3)
+            supported(key not in step, "unsupported duplicate workflow step field")
             index += 1
             nested = []
             while index < len(segment) and (not segment[index].strip() or
@@ -461,7 +494,9 @@ def workflow_steps(text):
                     if not row.strip() or row.lstrip().startswith("#"):
                         continue
                     item = re.match(r"^\s*([\w-]+):\s*(.+)$", row)
-                    supported(item is not None, "unsupported workflow mapping")
+                    supported(item is not None and len(row) - len(row.lstrip()) == indent + 4,
+                              "unsupported workflow mapping")
+                    supported(item[1] not in mapping, "unsupported duplicate workflow mapping field")
                     mapping[item[1]] = scalar(item[2])
                 step[key] = mapping
             else:
@@ -615,6 +650,12 @@ def check_ci(hook, root, source):
         unconditional(selected, "CI selected step")
     supported(not {"needs", "strategy"}.intersection(checkout["_job"]["fields"]),
               "unsupported CI dependency or matrix topology")
+    # Never substitute the oracle host for an unmodeled job runtime or policy.
+    # In particular, containers change both installed tools and shell defaults.
+    supported(set(checkout["_job"]["fields"]) <= {
+        "name", "runs-on", "steps", "env", "permissions", "if", "continue-on-error", "timeout-minutes",
+    }, "unsupported CI job runtime or policy")
+    job_timeout = timeout_seconds(checkout["_job"]["fields"])
     supported(re.fullmatch(r"ubuntu-(?:latest|\d{2}\.\d{2})", checkout["_job"]["fields"].get("runs-on", "")),
               "CI proof requires a supported Linux runner")
     ref = checkout.get("with", {}).get("ref")
@@ -638,6 +679,10 @@ def check_ci(hook, root, source):
     declared_python_versions = []
     required_indices = {config[key] for key in ("checkout_step", "source_checkout_step", "identity_step", "gate_step")}
     for index, step in selected_steps:
+        common = {"_job", "name", "id", "env", "if", "continue-on-error", "timeout-minutes"}
+        specific = {"run", "working-directory", "shell"} if "run" in step else {"uses", "with"}
+        supported(set(step) <= common | specific, "unsupported CI step runtime or policy")
+        timeout_seconds(step)
         if index in required_indices:
             unconditional(step, "CI selected step")
         else:
@@ -646,6 +691,11 @@ def check_ci(hook, root, source):
             supported(not {"if", "continue-on-error"}.intersection(step),
                       "unsupported CI preparation condition or failure policy")
         if index in {config["checkout_step"], config["source_checkout_step"]}:
+            inputs = step.get("with", {})
+            allowed = {"ref", "path", "persist-credentials"}
+            if index == config["source_checkout_step"]:
+                allowed.add("repository")
+            supported(set(inputs) <= allowed, "unsupported CI checkout materialization inputs")
             continue
         if "run" in step:
             supported(step.get("shell", "bash") in {"bash", "sh", "bash --noprofile --norc -e -o pipefail {0}"},
@@ -664,6 +714,7 @@ def check_ci(hook, root, source):
         # No environment file, source checkout or receipt survives into another
         # control. Each observed pin must be produced by this job's real steps.
         with tempfile.TemporaryDirectory(prefix="tugling-enforcement-ci-") as directory:
+            job_deadline = time.monotonic() + job_timeout if job_timeout else None
             owned = Path(directory).resolve()
             workspace = owned / "workspace"
             project = checkout_path(workspace, checkout.get("with", {}).get("path", "."))
@@ -687,6 +738,12 @@ def check_ci(hook, root, source):
             ci_source = None
             project_checked_out = False
             for index, step in selected_steps:
+                supported(job_deadline is None or time.monotonic() < job_deadline, "CI declared job timeout expired")
+                step_timeout = timeout_seconds(step)
+                deadlines = ([job_deadline] if job_deadline is not None else [])
+                if step_timeout:
+                    deadlines.append(time.monotonic() + step_timeout)
+                step_deadline = min(deadlines) if deadlines else None
                 env = workflow_environment(step.get("env", {}), context, variables)
                 if index == config["checkout_step"]:
                     require(expand_github(ref, context, env) == expected,
@@ -715,7 +772,7 @@ def check_ci(hook, root, source):
                                   ["bash", "-e"])
                     prior = receipt_paths(project)
                     result = command(cwd, shell_argv + ["-c", expand_github(step["run"], context, env)],
-                                     extra=runtime, success=False)
+                                     extra=runtime, success=False, expires_at=step_deadline)
                     require(not result["forced_cleanup"], "CI command left a running owned child after exit")
                     if index == config["identity_step"] and not (defect and index == config["gate_step"]):
                         require((result["returncode"] == 0) == matches,
