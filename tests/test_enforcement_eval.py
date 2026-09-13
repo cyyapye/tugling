@@ -445,6 +445,28 @@ class EnforcementEvalTest(unittest.TestCase):
             actual(self.project, [sys.executable, "-c", "import time; time.sleep(10)"],
                    expires_at=time.monotonic() + 0.1)
 
+    def test_ci_declines_ignored_or_ambiguous_environment_and_policy_syntax(self):
+        self.complete()
+        path = self.project / ".github/workflows/verify.yml"
+        variants = (
+            ("env: {MODE: fail}\n" + self.workflow, "inline workflow environment"),
+            (self.workflow.replace("    steps:\n", "    env: {MODE: fail}\n    steps:\n"), "inline workflow environment"),
+            ('"env":\n  MODE: fail\n' + self.workflow, "top-level mapping"),
+            ('"defaults":\n  run:\n    shell: sh\n' + self.workflow, "top-level mapping"),
+            ("concurrency: required\n" + self.workflow, "workflow policy"),
+            ("permissions: read-all\n" + self.workflow, "duplicate workflow field"),
+            ("env:\n  MODE: pass\n  MODE: fail\n" + self.workflow, "duplicate workflow environment"),
+            (self.workflow.replace("        run: make verify", "        run: false\n        run: make verify"), "duplicate workflow step field"),
+            (self.workflow.replace("          path: project\n", "          path: ignored\n          path: project\n"), "duplicate workflow mapping field"),
+        )
+        for workflow, reason in variants:
+            with self.subTest(reason=reason):
+                path.write_text(workflow)
+                oracle.commit(self.project)
+                with mock.patch.object(oracle, "copy_source", side_effect=AssertionError("unsupported workflow executed a control")):
+                    with self.assertRaisesRegex(oracle.Inconclusive, reason):
+                        oracle.check_ci(self.hook, self.project, self.source)
+
     def test_ci_sibling_checkouts_execute_combined_identity_and_real_gate(self):
         self.complete()
         path = self.project / ".github/workflows/verify.yml"

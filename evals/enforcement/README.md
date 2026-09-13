@@ -143,6 +143,10 @@ alter materialization, such as sparse checkout, submodules and LFS, require
 separate evidence. The supported checkout inputs are the reviewed ref/path,
 source repository and credential-persistence declaration. Unsupported or
 duplicate job fields cannot silently fall back to the oracle host.
+Workflow and job environments use unique block-mapping keys. Inline or quoted
+environment declarations, ambiguous duplicate fields, and unmodeled top-level
+policies are inconclusive rather than silently ignored. These grammar checks
+run before any CI control is executed.
 Plain `actions/setup-python` declarations with a numeric Python 3 version are
 recognized as runtime provisioning declarations. They are not executed. Results
 record the declared Python versions, the oracle host's Python version, and

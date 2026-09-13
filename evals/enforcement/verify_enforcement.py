@@ -318,8 +318,10 @@ def scalar(value):
 def environment_block(lines, indent):
     result = {}
     for index, line in enumerate(lines):
-        if line != " " * indent + "env:":
+        declaration = re.match(r"^" + " " * indent + r"env:\s*(.*)$", line)
+        if declaration is None:
             continue
+        supported(not declaration[1], "unsupported inline workflow environment")
         for row in lines[index + 1:]:
             if not row.strip() or row.lstrip().startswith("#"):
                 continue
@@ -328,6 +330,7 @@ def environment_block(lines, indent):
                 break
             item = re.match(r"^\s*([\w-]+):\s*(.+)$", row)
             supported(depth == indent + 2 and item is not None, "unsupported inherited workflow environment")
+            supported(item[1] not in result, "unsupported duplicate workflow environment variable")
             result[item[1]] = scalar(item[2])
     return result
 
@@ -376,6 +379,17 @@ def nested_mapping(lines, index, indent):
 
 def workflow_policy(text, job):
     lines = text.splitlines()
+    fields = {}
+    for row in lines:
+        if not row.strip() or row.startswith((" ", "#")):
+            continue
+        match = re.match(r"^(on|'on'|\"on\"|[\w-]+):\s*(.*)$", row)
+        supported(match is not None, "unsupported workflow top-level mapping")
+        key = scalar(match[1])
+        supported(key not in fields, "unsupported duplicate workflow field")
+        fields[key] = scalar(match[2])
+    supported(set(fields) <= {"name", "run-name", "on", "permissions", "env", "jobs"},
+              "unsupported workflow policy or defaults")
     events = [(index, match[1]) for index, row in enumerate(lines)
               if (match := re.match(r"^(?:on|['\"]on['\"]):\s*(.*)$", row))]
     require(len(events) == 1, "CI has no unique automatic event declaration")
@@ -463,6 +477,7 @@ def workflow_steps(text):
             supported(match is not None and len(match[1]) == indent + 2,
                       "unsupported workflow step layout")
             key, value = match.group(2), match.group(3)
+            supported(key not in step, "unsupported duplicate workflow step field")
             index += 1
             nested = []
             while index < len(segment) and (not segment[index].strip() or
@@ -479,7 +494,9 @@ def workflow_steps(text):
                     if not row.strip() or row.lstrip().startswith("#"):
                         continue
                     item = re.match(r"^\s*([\w-]+):\s*(.+)$", row)
-                    supported(item is not None, "unsupported workflow mapping")
+                    supported(item is not None and len(row) - len(row.lstrip()) == indent + 4,
+                              "unsupported workflow mapping")
+                    supported(item[1] not in mapping, "unsupported duplicate workflow mapping field")
                     mapping[item[1]] = scalar(item[2])
                 step[key] = mapping
             else:
