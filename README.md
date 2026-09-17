@@ -83,6 +83,11 @@ cleanup. The same helper validates the map without executing it. Explicit
 they reuse native tests and make no model calls. A selected-flow pass has narrower
 scope than the repository's canonical completion gate.
 
+The [software factory roadmap](docs/software-factory-roadmap.md) records the
+accepted direction for repeatable factory setup, the Keel reference pilot, and
+the proof required before packaging it for new projects. It describes planned
+capabilities; the setup workflows above describe what ships today.
+
 ## Learn locally, by choice
 
 Learning is off by default. A project may opt into `local` mode, where explicit reusable corrections can be summarized into an ignored, permission-restricted JSONL ledger. Tugling installs no capture hook, records no full transcript, sends no telemetry, and uploads nothing.
