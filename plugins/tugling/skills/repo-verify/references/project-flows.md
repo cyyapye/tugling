@@ -145,7 +145,8 @@ untracked `.tugling/local/verification/managed-v1/` directory. This storage is i
 of whether correction learning is enabled. It contains the project commit,
 config/map/helper digests, Tugling identity and checkout cleanliness, selected commands, exit results,
 cleanup outcome, timestamps, and whether the worktree stayed clean. It does not
-store command logs, environment variables, application data, or screenshots.
+store command logs, secret values, application data, or screenshots. Only the
+public execution context listed below is recorded, never an environment dump.
 Required receipts also contain the complete requirement-to-flow declaration.
 Native reports and screenshots remain in the project's existing artifact paths;
 inspect them when required by the project. Helper execution automatically bounds
@@ -181,8 +182,8 @@ complete ordered flow set, matching clean project/config/map/helper identity,
 and one successful matching result for every command. A selected receipt is
 insufficient even when it happens to name all flows. `REQUIRED_PASS` proves the
 declared native checks ran successfully; it cannot certify undeclared behavior,
-assertion quality, hosted CI, or release readiness. A receipt can remain valid
-on the same clean commit; checking it does not rerun tests or prove a new CI job.
+assertion quality, hosted CI, or release readiness. A receipt remains valid only within its retention age and matching execution
+context. Checking it does not rerun tests or prove a new CI job.
 
 `--run-native` invokes the canonical command; it is mutually exclusive with flow
 execution and receipt checking. That legacy command result alone is not a
@@ -209,3 +210,38 @@ checks, inspect required artifacts, and verify owned services are gone. Report
 the tested commit and selected/required scope separately from the canonical gate and
 remote status. Keep adopter source, raw logs, local paths, and private evidence
 out of the reusable plugin and its release certificate.
+
+## CI execution cost and receipt reuse
+
+Use one native execution owner for each revision and environment. Other jobs may
+validate its complete required receipt; do not bolt a second full enforcement
+suite onto an existing full CI suite. The helper rejects identical argv arrays
+under different selected flow IDs. It cannot detect overlapping wrapper commands
+or duplication across workflows: inspect the expanded native commands and CI DAG.
+Keep PR-head, merge-candidate and post-merge revisions distinct.
+
+Receipts bind the OS, architecture, Python version, and a digest of the optional
+`TUGLING_VERIFICATION_ENVIRONMENT` label. Set that non-secret label to the project's
+pinned runtime/toolchain or image identity in both producer and validator jobs.
+On GitHub Actions, receipts additionally bind repository, workflow ref, run ID,
+attempt and event SHA. Download the exact named artifact from that same run;
+never search for the latest successful artifact. A partial rerun with an older
+producer receipt fails: rerun the complete workflow. Copies across checkouts are
+supported when all identities match. Editable receipts remain evidence, not
+cryptographic attestations; native source review and artifact provenance remain
+required. Environment labels are declarations, not sandbox measurements.
+
+A project may set `project.verification_budget_seconds` to an integer from 1 to
+7200. Required execution measures total native command time, records a sorted
+`performance.slowest_flows` list, and fails if the complete run exceeds the budget.
+It does not omit checks, raise deadlines, or stop successful checks early to fit.
+Receipt validation recomputes the summary and rejects invalid timing, expired or
+future timestamps, environment changes, and another CI invocation. Projects
+without a budget still receive timings. Queue/setup time is separate and must be
+measured from the CI provider; this helper measures active native verification.
+
+Establish budgets from a recorded baseline and tighten them after measured
+improvements. Preserve native case membership, assertions, and first-pass results.
+Before adding concurrency, prove separate mutable databases, ports, temporary
+files and owned cleanup, and account for host CPU/memory capacity. Runner counts,
+capacity provisioning, sharding and project fixtures stay in the adopter repo.
