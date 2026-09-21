@@ -231,6 +231,13 @@ supported when all identities match. Editable receipts remain evidence, not
 cryptographic attestations; native source review and artifact provenance remain
 required. Environment labels are declarations, not sandbox measurements.
 
+Make receipt consumers cancellation-aware. On GitHub Actions, `if: ${{ !cancelled() }}`
+still runs after a failed producer; explicitly require the producer's successful
+result before validating evidence. An unconditional `always()` job can survive
+workflow cancellation, wait for a scarce runner, and hold the concurrency slot
+needed by its replacement. Keep bounded cleanup with the owning job, and verify
+superseded runs release their slot without executing another native suite.
+
 A project may set `project.verification_budget_seconds` to an integer from 1 to
 7200. Required execution measures total native command time, records a sorted
 `performance.slowest_flows` list, and fails if the complete run exceeds the budget.
