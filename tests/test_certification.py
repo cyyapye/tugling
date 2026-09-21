@@ -228,6 +228,9 @@ class CertificationGitTest(unittest.TestCase):
         self.git(self.repo, "branch", "stable")
         self.git(self.root, "clone", "--bare", str(self.repo), str(self.root / "remote.git"))
         self.remote = self.root / "remote.git"
+        # receive-pack has its own policy; the client's maintenance.auto=false
+        # cannot prevent its background GC from racing temporary cleanup.
+        self.git(self.remote, "config", "receive.autogc", "false")
         self.request = {**cert.authorize(approved_environment()), "controller_sha": self.baseline,
                         "candidate_sha": self.baseline, "baseline_sha": self.baseline}
 
@@ -277,6 +280,25 @@ class CertificationGitTest(unittest.TestCase):
         with self.assertRaisesRegex(cert.controller.ControllerError, "separately review"):
             self.prepare()
         self.assertFalse(marker.exists())
+
+    def test_disposable_remote_does_not_launch_gc_after_push(self):
+        # Keep the negative control synchronous; it must not create its own
+        # detached writer while demonstrating the receive-side boundary.
+        self.git(self.remote, "config", "gc.autoDetach", "false")
+        self.git(self.remote, "config", "maintenance.autoDetach", "false")
+        for name, enabled in (("fixture", None), ("negative-control", True)):
+            if enabled is not None:
+                self.git(self.remote, "config", "receive.autogc", str(enabled).lower())
+            self.git(self.repo, "commit", "--allow-empty", "--quiet", "-m", name)
+            trace = self.root / f"{name}-trace.jsonl"
+            env = {**cert.controller.git_env(), "GIT_TRACE2_EVENT": str(trace)}
+            with mock.patch.object(cert.controller, "git_env", return_value=env):
+                self.git(self.repo, "push", str(self.remote), "main")
+            events = [json.loads(line) for line in trace.read_text().splitlines()]
+            self.assertTrue(any(event.get("event") == "exit" for event in events))
+            maintenance = [event for event in events if event.get("event") == "child_start"
+                           and {"maintenance", "gc"} & set(event.get("argv", []))]
+            self.assertEqual(bool(maintenance), enabled is True)
 
     def test_stale_dispatch_and_symlink_are_rejected(self):
         old_candidate = self.request["candidate_sha"]
