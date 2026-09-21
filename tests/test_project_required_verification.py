@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import shlex
 import signal
 import subprocess
@@ -10,6 +11,8 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from datetime import datetime, timedelta, timezone
 
 import test_project_contract as fixtures
 import test_project_verification as lifecycle
@@ -141,6 +144,62 @@ class RequiredVerificationTest(unittest.TestCase):
         self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 0)
         # A receipt check does not run the test suite again.
         self.assertEqual(self.calls(), ["cleanup", "budget"])
+
+    def test_receipt_reuse_rejects_other_attempt_environment_and_expired_results(self):
+        invocation = {"GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": "synthetic/project",
+                      "GITHUB_WORKFLOW_REF": "synthetic/project/.github/workflows/ci.yml@refs/pull/1/merge",
+                      "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_SHA": "a" * 40,
+                      "TUGLING_VERIFICATION_ENVIRONMENT": "synthetic-runtime-v1"}
+        with patch.dict(os.environ, invocation):
+            _, verification = self.required()
+            self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 0)
+            for key in invocation:
+                with self.subTest(key=key), patch.dict(os.environ, {key: invocation[key] + "changed"}):
+                    self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 1)
+            path = self.root / verification["path"]
+            original = json.loads(path.read_text())
+            for seconds in (-8 * 86400, 3600):
+                date = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+                path.write_text(json.dumps({**original, "started_at": date, "finished_at": date}))
+                self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 1)
+        self.assertEqual(self.calls(), ["cleanup", "budget"])
+
+    def test_duplicate_leaf_commands_fail_before_execution(self):
+        self.mapping["flows"][1]["argv"] = self.mapping["flows"][0]["argv"]
+        self.save()
+        result = self.cli("--run-required")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("duplicate native commands", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_verification_budget_is_measured_without_omitting_checks(self):
+        self.config["project"]["verification_budget_seconds"] = 1
+        checks = self.root / "checks.py"
+        checks.write_text("import time\ntime.sleep(0.6)\n" + checks.read_text())
+        self.save()
+        result, verification = self.required()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.calls(), ["cleanup", "budget"])
+        self.assertFalse(verification["evidence"]["performance"]["within_budget"])
+        self.assertGreater(verification["evidence"]["performance"]["active_seconds"], 1)
+        self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 1)
+
+    def test_receipt_rejects_invalid_or_substituted_timing(self):
+        _, verification = self.required()
+        path = self.root / verification["path"]
+        original = json.loads(path.read_text())
+        for value in (True, -1, float("nan"), float("inf"), "1", 999):
+            candidate = copy.deepcopy(original)
+            candidate["results"][0]["duration_seconds"] = value
+            path.write_text(json.dumps(candidate))
+            self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 1)
+
+    def test_verification_budget_rejects_invalid_configuration(self):
+        for budget in (True, 0, 7201, "60"):
+            self.config["project"]["verification_budget_seconds"] = budget
+            self.save()
+            self.assertEqual(self.cli("--run-required").returncode, 1)
+        self.assertEqual(self.calls(), [])
 
     def test_actual_resource_defect_fails_required_gate_after_focused_pass(self):
         (self.root / "service.py").write_text(SERVICE.replace("POLL_SECONDS = 10", "POLL_SECONDS = 1"))

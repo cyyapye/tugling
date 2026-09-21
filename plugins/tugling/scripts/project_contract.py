@@ -7,7 +7,9 @@ import argparse
 import contextlib
 import hashlib
 import json
+import math
 import os
+import platform
 import re
 import signal
 import stat
@@ -452,14 +454,41 @@ def write_receipt(descriptor: int, evidence: dict[str, Any]) -> None:
         output.write(payload)
 
 
-def verification_identity(root: Path, config_path: Path, mapping: dict[str, Any]) -> dict[str, str]:
+def execution_context() -> dict[str, Any]:
+    """Public invocation identity, never a dump of the caller's environment."""
+    context = {"platform": sys.platform, "machine": platform.machine(),
+               "python": platform.python_version(), "environment_sha256": hashlib.sha256(
+                   os.environ.get("TUGLING_VERIFICATION_ENVIRONMENT", "").encode()).hexdigest()}
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        keys = ("GITHUB_REPOSITORY", "GITHUB_WORKFLOW_REF", "GITHUB_RUN_ID",
+                "GITHUB_RUN_ATTEMPT", "GITHUB_SHA")
+        if any(not os.environ.get(key) for key in keys):
+            raise ContractError("GitHub receipt context requires repository, workflow, run, attempt and SHA")
+        context["github"] = {key: os.environ[key] for key in keys}
+    return context
+
+
+def performance_summary(results: list[dict[str, Any]], budget: int | None) -> dict[str, Any]:
+    for result in results:
+        duration = result.get("duration_seconds")
+        if type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0:
+            raise ContractError("flow evidence requires finite nonnegative durations")
+    active = round(sum(result["duration_seconds"] for result in results), 3)
+    return {"active_seconds": active, "budget_seconds": budget,
+            "within_budget": budget is None or active <= budget,
+            "slowest_flows": [{"id": row["id"], "duration_seconds": row["duration_seconds"]}
+                              for row in sorted(results, key=lambda row: row["duration_seconds"], reverse=True)]}
+
+
+def verification_identity(root: Path, config_path: Path, mapping: dict[str, Any]) -> dict[str, Any]:
     if not config_path.is_relative_to(root):
         raise ContractError("flow execution requires a committed project config inside the repository")
     config_file, _ = committed_file(root, str(config_path.relative_to(root)), label="project config")
     return {"project_revision": clean_revision(root),
             "config_sha256": hashlib.sha256(config_file.read_bytes()).hexdigest(),
             "map_sha256": mapping["sha256"],
-            "helper_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+            "helper_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "execution_context": execution_context()}
 
 
 def execute_flows(
@@ -479,6 +508,9 @@ def execute_flows(
         raise ContractError("--run-flow requires distinct ids present in the verification map")
     if sum(by_id[flow_id]["timeout_seconds"] for flow_id in selected) > 7200:
         raise ContractError("selected flow timeout budget must not exceed 7200 seconds")
+    commands = [tuple(by_id[flow_id]["argv"]) for flow_id in selected]
+    if len(commands) != len(set(commands)):
+        raise ContractError("duplicate native commands: map shared requirements to one flow")
     identity = verification_identity(root, config_path, mapping)
     run_id = str(uuid.uuid4())
     relative = f"{RECEIPT_DIRECTORY}/{run_id}.json"
@@ -514,7 +546,9 @@ def execute_flows(
             evidence["worktree_unchanged"] = clean_revision(root) == identity["project_revision"]
         except ContractError:
             pass
+        evidence["performance"] = performance_summary(evidence["results"], report["verification_budget_seconds"] if required else None)
         if (len(evidence["results"]) == len(selected) and evidence["worktree_unchanged"]
+                and evidence["performance"]["within_budget"]
                 and all(result["failure"] is None for result in evidence["results"])):
             evidence["state"] = "REQUIRED_PASS" if required else "FLOWS_PASS"
     finally:
@@ -546,6 +580,15 @@ def check_flow_evidence(
     identity = verification_identity(root, config_path, mapping)
     if not isinstance(evidence, dict) or any(evidence.get(key) != value for key, value in identity.items()):
         raise ContractError("flow evidence is stale or belongs to a different project, map, or helper")
+    try:
+        started = datetime.fromisoformat(evidence["started_at"])
+        finished = datetime.fromisoformat(evidence["finished_at"])
+        now = datetime.now(timezone.utc)
+        if (not started.tzinfo or not finished.tzinfo or not started <= finished <= now
+                or (now - started).total_seconds() > report["receipt_retention"]["max_age_seconds"]):
+            raise ValueError("expired or invalid time")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ContractError("flow evidence timestamps are invalid, future or expired") from exc
     by_id = {flow["id"]: flow for flow in mapping["flows"]}
     selected = evidence.get("requested_flows")
     results = evidence.get("results")
@@ -569,6 +612,9 @@ def check_flow_evidence(
                 or "failure" not in result or result["failure"] is not None
                 or result.get("forced_cleanup") is not False):
             raise ContractError("flow evidence contains an unsuccessful or mismatched command")
+    performance = performance_summary(results, report["verification_budget_seconds"] if required else None)
+    if evidence.get("performance") != performance or not performance["within_budget"]:
+        raise ContractError("flow evidence timing summary differs or exceeds the verification budget")
     return {"state": success_state, "path": relative, "evidence": evidence}
 
 
@@ -749,7 +795,7 @@ def validate_project(
         config.get("project"),
         label="project adapter project",
         keys={"adapter", "instructions", "canonical_verify", "ci_workflow", "dogfood_case"},
-        optional={"verification", "receipt_retention"},
+        optional={"verification", "receipt_retention", "verification_budget_seconds"},
     )
     adapter_path, adapter_relative = relative_path(root, project.get("adapter"), label="project.adapter")
     if not adapter_path.is_file():
@@ -813,6 +859,9 @@ def validate_project(
 
     mapping = validate_verification_map(root, project["verification"]) if "verification" in project else None
     policy = receipt_retention(project.get("receipt_retention", DEFAULT_RECEIPT_RETENTION))
+    budget = project.get("verification_budget_seconds")
+    if budget is not None and (type(budget) is not int or not 1 <= budget <= 7200):
+        raise ContractError("verification_budget_seconds must be an integer from 1 to 7200")
     if sum(bool(value) for value in (run_native, run_flows, check_evidence,
                                     run_required, check_required_evidence, cleanup_evidence)) > 1:
         raise ContractError("choose one of native verification, selected flows, or an evidence check")
@@ -859,6 +908,7 @@ def validate_project(
         "verification": mapping,
         "flow_verification": None,
         "receipt_retention": policy,
+        "verification_budget_seconds": budget,
         "receipt_cleanup": None,
     }
     if run_required:
