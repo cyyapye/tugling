@@ -106,7 +106,7 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
     path, relative = committed_file(root, value, label="project.verification")
     mapping = require_object(
         read_json(path), label="verification map", keys={"schema_version", "flows"},
-        optional={"requirements"},
+        optional={"requirements", "execution"},
     )
     assert_no_embedded_secrets(mapping)
     if type(mapping["schema_version"]) is not int or mapping["schema_version"] != 1:
@@ -118,7 +118,7 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
     for flow in flows:
         require_object(flow, label="verification flow", keys={
             "id", "description", "argv", "timeout_seconds", "sources", "runtime",
-        })
+        }, optional={"depends_on"})
         flow_id = flow["id"]
         if (not isinstance(flow_id, str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", flow_id)
                 or flow_id in seen):
@@ -148,6 +148,48 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
             for key in ("launch", "health", "cleanup"):
                 if not isinstance(runtime[key], str) or not runtime[key].strip():
                     raise ContractError(f"flow {flow_id}: document native runtime {key}")
+    dependencies: dict[str, list[str]] = {}
+    commands: dict[tuple[str, ...], str] = {}
+    for flow in flows:
+        flow_id = flow["id"]
+        depends_on = flow.get("depends_on", [])
+        if (not isinstance(depends_on, list)
+                or not all(isinstance(dependency, str) and dependency in seen
+                           for dependency in depends_on)
+                or len(set(depends_on)) != len(depends_on)):
+            raise ContractError(f"flow {flow_id}: depends_on must name distinct existing flows")
+        if flow_id in depends_on:
+            raise ContractError(f"flow {flow_id}: cannot depend on itself")
+        dependencies[flow_id] = depends_on
+        command = tuple(flow["argv"])
+        if command in commands:
+            raise ContractError(
+                f"duplicate native commands: flows {commands[command]} and {flow_id}; "
+                "map shared requirements to one flow"
+            )
+        commands[command] = flow_id
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(flow_id: str) -> None:
+        if flow_id in visiting:
+            raise ContractError("verification flow dependencies must not contain cycles")
+        if flow_id in visited:
+            return
+        visiting.add(flow_id)
+        for dependency in dependencies[flow_id]:
+            visit(dependency)
+        visiting.remove(flow_id)
+        visited.add(flow_id)
+
+    for flow in flows:
+        visit(flow["id"])
+
+    execution = mapping.get("execution", {"max_parallel": 1})
+    require_object(execution, label="verification execution", keys={"max_parallel"})
+    if type(execution["max_parallel"]) is not int or not 1 <= execution["max_parallel"] <= 8:
+        raise ContractError("verification execution.max_parallel must be an integer from 1 to 8")
     requirements = mapping.get("requirements")
     if "requirements" in mapping:
         if not isinstance(requirements, list) or not 1 <= len(requirements) <= 64:
@@ -175,14 +217,22 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
                     or len(set(checks)) != len(checks)):
                 raise ContractError(f"requirement {rule_id}: map to distinct existing native flows")
     return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "flows": flows, "requirements": requirements}
+            "flows": flows, "requirements": requirements, "execution": execution}
 
 
 def required_flow_ids(mapping: dict[str, Any] | None) -> list[str]:
     if mapping is None or not mapping.get("requirements"):
         raise ContractError("required verification needs project.verification with non-empty requirements")
+    by_id = {flow["id"]: flow for flow in mapping["flows"]}
     required = {flow_id for rule in mapping["requirements"] for flow_id in rule["flows"]}
-    # Preserve the map's reviewed execution order and run shared checks once.
+    pending = list(required)
+    while pending:
+        flow_id = pending.pop()
+        for dependency in by_id[flow_id].get("depends_on", []):
+            if dependency not in required:
+                required.add(dependency)
+                pending.append(dependency)
+    # Preserve the map's reviewed execution order and run shared dependencies once.
     return [flow["id"] for flow in mapping["flows"] if flow["id"] in required]
 
 
@@ -213,66 +263,73 @@ def clean_revision(root: Path) -> str:
     return git_output(root, "rev-parse", "HEAD")
 
 
-def stop_process_group(process: subprocess.Popen[Any]) -> bool:
-    """Reap only the process group created for this command, including on timeout."""
+def process_group_exists(process: subprocess.Popen[Any]) -> bool:
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        os.killpg(process.pid, 0)
     except ProcessLookupError:
         return False
-    deadline = time.monotonic() + 3
-    while time.monotonic() < deadline:
-        process.poll()
-        try:
-            os.killpg(process.pid, 0)
-        except ProcessLookupError:
-            return True
-        except PermissionError:
-            # Darwin can briefly return EPERM while a signalled group is being
-            # reaped. Keep waiting within the same deadline; never infer success.
-            pass
-        time.sleep(0.05)
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    process.wait(timeout=5)
+    except PermissionError:
+        # Darwin can briefly return EPERM while a signalled group is being reaped.
+        return True
     return True
 
 
-def run_flow(root: Path, flow: dict[str, Any]) -> dict[str, Any]:
-    started = time.monotonic()
-    result: dict[str, Any] = {"id": flow["id"], "argv": flow["argv"], "exit_code": None,
-                              "failure": None, "forced_cleanup": False}
-    process = None
-    try:
-        # Stream native output to stderr: JSON stdout stays usable and no logs or secrets
-        # are copied into the evidence file. Native commands own service readiness/teardown.
-        process = subprocess.Popen(
-            flow["argv"], cwd=root, stdin=subprocess.DEVNULL, stdout=sys.stderr,
-            stderr=sys.stderr, start_new_session=True,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1",
-                 FLOW_EXECUTION_ENV: json.dumps(flow_execution_ancestry(root))},
-        )
-        result["exit_code"] = process.wait(timeout=flow["timeout_seconds"])
-        if result["exit_code"] != 0:
-            result["failure"] = "command-failed"
-    except subprocess.TimeoutExpired:
-        result["failure"] = "timeout"
-    except KeyboardInterrupt:
-        result["failure"] = "interrupted"
-    except OSError:
-        result["failure"] = "could-not-start"
-    finally:
-        if process is not None:
-            try:
-                result["forced_cleanup"] = stop_process_group(process)
-                if result["forced_cleanup"] and result["failure"] is None:
-                    result["failure"] = "native-cleanup-incomplete"
-            except (OSError, subprocess.TimeoutExpired):
-                result["forced_cleanup"] = True
-                result["failure"] = "cleanup-failed"
-        result["duration_seconds"] = round(time.monotonic() - started, 3)
-    return result
+def stop_process_groups(processes: Iterable[subprocess.Popen[Any]]) -> set[int]:
+    """Stop owned groups together, then reap every direct child within one grace period."""
+    owned = list(processes)
+    forced: set[int] = set()
+    remaining: dict[int, subprocess.Popen[Any]] = {}
+    for process in owned:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+        forced.add(process.pid)
+        remaining[process.pid] = process
+    deadline = time.monotonic() + 3
+    while remaining and time.monotonic() < deadline:
+        for pid, process in list(remaining.items()):
+            process.poll()
+            if not process_group_exists(process):
+                remaining.pop(pid)
+        if remaining:
+            time.sleep(0.05)
+    for process in remaining.values():
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    wait_error = None
+    for process in owned:
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired as exc:
+            wait_error = exc
+    if wait_error is not None:
+        raise wait_error
+    return forced
+
+
+def stop_process_group(process: subprocess.Popen[Any]) -> bool:
+    """Compatibility wrapper for one owned process group."""
+    return process.pid in stop_process_groups([process])
+
+
+def flow_result(
+    flow: dict[str, Any], *, run_started: float, started: float,
+    process: subprocess.Popen[Any] | None, failure: str | None, forced_cleanup: bool,
+) -> dict[str, Any]:
+    finished = time.monotonic()
+    started_offset = round(started - run_started, 3)
+    finished_offset = round(finished - run_started, 3)
+    if process is not None:
+        process.poll()
+    return {"id": flow["id"], "argv": flow["argv"],
+            "exit_code": process.returncode if process is not None else None,
+            "failure": failure, "forced_cleanup": forced_cleanup,
+            "started_offset_seconds": started_offset,
+            "finished_offset_seconds": finished_offset,
+            "duration_seconds": round(finished - started, 3)}
 
 
 def evidence_file(root: Path, value: str) -> Path:
@@ -304,6 +361,30 @@ def defer_receipt_interrupts():
         yield
     finally:
         signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+@contextlib.contextmanager
+def defer_launch_interrupts():
+    """Delay parent interruption until a newly spawned process is registered.
+
+    Replacing the parent handlers avoids a blocked signal mask inherited by the
+    child. POSIX resets caught handlers to their defaults when the child execs.
+    """
+    received: list[int] = []
+    previous = {signum: signal.getsignal(signum) for signum in (signal.SIGINT, signal.SIGTERM)}
+
+    def remember(signum: int, frame: Any) -> None:
+        received.append(signum)
+
+    for signum in previous:
+        signal.signal(signum, remember)
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    if received:
+        raise KeyboardInterrupt
 
 
 def receipt_entries(directory: int) -> list[str]:
@@ -470,14 +551,168 @@ def execution_context() -> dict[str, Any]:
 
 def performance_summary(results: list[dict[str, Any]], budget: int | None) -> dict[str, Any]:
     for result in results:
-        duration = result.get("duration_seconds")
-        if type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0:
-            raise ContractError("flow evidence requires finite nonnegative durations")
-    active = round(sum(result["duration_seconds"] for result in results), 3)
+        for key in ("duration_seconds", "started_offset_seconds", "finished_offset_seconds"):
+            value = result.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ContractError("flow evidence requires finite nonnegative timing values")
+        if result["finished_offset_seconds"] < result["started_offset_seconds"]:
+            raise ContractError("flow evidence finishes before it starts")
+        measured = round(result["finished_offset_seconds"] - result["started_offset_seconds"], 3)
+        if abs(measured - result["duration_seconds"]) > 0.002:
+            raise ContractError("flow evidence duration differs from its scheduler offsets")
+    active = round(max((result["finished_offset_seconds"] for result in results), default=0), 3)
     return {"active_seconds": active, "budget_seconds": budget,
             "within_budget": budget is None or active <= budget,
+            "total_flow_seconds": round(sum(result["duration_seconds"] for result in results), 3),
             "slowest_flows": [{"id": row["id"], "duration_seconds": row["duration_seconds"]}
                               for row in sorted(results, key=lambda row: row["duration_seconds"], reverse=True)]}
+
+
+def execution_plan(mapping: dict[str, Any], selected: list[str]) -> dict[str, Any]:
+    by_id = {flow["id"]: flow for flow in mapping["flows"]}
+    return {"max_parallel": mapping["execution"]["max_parallel"],
+            "flows": [{"id": flow_id, "depends_on": by_id[flow_id].get("depends_on", [])}
+                      for flow_id in selected]}
+
+
+def validate_execution_timing(results: list[dict[str, Any]], plan: dict[str, Any]) -> None:
+    planned = plan["flows"]
+    if [result.get("id") for result in results] != [flow["id"] for flow in planned]:
+        raise ContractError("flow evidence results differ from the exact execution plan")
+    by_id = {result["id"]: result for result in results}
+    for flow in planned:
+        started = by_id[flow["id"]]["started_offset_seconds"]
+        for dependency in flow["depends_on"]:
+            if dependency not in by_id or by_id[dependency]["finished_offset_seconds"] > started:
+                raise ContractError("flow evidence overlaps a declared dependency")
+    peak = 0
+    for result in results:
+        started = result["started_offset_seconds"]
+        peak = max(peak, sum(
+            other["started_offset_seconds"] <= started < other["finished_offset_seconds"]
+            for other in results
+        ))
+    if peak > plan["max_parallel"]:
+        raise ContractError("flow evidence exceeds its bounded parallel execution plan")
+
+
+def execute_flow_plan(
+    root: Path, mapping: dict[str, Any], selected: list[str], *, active_budget: int | None = None,
+) -> list[dict[str, Any]]:
+    """Run a reviewed dependency graph in the main thread with bounded owned groups."""
+    by_id = {flow["id"]: flow for flow in mapping["flows"]}
+    max_parallel = mapping["execution"]["max_parallel"]
+    run_started = time.monotonic()
+    pending = list(selected)
+    active: dict[str, tuple[dict[str, Any], subprocess.Popen[Any], float]] = {}
+    completed: dict[str, dict[str, Any]] = {}
+    failed = False
+
+    def cancel_active(reason: str, overrides: dict[str, str] | None = None) -> None:
+        nonlocal failed
+        failed = True
+        if not active:
+            return
+        with defer_receipt_interrupts():
+            cleanup_failed = False
+            try:
+                forced = stop_process_groups(process for _, process, _ in active.values())
+            except (OSError, subprocess.TimeoutExpired):
+                forced = {process.pid for _, process, _ in active.values()}
+                cleanup_failed = True
+            for flow_id, (flow, process, started) in list(active.items()):
+                completed[flow_id] = flow_result(
+                    flow, run_started=run_started, started=started, process=process,
+                    failure="cleanup-failed" if cleanup_failed else (overrides or {}).get(flow_id, reason),
+                    forced_cleanup=process.pid in forced,
+                )
+            active.clear()
+
+    try:
+        while pending or active:
+            if active_budget is not None and time.monotonic() - run_started >= active_budget:
+                if active:
+                    cancel_active("budget-exceeded")
+                elif pending:
+                    flow_id = pending.pop(0)
+                    started = time.monotonic()
+                    completed[flow_id] = flow_result(
+                        by_id[flow_id], run_started=run_started, started=started, process=None,
+                        failure="budget-exceeded", forced_cleanup=False,
+                    )
+                    failed = True
+                break
+            launched = False
+            while not failed and len(active) < max_parallel:
+                ready = next((flow_id for flow_id in pending
+                              if all(dependency in completed
+                                     and completed[dependency]["failure"] is None
+                                     for dependency in by_id[flow_id].get("depends_on", []))), None)
+                if ready is None:
+                    break
+                flow = by_id[ready]
+                started = time.monotonic()
+                try:
+                    # Defer parent interruption through registration without blocking
+                    # signals in the child process that owns graceful teardown.
+                    with defer_launch_interrupts():
+                        process = subprocess.Popen(
+                            flow["argv"], cwd=root, stdin=subprocess.DEVNULL,
+                            stdout=sys.stderr, stderr=sys.stderr, start_new_session=True,
+                            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1",
+                                 FLOW_EXECUTION_ENV: json.dumps(flow_execution_ancestry(root))},
+                        )
+                        active[ready] = (flow, process, started)
+                    pending.remove(ready)
+                    launched = True
+                except OSError:
+                    pending.remove(ready)
+                    completed[ready] = flow_result(
+                        flow, run_started=run_started, started=started, process=None,
+                        failure="could-not-start", forced_cleanup=False,
+                    )
+                    cancel_active("cancelled-after-failure")
+                    break
+            if failed:
+                break
+            if not active:
+                if pending:
+                    raise ContractError("verification flow scheduler could not make dependency progress")
+                break
+            if not launched:
+                time.sleep(0.02)
+
+            failure_found = False
+            cancellation_reasons: dict[str, str] = {}
+            now = time.monotonic()
+            for flow_id, (flow, process, started) in list(active.items()):
+                exit_code = process.poll()
+                if exit_code is None and now - started >= flow["timeout_seconds"]:
+                    cancellation_reasons[flow_id] = "timeout"
+                    continue
+                if exit_code is None:
+                    continue
+                failure = "command-failed" if exit_code != 0 else None
+                if process_group_exists(process):
+                    cancellation_reasons[flow_id] = failure or "native-cleanup-incomplete"
+                    continue
+                process.wait(timeout=5)
+                completed[flow_id] = flow_result(
+                    flow, run_started=run_started, started=started, process=process,
+                    failure=failure, forced_cleanup=False,
+                )
+                failure_found = failure_found or failure is not None
+                active.pop(flow_id)
+            if cancellation_reasons:
+                cancel_active("cancelled-after-failure", cancellation_reasons)
+            elif failure_found:
+                cancel_active("cancelled-after-failure")
+    except KeyboardInterrupt:
+        cancel_active("interrupted")
+    finally:
+        if active:
+            cancel_active("interrupted")
+    return [completed[flow_id] for flow_id in selected if flow_id in completed]
 
 
 def verification_identity(root: Path, config_path: Path, mapping: dict[str, Any]) -> dict[str, Any]:
@@ -506,19 +741,31 @@ def execute_flows(
     by_id = {flow["id"]: flow for flow in mapping["flows"]}
     if not selected or len(set(selected)) != len(selected) or any(flow_id not in by_id for flow_id in selected):
         raise ContractError("--run-flow requires distinct ids present in the verification map")
+    selected_set = set(selected)
+    missing_dependencies = sorted({
+        dependency for flow_id in selected for dependency in by_id[flow_id].get("depends_on", [])
+        if dependency not in selected_set
+    })
+    if missing_dependencies:
+        raise ContractError(
+            "selected flows must explicitly include their dependencies: "
+            + ", ".join(missing_dependencies)
+        )
     if sum(by_id[flow_id]["timeout_seconds"] for flow_id in selected) > 7200:
         raise ContractError("selected flow timeout budget must not exceed 7200 seconds")
     commands = [tuple(by_id[flow_id]["argv"]) for flow_id in selected]
     if len(commands) != len(set(commands)):
         raise ContractError("duplicate native commands: map shared requirements to one flow")
     identity = verification_identity(root, config_path, mapping)
+    plan = execution_plan(mapping, selected)
     run_id = str(uuid.uuid4())
     relative = f"{RECEIPT_DIRECTORY}/{run_id}.json"
     name = f"{run_id}.json"
     evidence: dict[str, Any] = {"schema_version": 1, "kind": "tugling-native-flows",
         "run_id": run_id, **identity, "tugling": report["tugling"],
         "started_at": datetime.now(timezone.utc).isoformat(), "state": "FLOWS_FAIL",
-        "requested_flows": selected, "results": [], "worktree_unchanged": False}
+        "requested_flows": selected, "execution_plan": plan,
+        "results": [], "worktree_unchanged": False}
     if required:
         evidence.update(kind="tugling-required-flows", state="REQUIRED_FAIL",
                         requirements=mapping["requirements"])
@@ -526,6 +773,8 @@ def execute_flows(
     receipt_bytes({**evidence, "finished_at": "0" * 64, "results": [
         {"id": flow_id, "argv": by_id[flow_id]["argv"], "exit_code": -9999999999,
          "failure": "native-cleanup-incomplete", "forced_cleanup": False,
+         "started_offset_seconds": 9999999999.999,
+         "finished_offset_seconds": 9999999999.999,
          "duration_seconds": 9999999999.999} for flow_id in selected]})
     policy = report["receipt_retention"]
     descriptor = None
@@ -537,11 +786,10 @@ def execute_flows(
             descriptor = regular_receipt_file(directory, name, os.O_RDWR | os.O_CREAT | os.O_EXCL)
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             write_receipt(descriptor, evidence)
-        for flow_id in selected:
-            result = run_flow(root, by_id[flow_id])
-            evidence["results"].append(result)
-            if result["failure"] is not None:
-                break
+        evidence["results"] = execute_flow_plan(
+            root, mapping, selected,
+            active_budget=report["verification_budget_seconds"] if required else None,
+        )
         try:
             evidence["worktree_unchanged"] = clean_revision(root) == identity["project_revision"]
         except ContractError:
@@ -550,6 +798,7 @@ def execute_flows(
         if (len(evidence["results"]) == len(selected) and evidence["worktree_unchanged"]
                 and evidence["performance"]["within_budget"]
                 and all(result["failure"] is None for result in evidence["results"])):
+            validate_execution_timing(evidence["results"], plan)
             evidence["state"] = "REQUIRED_PASS" if required else "FLOWS_PASS"
     finally:
         if descriptor is not None:
@@ -592,6 +841,9 @@ def check_flow_evidence(
     by_id = {flow["id"]: flow for flow in mapping["flows"]}
     selected = evidence.get("requested_flows")
     results = evidence.get("results")
+    plan = execution_plan(mapping, selected) if isinstance(selected, list) and all(
+        isinstance(key, str) and key in by_id for key in selected
+    ) else None
     success_state = "REQUIRED_PASS" if required else "FLOWS_PASS"
     kind = "tugling-required-flows" if required else "tugling-native-flows"
     if required and (selected != required_flow_ids(mapping)
@@ -600,6 +852,7 @@ def check_flow_evidence(
     if (type(evidence.get("schema_version")) is not int or evidence["schema_version"] != 1
             or evidence.get("kind") != kind
             or evidence.get("state") != success_state or evidence.get("worktree_unchanged") is not True
+            or evidence.get("execution_plan") != plan
             or not isinstance(selected, list) or not selected
             or not all(isinstance(key, str) and key in by_id for key in selected)
             or len(set(selected)) != len(selected)
@@ -613,6 +866,10 @@ def check_flow_evidence(
                 or result.get("forced_cleanup") is not False):
             raise ContractError("flow evidence contains an unsuccessful or mismatched command")
     performance = performance_summary(results, report["verification_budget_seconds"] if required else None)
+    validate_execution_timing(results, plan)
+    wall_seconds = (finished - started).total_seconds()
+    if performance["active_seconds"] > wall_seconds + 0.1:
+        raise ContractError("flow evidence scheduler timing exceeds its receipt timestamps")
     if evidence.get("performance") != performance or not performance["within_budget"]:
         raise ContractError("flow evidence timing summary differs or exceeds the verification budget")
     return {"state": success_state, "path": relative, "evidence": evidence}

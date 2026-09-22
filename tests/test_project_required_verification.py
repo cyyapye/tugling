@@ -172,14 +172,18 @@ class RequiredVerificationTest(unittest.TestCase):
         self.assertIn("duplicate native commands", result.stderr)
         self.assertEqual(self.calls(), [])
 
-    def test_verification_budget_is_measured_without_omitting_checks(self):
+    def test_verification_budget_stops_new_work_and_cancels_the_active_flow(self):
         self.config["project"]["verification_budget_seconds"] = 1
         checks = self.root / "checks.py"
         checks.write_text("import time\ntime.sleep(0.6)\n" + checks.read_text())
         self.save()
         result, verification = self.required()
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertEqual(self.calls(), ["cleanup", "budget"])
+        self.assertEqual(self.calls(), ["cleanup"])
+        self.assertEqual([row["id"] for row in verification["evidence"]["results"]],
+                         ["cleanup", "budget"])
+        self.assertIsNone(verification["evidence"]["results"][0]["failure"])
+        self.assertEqual(verification["evidence"]["results"][1]["failure"], "budget-exceeded")
         self.assertFalse(verification["evidence"]["performance"]["within_budget"])
         self.assertGreater(verification["evidence"]["performance"]["active_seconds"], 1)
         self.assertEqual(self.cli("--check-required-evidence", verification["path"]).returncode, 1)
@@ -376,7 +380,10 @@ class RequiredVerificationTest(unittest.TestCase):
                     self.assertEqual(verification["state"], "REQUIRED_FAIL")
 
     def test_required_gate_obeys_aggregate_timeout_budget_before_execution(self):
-        self.mapping["flows"].append({**self.mapping["flows"][0], "id": "extra"})
+        self.mapping["flows"].append({
+            **self.mapping["flows"][0], "id": "extra",
+            "argv": [*self.mapping["flows"][0]["argv"], "independent-invocation"],
+        })
         for flow in self.mapping["flows"]:
             flow["timeout_seconds"] = 3600
         self.mapping["requirements"][0]["flows"].append("extra")
