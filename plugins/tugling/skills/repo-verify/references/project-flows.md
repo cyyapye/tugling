@@ -39,12 +39,22 @@ committed source files after reading them:
       "argv": ["make", "e2e", "E2E_ARGS=e2e/dashboard.spec.ts"],
       "timeout_seconds": 600,
       "sources": ["Makefile", "playwright.config.ts", "e2e/dashboard.spec.ts"],
+      "depends_on": ["build"],
       "runtime": {
         "owner": "native-command",
         "launch": "Playwright webServer starts the repository dev command on isolated ports.",
         "health": "Playwright waits for the local API readiness URL through the web proxy.",
         "cleanup": "Playwright stops its owned server process group when the check ends."
       }
+    },
+    {
+      "id": "build",
+      "description": "Build the application once before browser behavior checks.",
+      "argv": ["make", "build"],
+      "timeout_seconds": 600,
+      "sources": ["Makefile"],
+      "depends_on": [],
+      "runtime": null
     }
   ],
   "requirements": [
@@ -54,7 +64,8 @@ committed source files after reading them:
       "sources": ["docs/dashboard-workflow.md"],
       "flows": ["dashboard"]
     }
-  ]
+  ],
+  "execution": {"max_parallel": 2}
 }
 ```
 
@@ -62,17 +73,27 @@ Each flow has a unique lowercase id, a concrete behavior description, an argv
 array, a timeout from 1 to 3600 seconds, and committed source-file pointers.
 There are at most 32 flows. The `runtime` fields are reviewable descriptions of
 the native lifecycle, not additional commands or independently verified health
-claims. Use `null` for a check that needs no runtime. Source pointers must include
+claims. Use `null` for a check that needs no runtime. `depends_on` names distinct
+flows that must finish successfully before this flow starts; omit it for no
+dependencies. Dependencies must exist, cannot refer to the same flow, and must
+form an acyclic graph. Source pointers must include
 the actual test and any file that defines its runtime lifecycle. Reject missing,
 untracked, or symlinked sources. Source presence alone does not prove assertions
 are sufficient: inspect test selection, skips, mocks, and screenshot coverage.
+
+`execution.max_parallel` is optional and defaults to `1`, preserving serial
+execution for existing maps. An opt-in value from 1 to 8 bounds active native
+commands. Use more than one only after proving the commands have disjoint mutable
+state, ports, report paths, service ownership, and cleanup. Identical argv arrays
+under different flow IDs are rejected; map a shared check once and reuse its ID.
 
 `requirements` maps accepted project rules to their authoritative committed
 policy sources and enforcing flow IDs. It has 1 to 64 unique lowercase IDs,
 nonempty descriptions and sources, and one or more distinct existing flow IDs
 per rule. Share a flow when it enforces several rules. Required execution takes
-their union in map order and runs each flow once. Declare all accepted rules in
-scope, including resource, workflow, component, and artifact rules where relevant.
+their dependency closure in map order and runs each flow once. Declare all
+accepted rules in scope, including resource, workflow, component, and artifact
+rules where relevant.
 Do not add unused categories or fictitious limits just to fill a template.
 
 The helper rejects invalid declarations and missing/untracked/symlinked sources.
@@ -101,11 +122,13 @@ Run selected flows from a clean committed project checkout:
 ```text
 python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --repo <project-checkout> --source-root <tugling-checkout> --source-mode pinned \
-  --run-flow dashboard --json
+  --run-flow build --run-flow dashboard --json
 ```
 
-Repeat `--run-flow` for additional ids. Selection runs serially, stops on the
-first failed command, and has a combined timeout budget of at most two hours.
+Repeat `--run-flow` for additional ids. A selected run must explicitly name each
+selected flow's dependency closure. The scheduler honors dependencies and the
+configured concurrency bound, stops scheduling on the first failed command, and
+has a combined timeout budget of at most two hours.
 Native logs stream to stderr; JSON stdout contains the result and receipt path.
 Execution currently requires macOS or Linux. The helper bounds the command's
 process group and stops owned descendants on failure, timeout, or cancellation.
@@ -128,10 +151,11 @@ python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
   --run-required --json
 ```
 
-This derives the selection from all current requirements and uses the same
-serial execution, aggregate timeout, failure, and process cleanup rules. It
-never silently reduces the set to fit the time budget. A failed command stops
-the run and yields `REQUIRED_FAIL`; all declared checks must succeed for
+This derives the selection from all current requirements, expands their complete
+dependency closure in map order, and uses the same bounded execution, aggregate
+timeout, failure, and process cleanup rules. A failed command stops new work,
+terminates and reaps all running owned groups, and yields `REQUIRED_FAIL`; all
+declared checks and dependencies must succeed for
 `REQUIRED_PASS`. An inherited project ancestry guard refuses recursive execution
 of the same repository; validation and checks of independent fixture repositories
 remain permitted. Map native leaf commands or choose
@@ -143,8 +167,9 @@ one outside wrapper for the canonical command, as described in
 Each run writes a new permission-restricted JSON receipt under the ignored,
 untracked `.tugling/local/verification/managed-v1/` directory. This storage is independent
 of whether correction learning is enabled. It contains the project commit,
-config/map/helper digests, Tugling identity and checkout cleanliness, selected commands, exit results,
-cleanup outcome, timestamps, and whether the worktree stayed clean. It does not
+config/map/helper digests, Tugling identity and checkout cleanliness, the exact
+dependency/concurrency plan, selected commands, exit results, per-flow monotonic
+offsets, cleanup outcome, timestamps, and whether the worktree stayed clean. It does not
 store command logs, secret values, application data, or screenshots. Only the
 public execution context listed below is recorded, never an environment dump.
 Required receipts also contain the complete requirement-to-flow declaration.
@@ -178,8 +203,10 @@ python3 -I <tugling-checkout>/plugins/tugling/scripts/project_contract.py \
 ```
 
 This requires a `REQUIRED_PASS` receipt, the exact current requirements and
-complete ordered flow set, matching clean project/config/map/helper identity,
-and one successful matching result for every command. A selected receipt is
+complete ordered dependency closure, matching clean project/config/map/helper
+identity, and one successful matching result for every command. It also rejects
+dependency overlap, concurrency above the reviewed bound, duplicate or omitted
+results, and inconsistent timing. A selected receipt is
 insufficient even when it happens to name all flows. `REQUIRED_PASS` proves the
 declared native checks ran successfully; it cannot certify undeclared behavior,
 assertion quality, hosted CI, or release readiness. A receipt remains valid only within its retention age and matching execution
@@ -239,9 +266,12 @@ needed by its replacement. Keep bounded cleanup with the owning job, and verify
 superseded runs release their slot without executing another native suite.
 
 A project may set `project.verification_budget_seconds` to an integer from 1 to
-7200. Required execution measures total native command time, records a sorted
-`performance.slowest_flows` list, and fails if the complete run exceeds the budget.
-It does not omit checks, raise deadlines, or stop successful checks early to fit.
+7200. Required execution measures elapsed active wall time across the bounded
+dependency plan, records each flow duration, their summed diagnostic time, and a
+sorted `performance.slowest_flows` list. When the elapsed budget is exhausted it
+stops scheduling, terminates and reaps active owned groups, and fails the receipt;
+it never omits work and reports a pass. This makes the budget a runtime cap even
+when flows run concurrently rather than a sum of individual command durations.
 Receipt validation recomputes the summary and rejects invalid timing, expired or
 future timestamps, environment changes, and another CI invocation. Projects
 without a budget still receive timings. Queue/setup time is separate and must be

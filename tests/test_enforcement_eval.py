@@ -351,6 +351,27 @@ class EnforcementEvalTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "neither canonical"):
             oracle.verify(self.project, self.hook)
 
+    def test_required_receipt_accepts_canonical_leaf_reached_through_dependency_closure(self):
+        self.complete()
+        config_path = self.project / ".tugling/project.json"
+        config = json.loads(config_path.read_text())
+        config["project"]["canonical_verify"] = ["python3", "checks.py"]
+        config_path.write_text(json.dumps(config))
+        map_path = self.project / ".tugling/checks.json"
+        mapping = json.loads(map_path.read_text())
+        mapping["flows"].append({
+            "id": "aggregate", "description": "Required wrapper after the canonical native leaf.",
+            "argv": ["python3", "-c", "pass"], "timeout_seconds": 10,
+            "sources": ["checks.py"], "runtime": None, "depends_on": ["native"],
+        })
+        for requirement in mapping["requirements"]:
+            requirement["flows"] = ["aggregate"]
+        map_path.write_text(json.dumps(mapping))
+        oracle.commit(self.project)
+        before = oracle.receipt_paths(self.project)
+        self.assertEqual(oracle.run_gate(self.hook, self.project, self.source)["returncode"], 0)
+        oracle.require_receipt(self.hook, self.project, self.source, exclude=before)
+
     def test_unsupported_ci_configuration_is_inconclusive_not_a_failed_setup(self):
         self.complete()
         path = self.project / ".github/workflows/verify.yml"

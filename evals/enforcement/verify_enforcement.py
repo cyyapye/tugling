@@ -290,6 +290,13 @@ def require_receipt(hook, root, source, *, exclude=()):
     canonical = report["canonical_verify"]
     gate_argv, _ = invocation(hook, root, source)
     required_ids = {flow for rule in report["verification"]["requirements"] for flow in rule["flows"]}
+    flows_by_id = {flow["id"]: flow for flow in report["verification"]["flows"]}
+    pending = list(required_ids)
+    while pending:
+        for dependency in flows_by_id[pending.pop()].get("depends_on", []):
+            if dependency not in required_ids:
+                required_ids.add(dependency)
+                pending.append(dependency)
     leaves = [flow["argv"] for flow in report["verification"]["flows"] if flow["id"] in required_ids]
     require(gate_argv == canonical or canonical in leaves,
             "reviewer gate is neither canonical nor a required wrapper around the canonical command")
