@@ -388,10 +388,29 @@ class RequiredVerificationTest(unittest.TestCase):
             flow["timeout_seconds"] = 3600
         self.mapping["requirements"][0]["flows"].append("extra")
         self.save()
+        validation = self.cli()
+        self.assertEqual(validation.returncode, 1)
+        self.assertIn("required flow timeout budget must not exceed 7200 seconds", validation.stderr)
         result = self.cli("--run-required")
         self.assertEqual(result.returncode, 1)
         self.assertIn("7200", result.stderr)
         self.assertFalse((self.root / ".tugling/local").exists())
+
+    def test_required_timeout_budget_includes_dependencies_but_not_optional_flows(self):
+        self.mapping["flows"].append({
+            **self.mapping["flows"][0], "id": "extra",
+            "argv": [*self.mapping["flows"][0]["argv"], "independent-invocation"],
+        })
+        for flow in self.mapping["flows"]:
+            flow["timeout_seconds"] = 3600
+        self.save()
+        self.assertEqual(self.cli().returncode, 0)
+
+        self.mapping["flows"][0]["depends_on"] = ["extra"]
+        self.save()
+        validation = self.cli()
+        self.assertEqual(validation.returncode, 1)
+        self.assertIn("required flow timeout budget must not exceed 7200 seconds", validation.stderr)
 
     def runtime_mode(self, mode, timeout):
         (self.root / "native_check.py").write_text(lifecycle.NATIVE_CHECK)
