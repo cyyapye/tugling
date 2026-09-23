@@ -216,8 +216,13 @@ def validate_verification_map(root: Path, value: Any) -> dict[str, Any]:
                     or not all(isinstance(key, str) and key in seen for key in checks)
                     or len(set(checks)) != len(checks)):
                 raise ContractError(f"requirement {rule_id}: map to distinct existing native flows")
-    return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "flows": flows, "requirements": requirements, "execution": execution}
+    validated = {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                 "flows": flows, "requirements": requirements, "execution": execution}
+    if requirements:
+        required = set(required_flow_ids(validated))
+        if sum(flow["timeout_seconds"] for flow in flows if flow["id"] in required) > 7200:
+            raise ContractError("required flow timeout budget must not exceed 7200 seconds")
+    return validated
 
 
 def required_flow_ids(mapping: dict[str, Any] | None) -> list[str]:
