@@ -106,7 +106,7 @@ Tugling does not grant permission to merge, deploy, delete, contact people, spen
 
 ## Develop
 
-Development requires Python 3.11+, Git, and Make. Select the checked-in [`tugling` local environment](.codex/environments/environment.toml) when creating a Codex worktree. Its setup checks that `python3`, Git, and Make are on `PATH`, then runs `make verify`. The environment also provides **Verify** (`make verify`) and **Test** (`make test`) actions in the app.
+Development requires Python 3.11+, Git, and Make. Select the checked-in [`tugling` local environment](.codex/environments/environment.toml) when creating a Codex worktree. Its setup checks Git and Make, then selects a supported `python3` from `PATH` or an existing macOS Homebrew installation. It exports the selected interpreter's directory for setup and subsequent app actions, reports the interpreter, and runs `make verify`. If no supported Python is installed, setup fails with the version requirement; it does not install packages. The environment also provides **Verify** (`make verify`) and **Test** (`make test`) actions in the app.
 
 You can run the same verification from a terminal:
 

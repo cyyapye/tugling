@@ -6,12 +6,30 @@ name = "tugling"
 script = '''
 set -eu
 
-for tugling_tool in python3 git make; do
+for tugling_tool in git make; do
   if ! command -v "$tugling_tool" >/dev/null 2>&1; then
     printf 'Tugling setup requires %s on PATH.\n' "$tugling_tool" >&2
     exit 1
   fi
 done
+
+# GUI-created worktrees may find macOS's older system Python first.
+# Reuse a supported interpreter already installed; do not install dependencies.
+tugling_python_found=false
+for tugling_python in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+  if "$tugling_python" -c 'import sys, tomllib; sys.exit(sys.version_info < (3, 11))' >/dev/null 2>&1; then
+    case "$tugling_python" in
+      */*) PATH="${tugling_python%/*}:$PATH"; export PATH ;;
+    esac
+    tugling_python_found=true
+    break
+  fi
+done
+if [ "$tugling_python_found" != true ]; then
+  printf 'Tugling setup requires Python 3.11+ with tomllib. Put a supported Python on PATH.\n' >&2
+  exit 1
+fi
+python3 -c 'import sys; print("Tugling setup using Python", sys.version.split()[0], "at", sys.executable)'
 
 make verify
 '''
