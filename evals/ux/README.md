@@ -71,9 +71,28 @@ The capture layer cross-checks producer declarations; it does not authenticate a
 CLI or prove which instructions a model read.
 
 Runtime `preflight`, `calibration` and `observer_files` reference relative files
-outside Git. Preflight must prove the actual supplied browser can open, operate,
-reload and read persistence at both widths, including model access before live
-admission. Calibration must retain actual expected/observed evidence for controls
+outside Git. Preflight must exercise the builder's full admitted invocation and
+sandbox: source reads, a real file edit, and the actual supplied browser opening,
+operating, reloading and reading persistence at both widths. A browser-only smoke
+can pass while native file tools are unusable. Include Git trust setup and prove
+skill discovery/body access separately; materialized files do not prove consumption.
+Do not layer an outer sandbox without checking that the CLI's native tool sandbox
+can run inside it. Keep hidden study inputs inaccessible while repairing isolation.
+
+Preflight requires `builder_probe` with relative file references `before`,
+`source_readback`, `expected`, `after`, `events`, `execution` and `stderr`, all
+relative to the runtime file's directory. Retain a synthetic initial source with
+a fresh unrendered marker that is absent from the prompt, the builder's exact source
+readback, the independently specified expected edit, the actual delivered source,
+raw CLI events/stderr and execution/cleanup receipt. The expected edit must change
+the source; the actual source must match it. Events must include a successful native
+edit tool and exactly one valid usage receipt. Observe the edited artifact in the
+browser at both widths. These structural checks bind retained evidence; an operator
+must still verify producer identity, source access, invocation parity and the actual
+browser observations. They cannot prove a model read a skill from its own claim.
+The freezer retains and hashes every probe dependency outside Git.
+
+Calibration must retain actual expected/observed evidence for controls
 named valid-alternative, lost-edit, meaning-loss and unprotected-erasure. A receipt's
 `passed: true` and control names are required metadata, not a replacement for
 examining that evidence. Freeze the **actual observer code** and dependencies;
@@ -95,13 +114,19 @@ checked **between calls**, not hard in-flight billing caps. Never replace a time
 attempt with a favorable retry or pool a changed runtime under the original freeze.
 
 Immediately after the completed CLI call, before external feedback, capture the
-saved index.html, raw events.jsonl and a producer receipt. The receipt records
+saved index.html, raw events.jsonl, native stderr and a producer receipt. The receipt records
 freeze_sha256, runtime_sha256, fixture_sha256, skills_sha256 (null for control),
 model, effort, case, condition, attempt, phase, exit_code, timed_out,
 cleanup_complete and user_feedback_received. First delivery requires the last
 field to be false. Hashes must bind the actual source/admission records. The tool
 extracts usage from exactly one completed-turn event, preserves unknowns and
 refuses overwrites. Zero input tokens are invalid like the native `RunBudget`.
+A completed turn and zero CLI exit code do not prove native tools worked. A failed
+native file-change event plus a matching artifact write denial in stderr and an
+unchanged source is retained as incomplete and stops further admission. Ordinary
+patch misses and recovered edits do not trigger that boundary. Inspect source-read
+and other runtime failures independently; this narrow diagnostic is not a complete
+classifier of every CLI or sandbox failure.
 All retained phases share the frozen usage/call limits; an overshooting attempt
 is preserved as incomplete and cannot enter review or admit another capture.
 Review and assessment independently recheck the cumulative retained budget.
@@ -112,7 +137,8 @@ at both widths remains mandatory.
 python3 scripts/ux_eval.py capture --frozen /private/study/frozen \
   --records /private/study/records --case shift-plan --condition candidate \
   --attempt 1 --artifact /private/trial/index.html \
-  --events /private/trial/events.jsonl --receipt /private/trial/receipt.json
+  --events /private/trial/events.jsonl --stderr /private/trial/stderr.txt \
+  --receipt /private/trial/receipt.json
 ```
 
 After all frozen trials are captured, create randomized reviewer samples. Keep the

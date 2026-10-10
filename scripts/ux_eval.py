@@ -156,15 +156,68 @@ def inventory(root):
     return files
 
 
+PROBE_FILES = ("before", "source_readback", "expected", "after", "events", "execution", "stderr")
+
+
+def validate_preflight(receipt, root):
+    """Require retained builder read/edit evidence, not only a working browser."""
+    require(receipt.get("passed") is True, "passing preflight required")
+    probe = receipt.get("builder_probe", {})
+    require(isinstance(probe, dict) and all(name in probe for name in PROBE_FILES),
+            "preflight requires a builder source-read and artifact-edit probe")
+    files = {name: relative_file(root, probe[name]) for name in PROBE_FILES}
+    before, expected, after = (files[name].read_bytes() for name in ("before", "expected", "after"))
+    require(before == files["source_readback"].read_bytes(), "builder source readback differs from input")
+    require(before != expected and after == expected,
+            "builder must deliver the exact nonempty preflight edit")
+    execution = read(files["execution"])
+    require(execution.get("exit_code") == 0 and execution.get("timed_out") is False
+            and execution.get("cleanup_complete") is True, "builder preflight execution incomplete")
+    rows = [json.loads(line) for line in files["events"].read_text().splitlines() if line.strip()]
+    require(all(isinstance(row, dict) for row in rows), "malformed preflight event")
+    require(not any(row.get("type") in ("error", "turn.failed") for row in rows),
+            "builder preflight runtime failed")
+    usages = [row.get("usage") for row in rows if row.get("type") == "turn.completed"]
+    require(len(usages) == 1 and isinstance(usages[0], dict)
+            and integer(usages[0].get("input_tokens"), 1)
+            and integer(usages[0].get("cached_input_tokens"))
+            and integer(usages[0].get("output_tokens"))
+            and usages[0]["cached_input_tokens"] <= usages[0]["input_tokens"],
+            "builder preflight usage missing or invalid")
+    items = [row.get("item", {}) for row in rows if row.get("type") == "item.completed"]
+    require(any(item.get("type") == "file_change" and item.get("status") == "completed"
+                or item.get("type") == "command_execution" and item.get("exit_code") == 0
+                for item in items), "builder preflight needs an observed successful native edit tool")
+    return files
+
+
+def artifact_write_failed(rows, stderr, artifact):
+    """Recognize a denied write to this artifact; ordinary patch misses differ."""
+    target = Path(artifact).resolve()
+    prefix = "Failed to write file "
+    denied_paths = [Path(line.strip()[len(prefix):]) for line in stderr.splitlines()
+                    if line.strip().startswith(prefix)]
+    denied = any(path.is_absolute() and path.resolve() == target for path in denied_paths)
+    return denied and any(
+        row.get("type") == "item.completed" and row.get("item", {}).get("type") == "file_change"
+        and row["item"].get("status") == "failed"
+        and any(Path(change.get("path", "")).is_absolute()
+                and Path(change["path"]).resolve() == target for change in row["item"].get("changes", []))
+        for row in rows)
+
+
 def freeze(suite_path, runtime_path, out):
     suite_path, out = Path(suite_path), Path(out)
     suite, runtime = load_suite(suite_path), read(runtime_path)
     validate_runtime(runtime, suite)
     # No live admission happens here. Preflight/calibration evidence is mandatory
     # before a producer starts any model, and is hashed with the observer checks.
+    preflight_files = {}
     for name in ("preflight", "calibration"):
         receipt = read(relative_file(Path(runtime_path).parent, runtime.get(name)))
         require(receipt.get("passed") is True, f"passing {name} required")
+        if name == "preflight":
+            preflight_files = validate_preflight(receipt, Path(runtime_path).parent)
         if name == "calibration":
             require(set(receipt.get("controls", [])) >= {
                 "valid-alternative", "lost-edit", "meaning-loss", "unprotected-erasure"},
@@ -184,6 +237,13 @@ def freeze(suite_path, runtime_path, out):
     for name in ("preflight", "calibration"):
         shutil.copyfile(relative_file(Path(runtime_path).parent, runtime[name]), out / f"{name}.json")
         runtime[name] = f"{name}.json"
+    preflight = read(out / "preflight.json")
+    for name, source in preflight_files.items():
+        dest = out / "preflight-evidence" / name / source.name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, dest)
+        preflight["builder_probe"][name] = dest.relative_to(out).as_posix()
+    write(out / "preflight.json", preflight)
     observer_files = []
     for index, name in enumerate(runtime["observer_files"]):
         source = relative_file(Path(runtime_path).parent, name)
@@ -223,7 +283,7 @@ def case_for(suite, case_id):
     return matches[0]
 
 
-def capture(frozen, records, case_id, condition, attempt, phase, artifact, events, receipt, screenshots=()):
+def capture(frozen, records, case_id, condition, attempt, phase, artifact, events, receipt, screenshots=(), *, stderr):
     suite, runtime, frozen_sha = check_freeze(frozen)
     case_for(suite, case_id)
     require(condition in CONDITIONS and integer(attempt, 1) and attempt <= runtime["attempts"], "unknown trial")
@@ -258,6 +318,9 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     complete = (info.get("exit_code") == 0 and info.get("timed_out") is False
                 and info.get("cleanup_complete") is True and known
                 and not any(e.get("type") in ("turn.failed", "error") for e in event_rows))
+    write_failure = (digest(artifact) == info["fixture_sha256"]
+                     and artifact_write_failed(event_rows, Path(stderr).read_text(), artifact))
+    complete = complete and not write_failure
     target = Path(records) / case_id / condition / str(attempt) / phase
     if phase != "first-delivery":
         prior = target.parent / ("first-delivery" if phase == "repair-1" else "repair-1") / "capture.json"
@@ -270,6 +333,7 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     target.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(artifact, target / "index.html")
     shutil.copyfile(events, target / "events.jsonl")
+    shutil.copyfile(stderr, target / "stderr.txt")
     shutil.copyfile(receipt, target / "producer-receipt.json")
     names = []
     for i, screenshot in enumerate(screenshots):
@@ -279,6 +343,7 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
         names.append(name)
     value = {"case": case_id, "condition": condition, "attempt": attempt, "phase": phase,
              "freeze_sha256": frozen_sha, "complete": complete, "usage": usage if known else None,
+             "unresolved_artifact_write_failure": bool(write_failure),
              "within_frozen_budget": bool(within_budget),
              "screenshots": names, "files": inventory(target)}
     write(target / "capture.json", value)
@@ -480,7 +545,7 @@ def main(argv=None):
     prep.add_argument("--runtime", type=Path, required=True)
     prep.add_argument("--out", type=Path, required=True)
     record = commands.add_parser("capture")
-    for flag in ("frozen", "records", "artifact", "events", "receipt"):
+    for flag in ("frozen", "records", "artifact", "events", "receipt", "stderr"):
         record.add_argument("--" + flag, type=Path, required=True)
     record.add_argument("--case", required=True)
     record.add_argument("--condition", choices=CONDITIONS, required=True)
@@ -507,7 +572,7 @@ def main(argv=None):
             print(freeze(args.suite, args.runtime, args.out))
         elif args.command == "capture":
             value = capture(args.frozen, args.records, args.case, args.condition, args.attempt, args.phase,
-                            args.artifact, args.events, args.receipt, args.screenshot)
+                            args.artifact, args.events, args.receipt, args.screenshot, stderr=args.stderr)
             print(json.dumps({"complete": value["complete"], "usage": value["usage"]}))
             return 0 if value["complete"] else 2
         elif args.command == "bundle":

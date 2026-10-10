@@ -21,7 +21,22 @@ class UXEvaluationTests(unittest.TestCase):
         self.suite = ux.read(self.inputs / "cases.json")
         self.suite["cases"] = [self.suite["cases"][0], self.suite["cases"][2]]
         ux.write(self.inputs / "cases.json", self.suite)
-        ux.write(self.root / "preflight.json", {"passed": True, "synthetic_test_only": True})
+        # Synthetic probe data tests admission; it does not claim a real CLI run.
+        probe = self.root / "probe"
+        probe.mkdir()
+        for name, body in (("before", "<!-- unread marker -->Before"),
+                           ("source_readback", "<!-- unread marker -->Before"),
+                           ("expected", "<!-- unread marker -->After"),
+                           ("after", "<!-- unread marker -->After"), ("stderr", "")):
+            (probe / name).write_text(body)
+        (probe / "events").write_text(json.dumps({"type": "item.completed", "item": {
+            "type": "file_change", "status": "completed", "changes": [{"kind": "update"}]}}) + "\n"
+            + json.dumps({"type": "turn.completed", "usage": {
+                "input_tokens": 100, "cached_input_tokens": 20, "output_tokens": 10}}) + "\n")
+        ux.write(probe / "execution", {"exit_code": 0, "timed_out": False, "cleanup_complete": True})
+        ux.write(self.root / "preflight.json", {"passed": True, "synthetic_test_only": True,
+            "builder_probe": {name: "probe/" + name for name in ux.PROBE_FILES}})
+        (self.root / "stderr.txt").write_text("")
         ux.write(self.root / "calibration.json", {
             "passed": True, "synthetic_test_only": True,
             "controls": ["valid-alternative", "lost-edit", "meaning-loss", "unprotected-erasure"]})
@@ -66,7 +81,7 @@ class UXEvaluationTests(unittest.TestCase):
                    "skills_sha256": None if arm == "control" else self.runtime["sources"][arm]["skills_sha256"]}
         ux.write(self.root / "receipt.json", receipt)
         return ux.capture(self.frozen, self.records, case, arm, attempt, phase,
-                          artifact, events, self.root / "receipt.json")
+                          artifact, events, self.root / "receipt.json", stderr=self.root / "stderr.txt")
 
     def matrix(self, phase="first-delivery"):
         for case in self.suite["cases"]:
@@ -184,7 +199,8 @@ class UXEvaluationTests(unittest.TestCase):
         event = {"type": "turn.completed", "usage": {"input_tokens": 100, "output_tokens": 10}}
         (self.root / "events.jsonl").write_text(json.dumps(event) + "\n")
         value = ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
-                           self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json")
+                           self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json",
+                           stderr=self.root / "stderr.txt")
         self.assertIsNone(value["usage"])
         self.assertFalse(value["complete"])
 
@@ -256,7 +272,8 @@ class UXEvaluationTests(unittest.TestCase):
         (self.root / "events.jsonl").write_text(json.dumps({"type": "turn.completed", "usage": {
             "input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 10}}) + "\n")
         value = ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
-                           self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json")
+                           self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json",
+                           stderr=self.root / "stderr.txt")
         self.assertFalse(value["complete"])
         self.assertIsNone(value["usage"])
 
@@ -375,6 +392,81 @@ class UXEvaluationTests(unittest.TestCase):
         ux.write(self.root / "calibration.json", {"passed": True, "controls": ["lost-edit"]})
         with self.assertRaisesRegex(ux.UXError, "alternatives"):
             self.freeze()
+
+    def test_browser_only_preflight_cannot_admit_builders(self):
+        ux.write(self.root / "preflight.json", {"passed": True, "browser_operations": ["open", "save", "reload"]})
+        with self.assertRaisesRegex(ux.UXError, "source-read and artifact-edit"):
+            self.freeze()
+        self.assertFalse(self.frozen.exists())
+
+    def test_preflight_must_retain_real_nonempty_edit_and_source_readback(self):
+        for name, body, message in (("after", "<!-- unread marker -->Before", "exact nonempty"),
+                                    ("expected", "<!-- unread marker -->Before", "exact nonempty"),
+                                    ("source_readback", "Guessed from rendered text", "readback")):
+            with self.subTest(name=name):
+                path = self.root / "probe" / name
+                original = path.read_text(); path.write_text(body)
+                with self.assertRaisesRegex(ux.UXError, message):
+                    self.freeze()
+                path.write_text(original)
+
+    def test_failed_edit_tool_or_missing_usage_blocks_preflight(self):
+        events = self.root / "probe/events"
+        original = events.read_text()
+        for body, message in ((original.replace('"completed", "changes"', '"failed", "changes"'), "native edit tool"),
+                              (original.splitlines()[0] + "\n", "usage missing")):
+            with self.subTest(message=message):
+                events.write_text(body)
+                with self.assertRaisesRegex(ux.UXError, message):
+                    self.freeze()
+        events.write_text(original)
+
+    def test_preflight_dependencies_are_retained_and_hashed(self):
+        self.freeze()
+        receipt = ux.read(self.frozen / "preflight.json")
+        for name in ux.PROBE_FILES:
+            path = self.frozen / receipt["builder_probe"][name]
+            self.assertEqual(path.read_bytes(), (self.root / "probe" / name).read_bytes())
+            self.assertIn(path.relative_to(self.frozen).as_posix(), ux.read(self.frozen / "freeze.json")["files"])
+        path.write_text("Changed producer evidence")
+        with self.assertRaisesRegex(ux.UXError, "drift"):
+            ux.check_freeze(self.frozen)
+
+    def failed_write_capture(self, *, recovered=False, native_denial=True):
+        self.freeze(); self.capture("shift-plan", "candidate")
+        shutil.rmtree(self.records)
+        artifact = self.root / "deliverable.html"
+        fixture = self.frozen / ux.case_for(ux.read(self.frozen / "suite.json"), "shift-plan")["fixture"]
+        artifact.write_bytes(fixture.read_bytes() + (b"<!-- recovered edit -->" if recovered else b""))
+        events = self.root / "events.jsonl"
+        usage = events.read_text()
+        events.write_text(json.dumps({"type": "item.completed", "item": {
+            "type": "file_change", "status": "failed", "changes": [{"kind": "update", "path": str(artifact)}]}})
+            + "\n" + usage)
+        (self.root / "stderr.txt").write_text(f"Failed to write file {artifact}\n" if native_denial
+                                              else "Failed to find expected lines in patch\n")
+        return ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
+                          artifact, events, self.root / "receipt.json", stderr=self.root / "stderr.txt")
+
+    def test_successful_turn_with_denied_unchanged_artifact_is_incomplete(self):
+        value = self.failed_write_capture()
+        self.assertFalse(value["complete"])
+        self.assertTrue(value["unresolved_artifact_write_failure"])
+        self.assertEqual(value["usage"]["input_tokens"], 100)
+        self.assertEqual((self.records / "shift-plan/candidate/1/first-delivery/stderr.txt").read_text(),
+                         (self.root / "stderr.txt").read_text())
+        with self.assertRaisesRegex(ux.UXError, "incomplete"):
+            ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
+        with self.assertRaisesRegex(ux.UXError, "incomplete"):
+            self.capture("shift-plan", "released")
+
+    def test_recovered_edit_is_not_rejected_for_an_earlier_denial(self):
+        value = self.failed_write_capture(recovered=True)
+        self.assertTrue(value["complete"])
+        self.assertFalse(value["unresolved_artifact_write_failure"])
+
+    def test_ordinary_patch_miss_is_not_a_runtime_denial(self):
+        self.assertTrue(self.failed_write_capture(native_denial=False)["complete"])
 
     def test_different_commit_with_identical_skills_is_not_a_candidate(self):
         self.runtime["sources"]["candidate"]["skills_sha256"] = "a" * 64
