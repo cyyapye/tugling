@@ -341,6 +341,9 @@ def bundle(frozen, records, out, key_out, phase="first-delivery"):
         dest.mkdir()
         for field in ("task", "context", "checks"):
             shutil.copyfile(Path(frozen) / case[field], dest / f"{field}.md")
+        # The common original carries the complete source population/facts;
+        # task prose may only describe selected examples. It reveals no arm.
+        shutil.copyfile(Path(frozen) / case["fixture"], dest / "original.html")
         shutil.copyfile(path / "index.html", dest / "index.html")
         for name in value["screenshots"]:
             shutil.copyfile(path / name, dest / name)

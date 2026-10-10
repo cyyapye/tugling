@@ -197,6 +197,21 @@ class UXEvaluationTests(unittest.TestCase):
         self.assertNotIn("key.json", files)
         self.assertTrue((self.review_bundle / "sample-001/checks.md").is_file())
 
+    def test_blind_reviewer_receives_complete_common_original_source_facts(self):
+        self.freeze(); self.matrix(); self.review()
+        for label, identity in ux.read(self.key)["trials"].items():
+            case = ux.case_for(ux.read(self.frozen / "suite.json"), identity["case"])
+            original = self.review_bundle / label / "original.html"
+            self.assertEqual(original.read_bytes(), (self.frozen / case["fixture"]).read_bytes())
+            self.assertNotEqual(original.read_bytes(), (self.review_bundle / label / "index.html").read_bytes())
+
+    def test_original_source_fact_tampering_invalidates_blind_review(self):
+        self.freeze(); self.matrix(); self.review()
+        original = self.review_bundle / "sample-001/original.html"
+        original.write_text(original.read_text() + "Changed immutable source facts")
+        with self.assertRaisesRegex(ux.UXError, "review input drift"):
+            self.result()
+
     def test_key_cannot_be_inside_reviewer_bundle(self):
         self.freeze(); self.matrix()
         with self.assertRaisesRegex(ux.UXError, "outside"):

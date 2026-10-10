@@ -117,7 +117,8 @@ python3 scripts/ux_eval.py capture --frozen /private/study/frozen \
 
 After all frozen trials are captured, create randomized reviewer samples. Keep the
 key away from the reviewer. Give them its **digest**, not its contents. The bundle
-contains preserved working HTML, original task/facts, observer procedure, review
+contains delivered working HTML, the identical common original HTML with its
+complete source population/facts, original task/context, observer procedure, review
 criteria and optional screenshots. It excludes arm identities, skills, runtime,
 builder prose, traces and scores. Presentation may reveal authorship accidentally;
 reviewers must record any exposure rather than claim perfect blinding.
