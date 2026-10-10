@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Device record</title>
+<style>body{font:16px system-ui;max-width:65rem;margin:2rem}section{border:1px solid #aaa;padding:1rem;margin:1rem 0}button,select{font:inherit;padding:.4rem;margin:.3rem}h1{font-size:3rem}:focus-visible{outline:3px solid blue}dialog{max-width:90%}</style>
+<h1>DEMO-DEVICE-41</h1><p>Equipment metadata and associated information</p>
+<section><h2>Details</h2><details><summary>Device information</summary><p>Demo Birch — Usable</p><p>Measured temperature: 0.08 C</p><p>Calibration offset: 0.06 C</p><p>Maintenance scheduled: 2026-11-04</p><p>No completed maintenance event</p></details></section>
+<section><h2>History information</h2><p>Updated 2026-10-08T17:23:15.456Z</p><p>Updated 2026-10-07T16:02:41.133Z</p></section>
+<section><h2>Sensor information</h2><p id="sensors"></p><select id="pick" aria-label="Sensor"></select><button id="inspect">Inspect sensor</button><button id="remove">Remove association</button><button id="link">Link sensor</button><p id="reading"></p></section>
+<section><h2>Local notes</h2><ul id="notes"></ul><button id="erase">Erase custom notes</button></section>
+<dialog id="confirmation"><p>Custom notes will be permanently erased from this browser. Built-in device facts remain. This cannot be undone.</p><button id="keep">Keep notes</button><button id="confirm">Erase notes permanently</button></dialog>
+<script>
+const $=id=>document.getElementById(id);
+const records=[{id:'a',name:'Cedar',reading:0.08},{id:'b',name:'Maple',reading:0.06},{id:'c',name:'Ash',reading:null}];
+const history=[{at:'2026-10-08T17:23:15.456Z',field:'Inspection interval',before:'7 days',after:'14 days'},{at:'2026-10-07T16:02:41.133Z',field:'Condition',before:'Awaiting inspection',after:'Usable'}];
+let linked=JSON.parse(localStorage.getItem('demo-links')||'null')||['a','b','c'],notes=JSON.parse(localStorage.getItem('demo-notes')||'null')||['Check bench before use','Demo observation'];
+function show(){$('sensors').textContent=records.filter(r=>linked.includes(r.id)).map(r=>r.name).join(', ');$('pick').replaceChildren();for(const r of records){const o=document.createElement('option');o.value=r.id;o.textContent=r.name;$('pick').append(o)}$('notes').replaceChildren();for(const n of notes){const li=document.createElement('li');li.textContent=n;$('notes').append(li)}}
+function persist(){localStorage.setItem('demo-links',JSON.stringify(linked));localStorage.setItem('demo-notes',JSON.stringify(notes));show()}
+$('inspect').onclick=()=>{const r=records.find(r=>r.id===$('pick').value);$('reading').textContent=r.name+': '+(r.reading===null?'Unknown':r.reading+' C')};
+$('remove').onclick=()=>{linked=linked.filter(id=>id!==$('pick').value);persist()};$('link').onclick=()=>{if(!linked.includes($('pick').value))linked.push($('pick').value);persist()};
+$('erase').onclick=()=>$('confirmation').showModal();$('keep').onclick=()=>$('confirmation').close();$('confirm').onclick=()=>{notes=[];persist();$('confirmation').close()};show();
+</script></html>
