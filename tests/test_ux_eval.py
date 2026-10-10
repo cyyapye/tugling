@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from scripts import ux_eval as ux
 
@@ -207,6 +208,70 @@ class UXEvaluationTests(unittest.TestCase):
         checks.write_text(checks.read_text() + "Changed rule")
         with self.assertRaisesRegex(ux.UXError, "drift"):
             self.capture("shift-plan", "candidate")
+
+    def test_running_evaluator_must_match_the_frozen_code(self):
+        self.freeze()
+        changed = self.root / "changed-evaluator.py"
+        changed.write_text(Path(ux.__file__).read_text() + "\n# Changed judging rule\n")
+        with mock.patch.object(ux, "__file__", str(changed)):
+            with self.assertRaisesRegex(ux.UXError, "running evaluator differs"):
+                ux.check_freeze(self.frozen)
+
+    def test_nested_freeze_named_dependency_cannot_change_undetected(self):
+        (self.root / "helpers").mkdir()
+        ux.write(self.root / "helpers/freeze.json", {"required": "original"})
+        self.runtime["observer_files"].append("helpers/freeze.json")
+        self.freeze()
+        dependency = self.frozen / "observers/helpers/freeze.json"
+        self.assertIn("observers/helpers/freeze.json", ux.read(self.frozen / "freeze.json")["files"])
+        ux.write(dependency, {"required": "changed"})
+        with self.assertRaisesRegex(ux.UXError, "drift"):
+            ux.check_freeze(self.frozen)
+
+    def test_two_desktop_or_two_phone_widths_cannot_supply_responsive_evidence(self):
+        for views in (["1280x900", "1280x901"], ["360x800", "390x844"]):
+            with self.subTest(views=views):
+                self.runtime["viewports"] = views
+                with self.assertRaisesRegex(ux.UXError, "phone width"):
+                    self.freeze()
+
+    def test_zero_input_usage_is_incomplete_like_the_native_budget(self):
+        self.freeze(); self.capture("shift-plan", "candidate")
+        shutil.rmtree(self.records)
+        (self.root / "events.jsonl").write_text(json.dumps({"type": "turn.completed", "usage": {
+            "input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 10}}) + "\n")
+        value = ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
+                           self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json")
+        self.assertFalse(value["complete"])
+        self.assertIsNone(value["usage"])
+
+    def test_over_budget_attempt_is_preserved_but_cannot_enter_review(self):
+        self.runtime["max_input_tokens"] = 99
+        self.freeze()
+        value = self.capture("shift-plan", "candidate")
+        self.assertFalse(value["complete"])
+        self.assertFalse(value["within_frozen_budget"])
+        self.assertEqual(value["usage"]["input_tokens"], 100)
+        self.assertTrue((self.records / "shift-plan/candidate/1/first-delivery/events.jsonl").is_file())
+        with self.assertRaisesRegex(ux.UXError, "incomplete"):
+            ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
+        with self.assertRaisesRegex(ux.UXError, "incomplete"):
+            self.capture("shift-plan", "released")
+
+    def test_full_matrix_usage_cannot_bypass_budget_at_assessment(self):
+        self.freeze(); self.matrix(); self.review(failures=[("released", "complete-editor")])
+        with mock.patch.object(ux, "check_freeze", return_value=(
+                self.suite, dict(self.runtime, max_input_tokens=1, max_output_tokens=1),
+                ux.digest(self.frozen / "freeze.json"))):
+            with self.assertRaisesRegex(ux.UXError, "exceed frozen"):
+                self.result()
+
+    def test_repairs_share_the_frozen_usage_budget_with_first_delivery(self):
+        self.runtime.update(repair_rounds=1, max_calls=12, max_input_tokens=699)
+        self.freeze(); self.matrix()
+        value = self.capture("shift-plan", "candidate", phase="repair-1")
+        self.assertFalse(value["complete"])
+        self.assertEqual(value["usage"]["input_tokens"], 100)
 
     def test_frozen_observer_preserves_relative_dependency_layout(self):
         (self.root / "helpers").mkdir()

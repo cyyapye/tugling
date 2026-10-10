@@ -63,7 +63,9 @@ timezone, locale, operator_id, candidate_author_id, attempts (1–3), timeout_se
 (30–600), repair_rounds (0–2, default zero), max_calls
 (cases × three arms × attempts × (1 + repair_rounds), at most 36), positive
 max_input_tokens/max_output_tokens, and viewport strings such as `1280x900` and
-`390x844`. `sources` maps released/candidate to full `commit` and `skills_sha256`.
+`390x844`. Include a phone width at most 480px and a desktop width at least 1024px;
+two nearby widths on the same surface cannot supply responsive evidence.
+`sources` maps released/candidate to full `commit` and `skills_sha256`.
 Use exact committed skill trees; independently verify those source bindings.
 The capture layer cross-checks producer declarations; it does not authenticate a
 CLI or prove which instructions a model read.
@@ -77,6 +79,9 @@ named valid-alternative, lost-edit, meaning-loss and unprotected-erasure. A rece
 examining that evidence. Freeze the **actual observer code** and dependencies;
 the preparer copies it, the criteria, fixtures, runtime and evaluator into an
 immutable hashed package. A schema/unit-test pass is not browser calibration.
+The running evaluator must match the frozen evaluator bytes. Run the retained
+evaluator for an existing freeze; a changed grader needs an explicitly labeled
+new regrade, rather than silently emitting a new result for the old code digest.
 
 ```bash
 python3 scripts/ux_eval.py freeze --suite /private/study/cases.json \
@@ -96,7 +101,11 @@ model, effort, case, condition, attempt, phase, exit_code, timed_out,
 cleanup_complete and user_feedback_received. First delivery requires the last
 field to be false. Hashes must bind the actual source/admission records. The tool
 extracts usage from exactly one completed-turn event, preserves unknowns and
-refuses overwrites. Screenshots are optional at capture; actual review evidence
+refuses overwrites. Zero input tokens are invalid like the native `RunBudget`.
+All retained phases share the frozen usage/call limits; an overshooting attempt
+is preserved as incomplete and cannot enter review or admit another capture.
+Review and assessment independently recheck the cumulative retained budget.
+Screenshots are optional at capture; actual review evidence
 at both widths remains mandatory.
 
 ```bash

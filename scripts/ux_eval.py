@@ -129,6 +129,9 @@ def validate_runtime(runtime, suite):
     require(isinstance(views, list) and len(views) >= 2 and len(set(views)) == len(views)
             and all(isinstance(v, str) and re.fullmatch(r"[1-9][0-9]*x[1-9][0-9]*", v) for v in views),
             "distinct desktop/phone viewport identities required")
+    widths = [int(view.split("x")[0]) for view in views]
+    require(any(width <= 480 for width in widths) and any(width >= 1024 for width in widths),
+            "viewports must include a phone width <=480 and desktop width >=1024")
     require(isinstance(runtime.get("observer_files"), list) and runtime["observer_files"],
             "freeze the actual observer code before admission")
     sources = runtime.get("sources", {})
@@ -148,7 +151,7 @@ def inventory(root):
     files = {}
     for path in sorted(root.rglob("*")):
         require(not path.is_symlink(), "symlinks forbidden in frozen evidence")
-        if path.is_file() and path.name != "freeze.json":
+        if path.is_file() and path != root / "freeze.json":
             files[path.relative_to(root).as_posix()] = digest(path)
     return files
 
@@ -207,6 +210,8 @@ def freeze(suite_path, runtime_path, out):
 def check_freeze(root):
     root = Path(root)
     require(read(root / "freeze.json").get("files") == inventory(root), "frozen evaluator/input/runtime drift")
+    require(digest(Path(__file__)) == digest(root / "evaluator.py"),
+            "running evaluator differs from frozen evaluator; use the frozen code or label a new regrade")
     suite, runtime = load_suite(root / "suite.json"), read(root / "runtime.json")
     validate_runtime(runtime, suite)
     return suite, runtime, digest(root / "freeze.json")
@@ -249,6 +254,7 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     known = isinstance(usage, dict) and all(integer(usage.get(k)) for k in (
         "input_tokens", "cached_input_tokens", "output_tokens"))
     known = known and usage["cached_input_tokens"] <= usage["input_tokens"]
+    known = known and usage["input_tokens"] > 0
     complete = (info.get("exit_code") == 0 and info.get("timed_out") is False
                 and info.get("cleanup_complete") is True and known
                 and not any(e.get("type") in ("turn.failed", "error") for e in event_rows))
@@ -256,6 +262,11 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     if phase != "first-delivery":
         prior = target.parent / ("first-delivery" if phase == "repair-1" else "repair-1") / "capture.json"
         require(prior.is_file(), "capture first delivery and preceding repair before later feedback")
+    retained = check_record_budget(records, frozen_sha, runtime)
+    within_budget = (retained["calls"] + 1 <= runtime["max_calls"] and known
+                     and retained["input_tokens"] + usage["input_tokens"] <= runtime["max_input_tokens"]
+                     and retained["output_tokens"] + usage["output_tokens"] <= runtime["max_output_tokens"])
+    complete = complete and within_budget
     target.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(artifact, target / "index.html")
     shutil.copyfile(events, target / "events.jsonl")
@@ -268,6 +279,7 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
         names.append(name)
     value = {"case": case_id, "condition": condition, "attempt": attempt, "phase": phase,
              "freeze_sha256": frozen_sha, "complete": complete, "usage": usage if known else None,
+             "within_frozen_budget": bool(within_budget),
              "screenshots": names, "files": inventory(target)}
     write(target / "capture.json", value)
     return value
@@ -281,8 +293,31 @@ def load_capture(path, frozen_sha):
     return value
 
 
+def check_record_budget(records, frozen_sha, runtime):
+    """Independently account all retained phases, including earlier repairs."""
+    totals = {"input_tokens": 0, "output_tokens": 0}
+    calls = 0
+    for path in Path(records).rglob("capture.json"):
+        value = load_capture(path.parent, frozen_sha)
+        usage = value.get("usage")
+        require(value.get("complete") is True and isinstance(usage, dict)
+                and integer(usage.get("input_tokens"), 1)
+                and integer(usage.get("cached_input_tokens"))
+                and integer(usage.get("output_tokens"))
+                and usage["cached_input_tokens"] <= usage["input_tokens"],
+                "incomplete delivery or unknown usage; stop admission")
+        calls += 1
+        for name in totals:
+            totals[name] += usage[name]
+    require(calls <= runtime["max_calls"] and totals["input_tokens"] <= runtime["max_input_tokens"]
+            and totals["output_tokens"] <= runtime["max_output_tokens"],
+            "retained calls exceed frozen usage/call budget; preserve attempts and stop")
+    return dict(totals, calls=calls)
+
+
 def bundle(frozen, records, out, key_out, phase="first-delivery"):
     suite, runtime, frozen_sha = check_freeze(frozen)
+    check_record_budget(records, frozen_sha, runtime)
     out, key_out = Path(out).resolve(), Path(key_out).resolve()
     require(not key_out.is_relative_to(out), "condition key must be outside reviewer bundle")
     require(not key_out.exists(), "never overwrite a condition key")
@@ -323,6 +358,7 @@ def bundle(frozen, records, out, key_out, phase="first-delivery"):
 
 def assess(frozen, records, review_bundle, key_path):
     suite, runtime, frozen_sha = check_freeze(frozen)
+    check_record_budget(records, frozen_sha, runtime)
     key = read(key_path)
     require(key.get("freeze_sha256") == frozen_sha, "review key belongs to another freeze")
     require(key.get("phase") in ("first-delivery", "repair-1", "repair-2"), "invalid review phase")
