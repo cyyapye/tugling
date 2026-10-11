@@ -136,9 +136,13 @@ They recompute completion and usage from retained raw events and the producer
 receipt, rejecting contradictory capture summaries. A hashed artifact-path
 binding preserves native write-denial matching after the artifact is copied;
 repairs use the verified preceding artifact as their input. This checks retained
-consistency without authenticating the external producer. A partially written
-trial, including one interrupted by a screenshot-copy error, blocks subsequent
-admission and review; preserve its raw evidence rather than assigning zero usage.
+consistency without authenticating the external producer. After identity, prior
+delivery and retained-budget checks pass, capture reserves the trial cell and
+copies its raw dependencies before parsing events. A partially written trial,
+including one interrupted by a copy error or malformed event, blocks replacement,
+subsequent admission and review; preserve its raw evidence rather than assigning
+zero usage. A parser or copy failure must not make the same cell available for a
+favorable replacement capture.
 Screenshots are optional at capture; actual review evidence
 at both widths remains mandatory.
 
