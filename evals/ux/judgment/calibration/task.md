@@ -1,0 +1,1 @@
+You coordinate a repair clinic. Before the event, use the plan to identify which station needs more volunteers and how many. Then update Battery desk from email to SMS using +1 202 555 0176, save, and verify the result after reload. You use a laptop and a narrow phone. Support references are used only when contacting support; notes are optional.

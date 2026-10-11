@@ -1,0 +1,29 @@
+[
+  {
+    "id": "S1",
+    "name": "Welcome desk",
+    "assigned": 2,
+    "required": 2,
+    "channel": "Email",
+    "address": "welcome@example.invalid",
+    "note": ""
+  },
+  {
+    "id": "S2",
+    "name": "Battery desk",
+    "assigned": 1,
+    "required": 3,
+    "channel": "Email",
+    "address": "battery@example.invalid",
+    "note": ""
+  },
+  {
+    "id": "S3",
+    "name": "Repair bench",
+    "assigned": 3,
+    "required": 3,
+    "channel": "SMS",
+    "address": "+1 202 555 0149",
+    "note": ""
+  }
+]

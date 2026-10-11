@@ -1,0 +1,43 @@
+{
+  "purpose": "Deliberate rubric controls; no skill comparison or release authority",
+  "controls": [
+    {
+      "file": "valid-cards.html",
+      "expected_major_dimensions": [],
+      "sha256": "470512ca6e483dad0d0467dcd0802b00e6e040da4184136011d42c80ade045ed"
+    },
+    {
+      "file": "valid-table.html",
+      "expected_major_dimensions": [],
+      "sha256": "deebfa06f8958f0ef0ba51c2a92cc7754becc102da7346762378cee03de19ad6"
+    },
+    {
+      "file": "priority.html",
+      "expected_major_dimensions": [
+        "priority"
+      ],
+      "sha256": "40c17932b117a48820bd238e2d397939ddb084125889d1c56a293b737e444f34"
+    },
+    {
+      "file": "relationships.html",
+      "expected_major_dimensions": [
+        "relationships"
+      ],
+      "sha256": "52b216c25ce83b0c2e2de9b22b81f4fe2633a4d2d310d03ed04991eab857e563"
+    },
+    {
+      "file": "copy.html",
+      "expected_major_dimensions": [
+        "copy-and-disclosure"
+      ],
+      "sha256": "56c3a529b5d91efbc22795b1ca1051fd4b56724851dfac8c0ed45eceed9cdb6c"
+    },
+    {
+      "file": "effort.html",
+      "expected_major_dimensions": [
+        "task-effort"
+      ],
+      "sha256": "4f44cc8f8573f5970c25cfff337549aef87474b511a1321ad0a2f24d92ba7b02"
+    }
+  ]
+}
