@@ -19,6 +19,28 @@ cases separate from untouched holdouts. Selecting cases where released fails is
 development screening; retain every screened outcome and do not present the
 selected subset as an unbiased estimate of overall benefit.
 
+### Check what the builder must actually decide
+
+Before spending on a new screen, include a short decision-opportunity record in
+the task card. Name the intended adopter work, model/effort and repository context.
+For each target judgment, distinguish what the brief and product facts specify,
+what the working starter already implements, and what the requested change leaves
+the builder to decide. Record important differences from the work being improved,
+including scope, existing UI patterns, context size and state boundaries.
+
+A starter with clear summaries, action ownership and comparison wording can test
+whether a new feature preserves those decisions. That preservation alone does not
+show that added guidance improves making them. Choose ordinary feature work that
+creates relevant new decisions; keep useful existing behavior and necessary
+product facts. Do not deliberately damage a seed, prescribe the preferred remedy,
+or increase unrelated coding difficulty to manufacture a released failure.
+
+Freeze task selection, the number of development screens and the stop rule before
+new calls. After a saturated screen, retain its regression value and audit coverage
+before spending again. Repeated zero-gap screens mean no demonstrated incremental
+benefit under the sampled conditions. They do not justify changing severity,
+discarding ties, or claiming that all other adopter work is solved.
+
 ## Review the first delivery
 
 Randomize sample names/order and remove condition identities, skill instructions,
