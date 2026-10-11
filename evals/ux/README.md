@@ -6,6 +6,12 @@ that is part of the skill being tested. A later user-feedback repair is a separa
 immutable stage. These local diagnostics neither call a model nor certify a release.
 The existing promotion suite and approved controller pins are unchanged.
 
+For hierarchy, grouping, copy and avoidable task effort, use the additional
+[design-judgment review](judgment/README.md). Calibrate it against distinct valid
+alternatives and functional-but-confusing controls before spending on new builds.
+Keep its consequential findings separate from functional correctness, and label
+regrades of retained artifacts without changing their historical scores.
+
 The three bundled cases reconstruct recurring failures with synthetic facts:
 incomplete editing, independent draft removal, useful history, related records,
 and precise meanings. Their briefs state the user's task and facts, rather than
