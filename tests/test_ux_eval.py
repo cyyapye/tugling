@@ -468,6 +468,43 @@ class UXEvaluationTests(unittest.TestCase):
     def test_ordinary_patch_miss_is_not_a_runtime_denial(self):
         self.assertTrue(self.failed_write_capture(native_denial=False)["complete"])
 
+    def failed_repair_capture(self, phase, *, recovered=False):
+        self.runtime.update(repair_rounds=2, max_calls=18)
+        self.freeze(); self.capture("shift-plan", "candidate")
+        if phase == "repair-2":
+            self.capture("shift-plan", "candidate", phase="repair-1", feedback=True)
+        artifact = self.root / "deliverable.html"
+        if recovered:
+            artifact.write_bytes(artifact.read_bytes() + b"<!-- successful repair -->")
+        events = self.root / "events.jsonl"
+        events.write_text(json.dumps({"type": "item.completed", "item": {
+            "type": "file_change", "status": "failed", "changes": [{"kind": "update", "path": str(artifact)}]}})
+            + "\n" + events.read_text())
+        (self.root / "stderr.txt").write_text(f"Failed to write file {artifact}\n")
+        receipt = ux.read(self.root / "receipt.json")
+        receipt.update(phase=phase, user_feedback_received=True)
+        ux.write(self.root / "receipt.json", receipt)
+        return ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, phase,
+                          artifact, events, self.root / "receipt.json", stderr=self.root / "stderr.txt")
+
+    def test_denied_first_repair_of_changed_delivery_is_incomplete(self):
+        value = self.failed_repair_capture("repair-1")
+        self.assertFalse(value["complete"])
+        self.assertTrue(value["unresolved_artifact_write_failure"])
+        self.assertEqual(value["usage"]["input_tokens"], 100)
+        with self.assertRaisesRegex(ux.UXError, "incomplete"):
+            self.capture("shift-plan", "released")
+
+    def test_denied_second_repair_of_changed_delivery_is_incomplete(self):
+        value = self.failed_repair_capture("repair-2")
+        self.assertFalse(value["complete"])
+        self.assertTrue(value["unresolved_artifact_write_failure"])
+
+    def test_recovered_repair_is_not_rejected_for_earlier_denial(self):
+        value = self.failed_repair_capture("repair-1", recovered=True)
+        self.assertTrue(value["complete"])
+        self.assertFalse(value["unresolved_artifact_write_failure"])
+
     def test_different_commit_with_identical_skills_is_not_a_candidate(self):
         self.runtime["sources"]["candidate"]["skills_sha256"] = "a" * 64
         with self.assertRaisesRegex(ux.UXError, "skill content"):

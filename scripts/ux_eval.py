@@ -303,6 +303,13 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     require(info.get("skills_sha256") == expected_source, "receipt skill-source binding mismatch")
     if phase == "first-delivery":
         require(info.get("user_feedback_received") is False, "first delivery must precede user feedback")
+    target = Path(records) / case_id / condition / str(attempt) / phase
+    before_sha = info["fixture_sha256"]
+    if phase != "first-delivery":
+        prior = target.parent / ("first-delivery" if phase == "repair-1" else "repair-1")
+        require((prior / "capture.json").is_file(), "capture first delivery and preceding repair before later feedback")
+        load_capture(prior, frozen_sha)
+        before_sha = digest(prior / "index.html")
     event_rows = []
     for line in Path(events).read_text().splitlines():
         if line.strip():
@@ -318,13 +325,9 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     complete = (info.get("exit_code") == 0 and info.get("timed_out") is False
                 and info.get("cleanup_complete") is True and known
                 and not any(e.get("type") in ("turn.failed", "error") for e in event_rows))
-    write_failure = (digest(artifact) == info["fixture_sha256"]
+    write_failure = (digest(artifact) == before_sha
                      and artifact_write_failed(event_rows, Path(stderr).read_text(), artifact))
     complete = complete and not write_failure
-    target = Path(records) / case_id / condition / str(attempt) / phase
-    if phase != "first-delivery":
-        prior = target.parent / ("first-delivery" if phase == "repair-1" else "repair-1") / "capture.json"
-        require(prior.is_file(), "capture first delivery and preceding repair before later feedback")
     retained = check_record_budget(records, frozen_sha, runtime)
     within_budget = (retained["calls"] + 1 <= runtime["max_calls"] and known
                      and retained["input_tokens"] + usage["input_tokens"] <= runtime["max_input_tokens"]

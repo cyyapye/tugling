@@ -123,7 +123,9 @@ extracts usage from exactly one completed-turn event, preserves unknowns and
 refuses overwrites. Zero input tokens are invalid like the native `RunBudget`.
 A completed turn and zero CLI exit code do not prove native tools worked. A failed
 native file-change event plus a matching artifact write denial in stderr and an
-unchanged source is retained as incomplete and stops further admission. Ordinary
+source unchanged from the phase's input is retained as incomplete and stops further
+admission. First delivery compares the original fixture; a repair compares its
+immediately preceding retained artifact. Ordinary
 patch misses and recovered edits do not trigger that boundary. Inspect source-read
 and other runtime failures independently; this narrow diagnostic is not a complete
 classifier of every CLI or sandbox failure.
