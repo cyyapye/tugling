@@ -5,3 +5,8 @@
 [`behavioral/`](behavioral/README.md) contains a synthetic executable suite plus a dependency-free no-Tugling/released/candidate runner and deterministic grader. It can also dogfood Tugling against a clean external project checkout while keeping project prompts and results outside this repository.
 
 Routing fixtures make trigger intent reviewable; they do not claim model behavior. Structural checks, live synthetic comparisons, project dogfood, and the full promotion gate are deliberately separate proof levels.
+
+[`ux/`](ux/README.md) adds local correction-burden diagnostics with frozen task
+inputs, immutable first deliveries, anonymized review bundles and separate repair
+scores. Its known development cases do not certify UX improvement or modify the
+approved behavioral promotion matrix.

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volunteer plan</title>
+<style>body{font:16px system-ui;margin:2rem;max-width:65rem}section{border:1px solid #aaa;padding:1rem;margin:1rem 0}label{display:block;margin:.7rem 0}input,button{font:inherit;padding:.4rem}button{margin:.3rem}input{max-width:95%}.metadata{font-size:2.5rem}dialog{max-width:90%}:focus-visible{outline:3px solid blue}</style>
+<header><p class="metadata">PLAN-DEMO-42</p><p>Support record information</p></header>
+<h1 id="event"></h1><button id="edit">Edit plan</button>
+<details><summary>Additional plan information</summary><div id="summary"></div></details>
+<dialog id="editor"><form id="form"><label>Event name <input id="eventName" required></label><div id="rows"></div><button type="button" id="add">Add station</button><p><button>Save</button><button type="button" id="cancel">Cancel</button></p><p role="status" id="error"></p></form></dialog>
+<script>
+const $=id=>document.getElementById(id);
+const initial={event:'Demo park day',stations:[{id:'a',name:'Welcome',note:'Morning team',channel:'email',email:'welcome@example.invalid',phone:''},{id:'b',name:'Water',note:'Afternoon team',channel:'sms',email:'',phone:'+15550101010'}]};
+let saved=JSON.parse(localStorage.getItem('demo-plan')||'null')||initial,draft;
+function show(){ $('event').textContent=saved.event;$('summary').textContent=saved.stations.map(s=>s.name+' — '+s.note+' — '+s.channel+': '+(s.channel==='sms'?s.phone:s.email)).join('; '); }
+function rows(){ $('rows').replaceChildren();for(const s of draft.stations){const box=document.createElement('section');box.innerHTML='<label>Station name <input required data-field="name"></label><label>Note <input data-field="note"></label><label>Email <input data-field="email"></label><button type="button">Remove</button>';for(const input of box.querySelectorAll('input'))input.value=s[input.dataset.field];box.querySelector('button').onclick=()=>{draft.stations=draft.stations.filter(x=>x.id!==s.id);rows()};box.dataset.id=s.id;$('rows').append(box)} }
+function readDraft(){draft.event=$('eventName').value.trim();for(const box of $('rows').children){const s=draft.stations.find(x=>x.id===box.dataset.id);for(const input of box.querySelectorAll('input'))s[input.dataset.field]=input.value.trim()} }
+$('edit').onclick=()=>{draft=structuredClone(saved);$('eventName').value=draft.event;rows();$('editor').showModal()};
+$('add').onclick=()=>{readDraft();draft.stations.push({id:crypto.randomUUID(),name:'New station',note:'',channel:'email',email:'',phone:''});rows()};
+$('form').onsubmit=e=>{e.preventDefault();readDraft();if(!draft.event||draft.stations.some(s=>!s.name)){$('error').textContent='Names required';return}saved=draft;localStorage.setItem('demo-plan',JSON.stringify(saved));$('editor').close();show()};
+$('cancel').onclick=()=>$('editor').close();show();
+</script></html>
