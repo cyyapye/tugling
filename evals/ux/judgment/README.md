@@ -50,8 +50,11 @@ Classify findings before counting:
   guardrail. Veto a favorable result.
 - **Major:** an ordinary task/answer requires a substantial avoidable search,
   inference, correction or workaround. State the concrete consequence.
-- **Minor/preference:** polish or a preference with no consequential task effect.
-  Report separately; exclude from the primary correction count.
+- **Minor:** a smaller, observed usability correction that adds avoidable effort
+  or uncertainty without substantially impeding the task. State its task effect;
+  report separately from the primary consequential correction count.
+- **Preference:** a cosmetic or stylistic alternative without an observed task
+  effect. Record separately; do not count it as a usability correction.
 - **Unknown:** insufficient observation or an ambiguous product requirement.
   Resolve the evidence gap; never turn it into a pass or zero corrections.
 
@@ -59,8 +62,12 @@ Count a root defect once across widths and dimensions. For example, an optional
 support panel that pushes the main answer away is one priority correction even
 if it also adds excess copy. A screenshot, click and observation are not separate
 samples. Record minor findings and raw effort separately rather than inflating
-the major count. Do not claim measured human comprehension time from a model's
-reading or elapsed tool time.
+the major count. Repeated minor problems may matter to the user: define their
+practical significance and the repetition needed before building, retain their
+severity, and report that result separately from major-correction improvement.
+Do not relabel them after seeing results or pool preferences into a favorable
+score. Do not claim measured human comprehension time from a model's reading or
+elapsed tool time.
 
 After independent per-sample findings, compare artifacts on the same task. A
 pairwise preference must cite a difference already supported by the observations;
@@ -94,6 +101,8 @@ and correctness guardrails, pairwise findings, and separately time/usage. Define
 the practical improvement threshold before new builder calls. Require repeated
 benefit across representative tasks and a fresh holdout, with no critical or
 case-level regression, before claiming a transferable improvement.
+If the intended benefit is proactive judgment during ordinary feature work,
+include those tasks; an explicit UI-repair brief alone does not represent that use.
 
 Preserve first deliveries, later repairs and prior scores separately. Applying a
 new rubric to retained artifacts is a labelled exploratory regrade; it cannot
