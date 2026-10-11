@@ -15,7 +15,7 @@ It is intentionally portable. Tugling supplies reusable engineering judgment; ea
 | `$scale-cost-review` | Review simplicity, cardinality, hot-path performance, and operating cost. |
 | `$async-safety` | Design duplicate-safe, replay-safe asynchronous workflows. |
 | `$repo-verify` | Use the repository's own gates and report the strongest proven state. |
-| `$screenshot-first-ui` | Diagnose the visual defect before reaching for pixel tweaks. |
+| `$screenshot-first-ui` | Implement clear UI flows and verify them with visual and interaction evidence. |
 | `$skill-delivery` | Create or revise a skill with routing cases and validation. |
 
 The shared vocabulary is the [Tugling Twelve](plugins/tugling/skills/tugling/references/principles.md). The [lineage map](docs/lineage.md) shows how Pstack and project hardening practices were condensed into this smaller core.
