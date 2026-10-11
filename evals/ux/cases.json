@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "ux-correction-development",
+  "stage": "development",
+  "task_author": {"id": "candidate-aware-operator", "candidate_aware": true},
+  "cases": [
+    {
+      "id": "shift-plan",
+      "split": "development",
+      "provenance": "Synthetic reconstruction of incomplete editors, repeated collection groups and draft-removal corrections. Author has seen candidate guidance; this is not an unseen transfer case.",
+      "task": "fixtures/shift-plan/task.md",
+      "context": "fixtures/shift-plan/context.md",
+      "fixture": "fixtures/shift-plan/index.html",
+      "checks": "fixtures/shift-plan/checks.md",
+      "criteria": [
+        {"id": "complete-editor", "category": "target", "severity": "major", "evidence_kind": "interaction", "criterion": "Coordinator can change an existing station's contact channel and the contact used by that channel, save, reload and use the saved values. No unrelated optional note is required."},
+        {"id": "independent-addition", "category": "target", "severity": "critical", "evidence_kind": "storage", "criterion": "Removing one unsaved station preserves an unrelated existing-station edit and another unsaved addition, including after saving and reloading."},
+        {"id": "task-priority", "category": "target", "severity": "major", "evidence_kind": "render", "criterion": "The initial view identifies this event and its individually scannable station assignments; a coordinator can locate each assignment's corresponding edit action. Support metadata does not compete with or conceal the ordinary station task."},
+        {"id": "cancel-and-validation", "category": "guardrail", "severity": "critical", "evidence_kind": "storage", "criterion": "Cancel preserves saved state; whitespace-only required names are rejected; optional empty notes can save. Zero, one and five stations with a long name stay editable without losing saved records."},
+        {"id": "keyboard-and-widths", "category": "guardrail", "severity": "major", "evidence_kind": "interaction", "criterion": "The required editor, save, cancel and item-level removal are labeled and keyboard operable, with visible focus and reachable controls at both widths. Equivalent contextual action labels are accepted."}
+      ]
+    },
+    {
+      "id": "device-log",
+      "split": "development",
+      "provenance": "Synthetic reconstruction of useful-history, meaningful-precision and related-record presentation corrections. No adopter records or product policy are included; this is not an unseen transfer case.",
+      "task": "fixtures/device-log/task.md",
+      "context": "fixtures/device-log/context.md",
+      "fixture": "fixtures/device-log/index.html",
+      "checks": "fixtures/device-log/checks.md",
+      "criteria": [
+        {"id": "current-and-change", "category": "target", "severity": "major", "evidence_kind": "render", "criterion": "Initial view answers whether the device is currently usable and identifies the latest relevant setting change. History entries show what changed rather than merely when an update occurred. No particular section count or component is required."},
+        {"id": "related-records", "category": "target", "severity": "major", "evidence_kind": "interaction", "criterion": "Each linked sensor is individually identifiable and its reading and corresponding action are reachable; the operator can inspect and remove only one association. Desktop and phone both support this task."},
+        {"id": "meaning-and-precision", "category": "guardrail", "severity": "critical", "evidence_kind": "render", "criterion": "Measured temperature 0.08 C and calibration offset 0.06 C remain distinguishable with meaningful precision; a missing reading remains unknown. Calendar maintenance date remains 4 November 2026. A scheduled maintenance date does not establish completed maintenance."},
+        {"id": "reversible-link", "category": "guardrail", "severity": "critical", "evidence_kind": "storage", "criterion": "Removing an association preserves sensor records and readings across reload; a supported re-link action restores the association. No permanent sensor-erasure claim is introduced."},
+        {"id": "irreversible-erasure", "category": "guardrail", "severity": "critical", "evidence_kind": "storage", "criterion": "Permanent erasure of custom browser-local notes exposes the scope and irreversibility before consent; cancel preserves notes, confirmed erase persists across reload, and built-in device facts remain. Do not promise invented undo."}
+      ]
+    },
+    {
+      "id": "exact-copy",
+      "split": "development",
+      "provenance": "Synthetic narrow repair negative control; known development case, not improvement evidence.",
+      "task": "fixtures/exact-copy/task.md",
+      "context": "fixtures/exact-copy/context.md",
+      "fixture": "fixtures/exact-copy/index.html",
+      "checks": "fixtures/exact-copy/checks.md",
+      "byte_replacements": {"Save drfat": "Save draft"},
+      "criteria": [
+        {"id": "exact-scope", "category": "guardrail", "severity": "critical", "evidence_kind": "bytes", "criterion": "Only visible Save drfat becomes Save draft. All other bytes and behavior remain unchanged; no unsolicited redesign or clarification."}
+      ]
+    }
+  ]
+}

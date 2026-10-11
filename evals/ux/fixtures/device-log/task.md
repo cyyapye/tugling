@@ -1,0 +1,1 @@
+Improve this existing equipment page so an operator can judge the device's current condition, understand recent changes and manage its related sensors and local notes. Keep the synthetic facts and supported operations. Finish the focused improvement in index.html for desktop and phone.

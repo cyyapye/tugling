@@ -10,6 +10,7 @@ test:
 
 eval-validate:
 	python3 scripts/behavioral_eval.py validate
+	python3 scripts/ux_eval.py validate
 
 clean-room-validate:
 	python3 scripts/clean_room_install.py validate

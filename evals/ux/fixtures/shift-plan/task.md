@@ -1,0 +1,1 @@
+Improve this existing volunteer event planner so coordinators can check their station assignments and make ordinary changes comfortably on desktop and phone. Keep the event's saved plan and the existing operations. Complete the focused improvement in index.html.
