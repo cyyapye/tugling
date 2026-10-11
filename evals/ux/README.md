@@ -132,6 +132,13 @@ classifier of every CLI or sandbox failure.
 All retained phases share the frozen usage/call limits; an overshooting attempt
 is preserved as incomplete and cannot enter review or admit another capture.
 Review and assessment independently recheck the cumulative retained budget.
+They recompute completion and usage from retained raw events and the producer
+receipt, rejecting contradictory capture summaries. A hashed artifact-path
+binding preserves native write-denial matching after the artifact is copied;
+repairs use the verified preceding artifact as their input. This checks retained
+consistency without authenticating the external producer. A partially written
+trial, including one interrupted by a screenshot-copy error, blocks subsequent
+admission and review; preserve its raw evidence rather than assigning zero usage.
 Screenshots are optional at capture; actual review evidence
 at both widths remains mandatory.
 

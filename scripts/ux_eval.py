@@ -206,6 +206,24 @@ def artifact_write_failed(rows, stderr, artifact):
         for row in rows)
 
 
+def observe_delivery(artifact, events, stderr, receipt, before_sha, source_artifact):
+    """Derive terminal state from retained producer evidence, not summary fields."""
+    rows = [json.loads(line) for line in Path(events).read_text().splitlines() if line.strip()]
+    require(all(isinstance(row, dict) for row in rows), "malformed event")
+    completions = [row.get("usage") for row in rows if row.get("type") == "turn.completed"]
+    usage = completions[0] if len(completions) == 1 else None
+    known = isinstance(usage, dict) and all(integer(usage.get(k)) for k in (
+        "input_tokens", "cached_input_tokens", "output_tokens"))
+    known = known and usage["cached_input_tokens"] <= usage["input_tokens"] and usage["input_tokens"] > 0
+    write_failure = (digest(artifact) == before_sha
+                     and artifact_write_failed(rows, Path(stderr).read_text(), source_artifact))
+    complete = (receipt.get("exit_code") == 0 and receipt.get("timed_out") is False
+                and receipt.get("cleanup_complete") is True and known and not write_failure
+                and not any(row.get("type") in ("turn.failed", "error") for row in rows))
+    return {"complete": bool(complete), "usage": usage if known else None,
+            "unresolved_artifact_write_failure": bool(write_failure)}
+
+
 def freeze(suite_path, runtime_path, out):
     suite_path, out = Path(suite_path), Path(out)
     suite, runtime = load_suite(suite_path), read(runtime_path)
@@ -310,34 +328,21 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
         require((prior / "capture.json").is_file(), "capture first delivery and preceding repair before later feedback")
         load_capture(prior, frozen_sha)
         before_sha = digest(prior / "index.html")
-    event_rows = []
-    for line in Path(events).read_text().splitlines():
-        if line.strip():
-            value = json.loads(line)
-            require(isinstance(value, dict), "malformed event")
-            event_rows.append(value)
-    completions = [e.get("usage") for e in event_rows if e.get("type") == "turn.completed"]
-    usage = completions[0] if len(completions) == 1 else None
-    known = isinstance(usage, dict) and all(integer(usage.get(k)) for k in (
-        "input_tokens", "cached_input_tokens", "output_tokens"))
-    known = known and usage["cached_input_tokens"] <= usage["input_tokens"]
-    known = known and usage["input_tokens"] > 0
-    complete = (info.get("exit_code") == 0 and info.get("timed_out") is False
-                and info.get("cleanup_complete") is True and known
-                and not any(e.get("type") in ("turn.failed", "error") for e in event_rows))
-    write_failure = (digest(artifact) == before_sha
-                     and artifact_write_failed(event_rows, Path(stderr).read_text(), artifact))
-    complete = complete and not write_failure
+    observed = observe_delivery(artifact, events, stderr, info, before_sha, artifact)
+    usage = observed["usage"]
     retained = check_record_budget(records, frozen_sha, runtime)
-    within_budget = (retained["calls"] + 1 <= runtime["max_calls"] and known
+    within_budget = (retained["calls"] + 1 <= runtime["max_calls"] and usage is not None
                      and retained["input_tokens"] + usage["input_tokens"] <= runtime["max_input_tokens"]
                      and retained["output_tokens"] + usage["output_tokens"] <= runtime["max_output_tokens"])
-    complete = complete and within_budget
     target.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(artifact, target / "index.html")
     shutil.copyfile(events, target / "events.jsonl")
     shutil.copyfile(stderr, target / "stderr.txt")
     shutil.copyfile(receipt, target / "producer-receipt.json")
+    # Native events retain the original absolute path, not the copied artifact's
+    # location. Bind that argument in a hashed file so summary edits cannot hide
+    # its retained write denial. This does not authenticate the external producer.
+    write(target / "artifact-binding.json", {"source_artifact": str(Path(artifact).resolve())})
     names = []
     for i, screenshot in enumerate(screenshots):
         require(Path(screenshot).suffix.lower() == ".png", "screenshots must be PNG")
@@ -345,8 +350,8 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
         shutil.copyfile(screenshot, target / name)
         names.append(name)
     value = {"case": case_id, "condition": condition, "attempt": attempt, "phase": phase,
-             "freeze_sha256": frozen_sha, "complete": complete, "usage": usage if known else None,
-             "unresolved_artifact_write_failure": bool(write_failure),
+             "freeze_sha256": frozen_sha, **observed,
+             "complete": observed["complete"] and within_budget,
              "within_frozen_budget": bool(within_budget),
              "screenshots": names, "files": inventory(target)}
     write(target / "capture.json", value)
@@ -358,14 +363,51 @@ def load_capture(path, frozen_sha):
     files = inventory(path)
     files.pop("capture.json", None)
     require(value.get("files") == files and value.get("freeze_sha256") == frozen_sha, "capture drift")
+    receipt = read(path / "producer-receipt.json")
+    require(receipt.get("freeze_sha256") == frozen_sha and all(
+        value.get(name) == receipt.get(name) for name in ("case", "condition", "attempt", "phase")),
+        "capture identity differs from retained producer receipt")
+    phase = value.get("phase")
+    require(phase in ("first-delivery", "repair-1", "repair-2"), "invalid retained delivery phase")
+    before_sha = receipt.get("fixture_sha256", "")
+    require(isinstance(before_sha, str) and SHA.fullmatch(before_sha), "retained fixture binding missing")
+    if phase == "first-delivery":
+        require(receipt.get("user_feedback_received") is False, "first delivery must precede user feedback")
+    else:
+        prior = path.parent / ("first-delivery" if phase == "repair-1" else "repair-1")
+        load_capture(prior, frozen_sha)
+        before_sha = digest(prior / "index.html")
+    binding = read(path / "artifact-binding.json")
+    source_artifact = binding.get("source_artifact")
+    require(isinstance(source_artifact, str) and Path(source_artifact).is_absolute(),
+            "retained artifact path binding missing")
+    observed = observe_delivery(path / "index.html", path / "events.jsonl", path / "stderr.txt",
+                                receipt, before_sha, source_artifact)
+    require(type(value.get("within_frozen_budget")) is bool, "retained budget state missing")
+    require(value.get("usage") == observed["usage"]
+            and type(value.get("complete")) is bool
+            and value["complete"] == (observed["complete"] and value["within_frozen_budget"])
+            and type(value.get("unresolved_artifact_write_failure")) is bool
+            and value["unresolved_artifact_write_failure"] == observed["unresolved_artifact_write_failure"],
+            "capture summary differs from retained terminal evidence")
     return value
 
 
 def check_record_budget(records, frozen_sha, runtime):
     """Independently account all retained phases, including earlier repairs."""
+    root = Path(records)
+    items = list(root.rglob("*"))
+    require(not any(path.is_symlink() for path in items), "symlink in retained trial records")
+    captures = [path for path in items if path.name == "capture.json" and path.is_file()]
+    require(all(len(path.relative_to(root).parts) == 5 for path in captures),
+            "invalid retained trial layout; stop admission")
+    trial_roots = [path.parent for path in captures]
+    require(all(any(path.is_relative_to(trial) or path.is_dir() and trial.is_relative_to(path)
+                    for trial in trial_roots) for path in items),
+            "partial retained trial; preserve evidence and stop admission")
     totals = {"input_tokens": 0, "output_tokens": 0}
     calls = 0
-    for path in Path(records).rglob("capture.json"):
+    for path in captures:
         value = load_capture(path.parent, frozen_sha)
         usage = value.get("usage")
         require(value.get("complete") is True and isinstance(usage, dict)

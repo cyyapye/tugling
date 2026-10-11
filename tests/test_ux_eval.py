@@ -159,13 +159,69 @@ class UXEvaluationTests(unittest.TestCase):
         self.assertEqual(self.result()["finding"], "INCOMPLETE")
 
     def test_missing_usage_is_retained_unknown_and_prevents_bundle(self):
-        self.freeze(); self.matrix()
-        trial = self.records / "shift-plan/candidate/1/first-delivery"
-        shutil.rmtree(trial)
+        self.freeze()
         value = self.capture("shift-plan", "candidate", usage=False)
         self.assertFalse(value["complete"])
         self.assertIsNone(value["usage"])
         with self.assertRaisesRegex(ux.UXError, "unknown usage"):
+            ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
+
+    def test_summary_cannot_admit_a_capture_without_raw_terminal_usage(self):
+        self.freeze()
+        trial = self.records / "shift-plan/candidate/1/first-delivery"
+        self.capture("shift-plan", "candidate", usage=False)
+        value = ux.read(trial / "capture.json")
+        value.update(complete=True, within_frozen_budget=True,
+                     usage={"input_tokens": 100, "cached_input_tokens": 20, "output_tokens": 10})
+        ux.write(trial / "capture.json", value)
+        with self.assertRaisesRegex(ux.UXError, "retained terminal evidence"):
+            ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
+        with self.assertRaisesRegex(ux.UXError, "retained terminal evidence"):
+            self.capture("shift-plan", "released")
+
+    def test_summary_cannot_lower_usage_before_bundle_or_assessment(self):
+        for before_review in (True, False):
+            with self.subTest(before_review=before_review):
+                self.freeze(); self.matrix()
+                if not before_review:
+                    self.review(failures=[("released", "complete-editor")])
+                trial = self.records / "shift-plan/candidate/1/first-delivery/capture.json"
+                value = ux.read(trial)
+                value["usage"] = {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 0}
+                ux.write(trial, value)
+                with self.assertRaisesRegex(ux.UXError, "retained terminal evidence"):
+                    if before_review:
+                        ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
+                    else:
+                        self.result()
+                shutil.rmtree(self.frozen); shutil.rmtree(self.records)
+                if self.review_bundle.exists():
+                    shutil.rmtree(self.review_bundle); self.key.unlink()
+
+    def test_summary_identity_must_match_retained_producer_receipt(self):
+        sha = self.freeze(); self.capture("shift-plan", "candidate")
+        trial = self.records / "shift-plan/candidate/1/first-delivery"
+        value = ux.read(trial / "capture.json")
+        value["condition"] = "released"
+        ux.write(trial / "capture.json", value)
+        with self.assertRaisesRegex(ux.UXError, "retained producer receipt"):
+            ux.load_capture(trial, sha)
+
+    def test_screenshot_failure_leaves_evidence_and_blocks_later_admission(self):
+        sha = self.freeze(); self.capture("shift-plan", "candidate")
+        shutil.rmtree(self.records)
+        with self.assertRaisesRegex(ux.UXError, "screenshots must be PNG"):
+            ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
+                       self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json",
+                       screenshots=[self.root / "bad.jpg"], stderr=self.root / "stderr.txt")
+        trial = self.records / "shift-plan/candidate/1/first-delivery"
+        self.assertTrue((trial / "events.jsonl").is_file())
+        self.assertFalse((trial / "capture.json").exists())
+        with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+            ux.check_record_budget(self.records, sha, self.runtime)
+        with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+            self.capture("shift-plan", "released")
+        with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
             ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
 
     def test_overwrites_and_post_feedback_first_delivery_rejected(self):
@@ -194,8 +250,7 @@ class UXEvaluationTests(unittest.TestCase):
 
     def test_partially_missing_usage_is_unknown_not_assumed_zero(self):
         self.freeze(); self.capture("shift-plan", "candidate")
-        trial = self.records / "shift-plan/candidate/1/first-delivery"
-        shutil.rmtree(trial)
+        shutil.rmtree(self.records)
         event = {"type": "turn.completed", "usage": {"input_tokens": 100, "output_tokens": 10}}
         (self.root / "events.jsonl").write_text(json.dumps(event) + "\n")
         value = ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
@@ -356,7 +411,7 @@ class UXEvaluationTests(unittest.TestCase):
     def test_missing_attempt_cannot_be_selected_away(self):
         self.freeze(); self.matrix()
         shutil.rmtree(self.records / "shift-plan/released/1/first-delivery")
-        with self.assertRaisesRegex(ux.UXError, "matrix incomplete"):
+        with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
             ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
 
     def test_counterbalanced_schedule_and_three_attempt_confirmation(self):
@@ -499,6 +554,15 @@ class UXEvaluationTests(unittest.TestCase):
         value = self.failed_repair_capture("repair-2")
         self.assertFalse(value["complete"])
         self.assertTrue(value["unresolved_artifact_write_failure"])
+
+    def test_summary_cannot_hide_a_denied_repair_against_the_prior_artifact(self):
+        self.failed_repair_capture("repair-2")
+        trial = self.records / "shift-plan/candidate/1/repair-2"
+        value = ux.read(trial / "capture.json")
+        value.update(complete=True, unresolved_artifact_write_failure=False)
+        ux.write(trial / "capture.json", value)
+        with self.assertRaisesRegex(ux.UXError, "retained terminal evidence"):
+            ux.check_record_budget(self.records, ux.digest(self.frozen / "freeze.json"), self.runtime)
 
     def test_recovered_repair_is_not_rejected_for_earlier_denial(self):
         value = self.failed_repair_capture("repair-1", recovered=True)
