@@ -224,6 +224,68 @@ class UXEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
             ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
 
+    def test_malformed_events_are_retained_before_parsing_and_cannot_be_replaced(self):
+        sha = self.freeze(); self.capture("shift-plan", "candidate")
+        receipt = (self.root / "receipt.json").read_bytes()
+        terminal = (self.root / "events.jsonl").read_text()
+        screenshot = self.root / "snapshot.png"
+        screenshot.write_bytes(b"synthetic PNG capture dependency")
+        malformed = (
+            ("invalid-json", "{broken\n", json.JSONDecodeError),
+            ("non-object", "[]\n", ux.UXError),
+            ("invalid-item", json.dumps({"type": "item.completed", "item": []}) + "\n", ux.UXError),
+            ("invalid-change", json.dumps({"type": "item.completed", "item": {
+                "type": "file_change", "status": "failed", "changes": [None]}}) + "\n", ux.UXError),
+        )
+        for name, bad_row, error in malformed:
+            with self.subTest(event=name):
+                shutil.rmtree(self.records)
+                (self.root / "receipt.json").write_bytes(receipt)
+                (self.root / "events.jsonl").write_text(bad_row + terminal)
+                (self.root / "stderr.txt").write_text("retained synthetic diagnostic\n")
+                expected = {"index.html": (self.root / "deliverable.html").read_bytes(),
+                    "events.jsonl": (self.root / "events.jsonl").read_bytes(),
+                    "stderr.txt": (self.root / "stderr.txt").read_bytes(),
+                    "producer-receipt.json": receipt, "screen-1.png": screenshot.read_bytes()}
+                with self.assertRaises(error):
+                    ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
+                        self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json",
+                        screenshots=[screenshot], stderr=self.root / "stderr.txt")
+                trial = self.records / "shift-plan/candidate/1/first-delivery"
+                self.assertFalse((trial / "capture.json").exists())
+                for filename, raw in expected.items():
+                    self.assertEqual((trial / filename).read_bytes(), raw)
+                self.assertEqual(ux.read(trial / "artifact-binding.json")["source_artifact"],
+                                 str((self.root / "deliverable.html").resolve()))
+                retained = ux.inventory(trial)
+                with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+                    ux.check_record_budget(self.records, sha, self.runtime)
+                for arm in ("candidate", "released"):
+                    with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+                        self.capture("shift-plan", arm)
+                    self.assertEqual(ux.inventory(trial), retained)
+                with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+                    ux.bundle(self.frozen, self.records, self.review_bundle, self.key)
+
+    def test_raw_copy_failure_reserves_the_cell_and_preserves_prior_copies(self):
+        sha = self.freeze(); self.capture("shift-plan", "candidate")
+        shutil.rmtree(self.records)
+        (self.root / "stderr.txt").unlink()
+        with self.assertRaises(FileNotFoundError):
+            ux.capture(self.frozen, self.records, "shift-plan", "candidate", 1, "first-delivery",
+                self.root / "deliverable.html", self.root / "events.jsonl", self.root / "receipt.json",
+                stderr=self.root / "stderr.txt")
+        trial = self.records / "shift-plan/candidate/1/first-delivery"
+        self.assertEqual((trial / "events.jsonl").read_bytes(), (self.root / "events.jsonl").read_bytes())
+        self.assertEqual((trial / "index.html").read_bytes(), (self.root / "deliverable.html").read_bytes())
+        self.assertFalse((trial / "capture.json").exists())
+        (self.root / "stderr.txt").write_text("")
+        with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+            ux.check_record_budget(self.records, sha, self.runtime)
+        for arm in ("candidate", "released"):
+            with self.assertRaisesRegex(ux.UXError, "partial retained trial"):
+                self.capture("shift-plan", arm)
+
     def test_overwrites_and_post_feedback_first_delivery_rejected(self):
         self.freeze(); self.capture("shift-plan", "candidate")
         with self.assertRaises(FileExistsError):

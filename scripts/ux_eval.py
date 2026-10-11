@@ -210,6 +210,14 @@ def observe_delivery(artifact, events, stderr, receipt, before_sha, source_artif
     """Derive terminal state from retained producer evidence, not summary fields."""
     rows = [json.loads(line) for line in Path(events).read_text().splitlines() if line.strip()]
     require(all(isinstance(row, dict) for row in rows), "malformed event")
+    for row in rows:
+        if row.get("type") == "item.completed":
+            item = row.get("item")
+            require(isinstance(item, dict), "malformed event item")
+            if item.get("type") == "file_change":
+                changes = item.get("changes", [])
+                require(isinstance(changes, list) and all(isinstance(change, dict) for change in changes),
+                        "malformed file-change event")
     completions = [row.get("usage") for row in rows if row.get("type") == "turn.completed"]
     usage = completions[0] if len(completions) == 1 else None
     known = isinstance(usage, dict) and all(integer(usage.get(k)) for k in (
@@ -309,7 +317,6 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
     require(phase == "first-delivery" or int(phase[-1]) <= runtime.get("repair_rounds", 0),
             "repair was not included in the frozen call budget")
     info = read(receipt)
-    require(Path(artifact).is_file() and not Path(artifact).is_symlink(), "artifact must be a regular file")
     require(info.get("freeze_sha256") == frozen_sha, "receipt belongs to another freeze")
     require(info.get("model") == runtime["model"] and info.get("effort") == runtime["effort"], "model settings drift")
     require(info.get("case") == case_id and info.get("condition") == condition and info.get("attempt") == attempt
@@ -328,13 +335,11 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
         require((prior / "capture.json").is_file(), "capture first delivery and preceding repair before later feedback")
         load_capture(prior, frozen_sha)
         before_sha = digest(prior / "index.html")
-    observed = observe_delivery(artifact, events, stderr, info, before_sha, artifact)
-    usage = observed["usage"]
     retained = check_record_budget(records, frozen_sha, runtime)
-    within_budget = (retained["calls"] + 1 <= runtime["max_calls"] and usage is not None
-                     and retained["input_tokens"] + usage["input_tokens"] <= runtime["max_input_tokens"]
-                     and retained["output_tokens"] + usage["output_tokens"] <= runtime["max_output_tokens"])
+    # Reserve the cell before copying or parsing delivery evidence. Any failure
+    # leaves a partial trial that blocks replacement, later admission and review.
     target.mkdir(parents=True, exist_ok=False)
+    require(Path(artifact).is_file() and not Path(artifact).is_symlink(), "artifact must be a regular file")
     shutil.copyfile(artifact, target / "index.html")
     shutil.copyfile(events, target / "events.jsonl")
     shutil.copyfile(stderr, target / "stderr.txt")
@@ -349,6 +354,12 @@ def capture(frozen, records, case_id, condition, attempt, phase, artifact, event
         name = f"screen-{i + 1}.png"
         shutil.copyfile(screenshot, target / name)
         names.append(name)
+    observed = observe_delivery(target / "index.html", target / "events.jsonl", target / "stderr.txt",
+                                info, before_sha, artifact)
+    usage = observed["usage"]
+    within_budget = (retained["calls"] + 1 <= runtime["max_calls"] and usage is not None
+                     and retained["input_tokens"] + usage["input_tokens"] <= runtime["max_input_tokens"]
+                     and retained["output_tokens"] + usage["output_tokens"] <= runtime["max_output_tokens"])
     value = {"case": case_id, "condition": condition, "attempt": attempt, "phase": phase,
              "freeze_sha256": frozen_sha, **observed,
              "complete": observed["complete"] and within_budget,
