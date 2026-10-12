@@ -168,6 +168,20 @@
     "prompt": "The reporting feature and layout are approved. Implement the new reading-entry mode in the existing detail screen using our shared components, then verify it."
   },
   {
+    "id": "ui-positive-clickable-proposal",
+    "skill": "screenshot-first-ui",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Simplify this existing detail workflow in a clickable proposal. Preserve the documented functionality and use synthetic examples; application implementation comes after design review."
+  },
+  {
+    "id": "ui-negative-undefined-flow",
+    "skill": "screenshot-first-ui",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Brainstorm what a new service should do and which users it should serve. We have no defined workflow or interface to design yet."
+  },
+  {
     "id": "ui-negative-exact-copy",
     "skill": "screenshot-first-ui",
     "kind": "negative",

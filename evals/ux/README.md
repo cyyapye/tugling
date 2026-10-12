@@ -23,17 +23,28 @@ Preserve all earlier studies and their scores; do not rewrite ties into wins.
 
 Each frozen criterion describes one task-level consequence. Count its failure
 once per artifact across widths, with concrete rendered/interaction/storage
-evidence. Do not count screenshots as separate samples. Target corrections are
-the primary descriptive metric. Critical failures and guardrail failures veto a
+evidence. Do not count screenshots as separate samples. Major and critical target
+corrections are the primary descriptive metric. Frozen minor target criteria are
+counted separately in `minor_corrections`; they cannot weaken a guardrail or enter
+the primary correction count. Critical failures and guardrail failures veto a
 favorable result; a target win cannot hide a case-level regression. Taste changes,
 new requirements and necessary clarification of missing facts are not corrections.
 
-- `SATURATED`: released has no target corrections, leaving no measurable lift.
+- `SATURATED`: released has no major/critical target corrections. This says nothing
+  about minor correction burden; inspect the separate minor diagnostic.
 - `NO_MEASURED_IMPROVEMENT`: candidate did not reduce released correction burden.
 - `IMPROVEMENT_SIGNAL`: fewer target corrections, without guardrail or case regressions.
 - `REGRESSION`: candidate loses a critical invariant, guardrail or target case.
 - `INCOMPLETE`: a review unit lacks evidence. Missing usage prevents review admission;
   it is retained as unknown, never counted as zero.
+
+`minor_finding` reports `REDUCTION_OBSERVED`, `NO_REDUCTION`, `REGRESSION`, or
+`INCOMPLETE`. It preserves smaller task-grounded corrections without upgrading
+their severity or mistaking preferences for failures. A minor case regression
+vetoes a favorable overall result even when another case or a major target improves.
+A minor reduction alone cannot establish the primary confirmation signal. Define
+its practical significance and required repetition before builder calls, and report
+that endpoint separately as described in the [judgment guide](judgment/README.md).
 
 A confirmation signal additionally requires three matched attempts, a fresh target
 holdout, a candidate-blind external task author, an independent reviewer who

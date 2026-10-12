@@ -39,7 +39,7 @@ Use a focused skill when its decision is needed and it is available:
 - `$delivery-plan`: a requested plan or unresolved work across meaningful boundaries.
 - `$scale-cost-review`: a design or change with a material volume, latency, or cost risk.
 - `$async-safety`: duplicate delivery, retry, ordering, or recovery across asynchronous state.
-- `$screenshot-first-ui`: a visible defect or defined UI change, including implementation of an approved design, needing visual and interaction proof.
+- `$screenshot-first-ui`: a visible defect or defined UI flow, including a clickable proposal or implementation of an approved design, needing visual and interaction proof.
 - `$skill-delivery`: creation or revision of a reusable skill.
 - `$repo-verify`: readiness, an unclear or failing verification contract, or changed judging machinery.
 

@@ -41,6 +41,33 @@ before spending again. Repeated zero-gap screens mean no demonstrated incrementa
 benefit under the sampled conditions. They do not justify changing severity,
 discarding ties, or claiming that all other adopter work is solved.
 
+### Reproduce an adopter failure before replacing the task
+
+When real user corrections motivate the change, replay the retained delivery and
+its actual workflow before inventing another screen. Record original artifact
+hashes, the handoff, requirements known at that time, and any later clarification.
+Separate delivered defects from repairs made before delivery. A new requested
+capability can calibrate the observer against the clarified task, but does not
+prove that the earlier author ignored an existing requirement.
+
+Match the starting state as well as the numbers: an available estimate and an
+accepted value are different states. Preserve the original inputs and capture any
+transition needed for a comparable reading task. Record host styling, icons,
+persistence and simulated behavior; diagnose capture artifacts before scoring
+them. Keep original bytes and incomplete or failed replays.
+
+Calibrate the observer on task-grounded failures and contrasting repairs, without
+assuming the later artifact is entirely correct. Keep smaller usability burdens
+separate from major failures and preferences. Record disagreements with the
+expected key instead of changing severity to fit it. A historical replay is
+exploratory evidence about evaluator sensitivity, not measured skill improvement.
+
+For the next prospective comparison, match the intended artifact type and model
+context, including proposal design when that is where failures occurred. Confirm
+skill routing and record exact instruction exposure where observable; an installed
+version or a remembered model name alone does not establish what the author used.
+Keep historical diagnoses and repair keys out of builder inputs and fresh holdouts.
+
 ## Review the first delivery
 
 Randomize sample names/order and remove condition identities, skill instructions,

@@ -1,4 +1,4 @@
 interface:
   display_name: "Screenshot-First UI"
-  short_description: "Implement clear UI flows and verify visual changes"
-  default_prompt: "Use $screenshot-first-ui to implement this defined UI change and verify the user's task at desktop and narrow widths."
+  short_description: "Design and verify clear UI flows and proposals"
+  default_prompt: "Use $screenshot-first-ui to design or implement this defined UI flow and verify the user's task at desktop and narrow widths."

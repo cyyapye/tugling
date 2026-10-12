@@ -96,17 +96,22 @@ def load_suite(path):
             require(unit["id"] not in units, "duplicate unit id; count across widths once")
             units.add(unit["id"])
             require(unit.get("category") in ("target", "guardrail"), "invalid category")
-            require(unit.get("severity") in ("major", "critical"), "invalid severity")
+            require(unit.get("severity") in ("minor", "major", "critical"), "invalid severity")
+            require(unit["severity"] != "minor" or unit["category"] == "target",
+                    "minor findings must be targets, not weakened guardrails")
             require(unit.get("evidence_kind") in ("render", "interaction", "storage", "bytes"),
                     "invalid evidence kind")
             require(isinstance(unit.get("criterion"), str) and unit["criterion"], "criterion required")
     require(any(u["category"] == "target" for c in cases for u in c["criteria"]), "target criteria required")
+    require(any(u["category"] == "target" and u["severity"] in ("major", "critical")
+                for c in cases for u in c["criteria"]), "primary major/critical target criteria required")
     require(any(u["category"] == "guardrail" for c in cases for u in c["criteria"]), "guardrails required")
     if suite["stage"] == "confirmation":
         require(not author["candidate_aware"], "confirmation needs a candidate-blind task author")
         relative_file(path.parent, author.get("evidence"))
-        require(any(c["split"] == "holdout" and any(u["category"] == "target" for u in c["criteria"])
-                    for c in cases), "confirmation needs a fresh target holdout")
+        require(any(c["split"] == "holdout" and any(u["category"] == "target"
+                    and u["severity"] in ("major", "critical") for u in c["criteria"])
+                    for c in cases), "confirmation needs a fresh major/critical target holdout")
     return suite
 
 
@@ -501,8 +506,10 @@ def assess(frozen, records, review_bundle, key_path):
                 for a in range(1, runtime["attempts"] + 1)}
     identities = [(v["case"], v["condition"], v["attempt"]) for v in key["trials"].values()]
     require(len(identities) == len(expected) and set(identities) == expected, "key matrix mismatch")
-    totals = {arm: {"target_corrections": 0, "guardrail_failures": 0, "critical_failures": 0}
+    totals = {arm: {"target_corrections": 0, "minor_corrections": 0,
+                    "guardrail_failures": 0, "critical_failures": 0}
               for arm in CONDITIONS}
+    minor_scores = {}
     case_scores, usages, unknown = {}, {arm: {"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0}
                                       for arm in CONDITIONS}, False
     for label, identity in key["trials"].items():
@@ -518,7 +525,7 @@ def assess(frozen, records, review_bundle, key_path):
                 and {u.get("id") for u in units} == {u["id"] for u in case["criteria"]},
                 "unit coverage must be complete, without duplicates or per-viewport inflation")
         by_id = {u["id"]: u for u in units}
-        failed = 0
+        failed, minor_failed = 0, 0
         for criterion in case["criteria"]:
             unit = by_id[criterion["id"]]
             outcome = unit.get("outcome")
@@ -551,24 +558,32 @@ def assess(frozen, records, review_bundle, key_path):
                 if criterion["severity"] == "critical":
                     score["critical_failures"] += 1
                 if criterion["category"] == "target":
-                    score["target_corrections"] += 1
-                    failed += 1
+                    if criterion["severity"] == "minor":
+                        score["minor_corrections"] += 1
+                        minor_failed += 1
+                    else:
+                        score["target_corrections"] += 1
+                        failed += 1
                 else:
                     score["guardrail_failures"] += 1
         case_scores[(case["id"], identity["condition"], identity["attempt"])] = failed
+        minor_scores[(case["id"], identity["condition"], identity["attempt"])] = minor_failed
         for name in usages[identity["condition"]]:
             usages[identity["condition"]][name] += capture_info["usage"].get(name, 0)
     baseline, candidate = totals["released"], totals["candidate"]
     regressions = [c["id"] for c in suite["cases"] if
                    sum(case_scores[(c["id"], "candidate", a)] for a in range(1, runtime["attempts"] + 1)) >
                    sum(case_scores[(c["id"], "released", a)] for a in range(1, runtime["attempts"] + 1))]
+    minor_regressions = [c["id"] for c in suite["cases"] if
+                        sum(minor_scores[(c["id"], "candidate", a)] for a in range(1, runtime["attempts"] + 1)) >
+                        sum(minor_scores[(c["id"], "released", a)] for a in range(1, runtime["attempts"] + 1))]
     holdout_lift = any(c["split"] == "holdout" and
                       sum(case_scores[(c["id"], "candidate", a)] for a in range(1, runtime["attempts"] + 1)) <
                       sum(case_scores[(c["id"], "released", a)] for a in range(1, runtime["attempts"] + 1))
                       for c in suite["cases"])
     if unknown:
         finding = "INCOMPLETE"
-    elif candidate["critical_failures"] or candidate["guardrail_failures"] or regressions:
+    elif candidate["critical_failures"] or candidate["guardrail_failures"] or regressions or minor_regressions:
         finding = "REGRESSION"
     elif baseline["target_corrections"] == 0:
         finding = "SATURATED"
@@ -576,18 +591,23 @@ def assess(frozen, records, review_bundle, key_path):
         finding = "IMPROVEMENT_SIGNAL"
     else:
         finding = "NO_MEASURED_IMPROVEMENT"
+    minor_finding = ("INCOMPLETE" if unknown else "REGRESSION" if minor_regressions else
+                     "REDUCTION_OBSERVED" if candidate["minor_corrections"] < baseline["minor_corrections"]
+                     else "NO_REDUCTION")
     reviewer = review["reviewer_id"]
     independent = review["blind_attested"] and reviewer not in {
         suite["task_author"]["id"], runtime["operator_id"], runtime["candidate_author_id"]}
     confirmation = (suite["stage"] == "confirmation" and independent and holdout_lift
                     and finding == "IMPROVEMENT_SIGNAL" and key["phase"] == "first-delivery")
     return {"schema_version": 1, "finding": finding, "freeze_sha256": frozen_sha,
-            "phase": key["phase"], "primary_metric": "task-derived corrections before user feedback",
+            "phase": key["phase"], "primary_metric": "major or critical task-derived corrections before user feedback",
             "totals": totals, "observed_usage": usages, "case_regressions": regressions,
+            "minor_finding": minor_finding, "minor_case_regressions": minor_regressions,
             "holdout_improvement": holdout_lift, "independence_attested": bool(independent),
             "confirmation_signal": bool(confirmation), "release_authorized": False,
             "limitations": ["Identity/blinding attestations require external review; this tool cannot prove them.",
                             "Counts are paired descriptive evidence, not statistical or product-wide causal proof.",
+                            "Minor reductions are reported separately; they cannot establish the primary confirmation signal.",
                             "Repair-stage scores never replace first-delivery scores; no release gate is changed."]}
 
 

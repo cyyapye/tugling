@@ -1,13 +1,13 @@
 ---
 name: screenshot-first-ui
-description: Implement and verify defined UI changes, including approved designs, or diagnose visual defects using desktop/mobile evidence. Use for hierarchy, editing flows, disclosure, or responsive behavior; skip branding, undefined product flows, and isolated exact-copy edits.
+description: Design and verify defined UI flows, clickable proposals, or implementations using desktop/mobile evidence. Use for hierarchy, editing, disclosure, or visual defects; skip branding, undefined product flows, and isolated exact-copy edits.
 ---
 
 # Screenshot First Ui
 
 Treat a screenshot as product evidence, not decoration.
 
-An approved design settles the intended feature; still check whether its implementation lets the user understand and complete the task. Apply the checks below to the affected flow while preserving the product's decisions and shared patterns.
+Apply this workflow while designing an existing or defined flow, including a clickable proposal, and while implementing an approved design. Check whether the delivered interface lets the user understand and complete the task; preserve the product's decisions and shared patterns.
 
 ## Inspect before editing
 
@@ -20,7 +20,9 @@ If no screenshot or runnable state is available but the user gives concrete symp
 
 ## Carry the task through the interface
 
-For a defined UI change, identify the user's main question, next action, and the value or object that action changes. Trace that relationship through the initial view, expanded detail, editing, and saved result:
+Identify the user's main questions, ordinary actions, and the values or objects those actions change. Reconcile them with the existing capabilities and product facts before arranging the screen. A readable fact, an imported source, and an editable input are different capabilities; do not silently defer an ordinary task or treat a missing product decision as a layout choice.
+
+Trace each ordinary task through the initial view, expanded detail, editing, and saved result:
 
 - **Answer before detail.** Preserve the main answer in the initial or collapsed view. A section heading should describe what opening it reveals; remove a repeated summary when it adds no decision-relevant information. Keep exceptions or uncertainty visible when they change the answer.
 - **Action beside its subject.** Place an edit action with the value or group it owns. Use a short visible label when nearby context supplies the object, and an accessible name that distinguishes repeated controls. Avoid placing an action between unrelated values where its scope becomes ambiguous.
@@ -54,14 +56,14 @@ Several failed spacing nudges are evidence that spacing is probably not the prim
 
 ## Verify a material change
 
-When the user also asks for implementation:
+For a material implementation or clickable proposal:
 
 1. Use the repository's shared components and closest reference screen before adding a new pattern.
 2. Capture deterministic current-run screenshots at the supported desktop and narrow breakpoints.
 3. Inspect every generated image for hierarchy, clipping, overflow, density, contrast, focus, and misleading affordances.
 4. Walk the affected ordinary task through its initial view, editing, save or cancel, and reopened result where applicable. Inspect the reading path as well as functional coverage; working controls alone do not prove clear priority or ownership.
 5. Update a canonical baseline only after the new image is intentionally correct, then rerun without update mode.
-6. Complete the repository's native gate; use `$repo-verify` if its contract is unclear, failing, or needs a readiness review.
+6. Complete the repository's native gate for the delivered artifact; use `$repo-verify` if its contract is unclear, failing, or needs a readiness review. For a prototype, state which saves, sources, or host behavior are simulated. Prototype proof does not establish production behavior.
 
 ## Handoff
 
