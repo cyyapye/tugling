@@ -30,6 +30,12 @@ the primary correction count. Critical failures and guardrail failures veto a
 favorable result; a target win cannot hide a case-level regression. Taste changes,
 new requirements and necessary clarification of missing facts are not corrections.
 
+For editors, predefine realistic changes to units, categories or supporting facts
+and inspect dependent answers in the preview, saved summary and reopened record.
+A correct seeded state or successful click does not establish that their meaning
+survives an edit. Accept implementations that preserve the product's meaning;
+retain an undefined relationship as unknown rather than inventing a product rule.
+
 - `SATURATED`: released has no major/critical target corrections. This says nothing
   about minor correction burden; inspect the separate minor diagnostic.
 - `NO_MEASURED_IMPROVEMENT`: candidate did not reduce released correction burden.
