@@ -109,6 +109,22 @@ must still verify producer identity, source access, invocation parity and the ac
 browser observations. They cannot prove a model read a skill from its own claim.
 The freezer retains and hashes every probe dependency outside Git.
 
+Exercise the host's interaction capabilities with small independent controls,
+including an ordinary button and a native form whose submit handler prevents
+navigation. Test pointer and keyboard activation and the resulting state; a click
+receipt alone does not prove submission reached the handler. Preserve outbound
+network restrictions. Disclose supported host capabilities equally to builders;
+an undisclosed host restriction must not become a skill regression. Keep a host
+repair under a new runtime identity and replay all matched artifacts separately.
+
+For an operator-mediated browser, preflight must also exercise service availability
+through the admitted build window and operator handoff. Preserve queue failures
+and response deadlines independently of native completion. A response written
+after its request timed out is retained evidence, not feedback the builder received.
+A successful native exit, known usage and cleanup do not repair a failed browser
+session. Exclude that attempt from matched-runtime improvement claims; a separate
+final-artifact diagnosis cannot retroactively supply builder-time verification.
+
 Calibration must retain actual expected/observed evidence for controls
 named valid-alternative, lost-edit, meaning-loss and unprotected-erasure. A receipt's
 `passed: true` and control names are required metadata, not a replacement for
