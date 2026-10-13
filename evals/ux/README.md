@@ -94,7 +94,7 @@ python3 -m unittest tests.test_ux_eval
 
 Prepare an external runtime.json with model, effort, cli_version, browser_version,
 timezone, locale, operator_id, candidate_author_id, attempts (1–3), timeout_seconds
-(30–600), repair_rounds (0–2, default zero), max_calls
+(30–1800), repair_rounds (0–2, default zero), max_calls
 (cases × three arms × attempts × (1 + repair_rounds), at most 36), positive
 max_input_tokens/max_output_tokens, and viewport strings such as `1280x900` and
 `390x844`. Include a phone width at most 480px and a desktop width at least 1024px;
@@ -103,6 +103,13 @@ two nearby widths on the same surface cannot supply responsive evidence.
 Use exact committed skill trees; independently verify those source bindings.
 The capture layer cross-checks producer declarations; it does not authenticate a
 CLI or prove which instructions a model read.
+
+Choose the timeout prospectively from relevant completed runs, with time reserved
+for final verification and delivery. A larger allowed ceiling is not a default or
+spending authority: freeze the same approved limit for every arm before admission.
+It does not extend an existing freeze, turn a timed-out attempt into a completion,
+or change the call/token limits, retry policy, quality criteria or separate
+certification runtime.
 
 Runtime `preflight`, `calibration` and `observer_files` reference relative files
 outside Git. Preflight must exercise the builder's full admitted invocation and

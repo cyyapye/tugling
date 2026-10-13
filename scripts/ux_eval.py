@@ -122,8 +122,8 @@ def validate_runtime(runtime, suite):
         require(isinstance(runtime.get(field), str) and runtime[field], f"runtime {field} required")
     attempts = runtime.get("attempts")
     require(integer(attempts, 1) and attempts <= 3, "attempts must be 1..3")
-    require(integer(runtime.get("timeout_seconds"), 30) and runtime["timeout_seconds"] <= 600,
-            "timeout must be 30..600 seconds")
+    require(integer(runtime.get("timeout_seconds"), 30) and runtime["timeout_seconds"] <= 1800,
+            "timeout must be 30..1800 seconds")
     repairs = runtime.get("repair_rounds", 0)
     require(integer(repairs) and repairs <= 2, "repair_rounds must be 0..2")
     calls = len(suite["cases"]) * len(CONDITIONS) * attempts * (1 + repairs)

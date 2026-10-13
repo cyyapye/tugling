@@ -122,6 +122,28 @@ class UXEvaluationTests(unittest.TestCase):
         self.assertTrue(suite["task_author"]["candidate_aware"])
         self.assertTrue(all(c["split"] == "development" for c in suite["cases"]))
 
+    def test_longer_prospective_timeout_preserves_frozen_matrix_and_budget(self):
+        self.runtime["timeout_seconds"] = 1200
+        self.freeze()
+        frozen = ux.read(self.frozen / "runtime.json")
+        self.assertEqual(frozen["timeout_seconds"], 1200)
+        for field in ("attempts", "max_calls", "max_input_tokens", "max_output_tokens"):
+            self.assertEqual(frozen[field], self.runtime[field])
+        self.assertEqual(len(ux.read(self.frozen / "schedule.json")), self.runtime["max_calls"])
+        frozen["timeout_seconds"] = 1800
+        ux.write(self.frozen / "runtime.json", frozen)
+        with self.assertRaisesRegex(ux.UXError, "frozen evaluator/input/runtime drift"):
+            ux.check_freeze(self.frozen)
+
+    def test_prospective_timeout_bounds_and_type_are_enforced(self):
+        for timeout in (30, 600, 1200, 1800):
+            with self.subTest(timeout=timeout):
+                ux.validate_runtime(dict(self.runtime, timeout_seconds=timeout), self.suite)
+        for timeout in (None, True, 29, 1801, 1200.5, "1800"):
+            with self.subTest(timeout=timeout):
+                with self.assertRaisesRegex(ux.UXError, "timeout must be 30..1800 seconds"):
+                    ux.validate_runtime(dict(self.runtime, timeout_seconds=timeout), self.suite)
+
     def test_ceiling_tie_cannot_establish_improvement(self):
         self.freeze(); self.matrix(); self.review()
         result = self.result()
