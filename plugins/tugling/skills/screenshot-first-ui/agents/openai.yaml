@@ -1,4 +1,4 @@
 interface:
   display_name: "Screenshot-First UI"
-  short_description: "Diagnose visual defects before tweaking styles"
-  default_prompt: "Use $screenshot-first-ui to diagnose what is visually wrong before editing."
+  short_description: "Design and verify clear UI flows and proposals"
+  default_prompt: "Use $screenshot-first-ui to design or implement this defined UI flow and verify the user's task at desktop and narrow widths."

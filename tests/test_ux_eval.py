@@ -122,6 +122,28 @@ class UXEvaluationTests(unittest.TestCase):
         self.assertTrue(suite["task_author"]["candidate_aware"])
         self.assertTrue(all(c["split"] == "development" for c in suite["cases"]))
 
+    def test_longer_prospective_timeout_preserves_frozen_matrix_and_budget(self):
+        self.runtime["timeout_seconds"] = 1200
+        self.freeze()
+        frozen = ux.read(self.frozen / "runtime.json")
+        self.assertEqual(frozen["timeout_seconds"], 1200)
+        for field in ("attempts", "max_calls", "max_input_tokens", "max_output_tokens"):
+            self.assertEqual(frozen[field], self.runtime[field])
+        self.assertEqual(len(ux.read(self.frozen / "schedule.json")), self.runtime["max_calls"])
+        frozen["timeout_seconds"] = 1800
+        ux.write(self.frozen / "runtime.json", frozen)
+        with self.assertRaisesRegex(ux.UXError, "frozen evaluator/input/runtime drift"):
+            ux.check_freeze(self.frozen)
+
+    def test_prospective_timeout_bounds_and_type_are_enforced(self):
+        for timeout in (30, 600, 1200, 1800):
+            with self.subTest(timeout=timeout):
+                ux.validate_runtime(dict(self.runtime, timeout_seconds=timeout), self.suite)
+        for timeout in (None, True, 29, 1801, 1200.5, "1800"):
+            with self.subTest(timeout=timeout):
+                with self.assertRaisesRegex(ux.UXError, "timeout must be 30..1800 seconds"):
+                    ux.validate_runtime(dict(self.runtime, timeout_seconds=timeout), self.suite)
+
     def test_ceiling_tie_cannot_establish_improvement(self):
         self.freeze(); self.matrix(); self.review()
         result = self.result()
@@ -138,6 +160,79 @@ class UXEvaluationTests(unittest.TestCase):
         self.assertEqual(result["finding"], "IMPROVEMENT_SIGNAL")
         self.assertEqual(result["totals"]["released"]["target_corrections"], 1)
         self.assertFalse(result["confirmation_signal"])
+
+    def add_minor(self, case_index=0, unit_id="reading-effort"):
+        self.suite["cases"][case_index]["criteria"].append({
+            "id": unit_id, "category": "target", "severity": "minor",
+            "evidence_kind": "render", "criterion": "Observed avoidable reading effort for the ordinary task."})
+
+    def test_minor_reduction_is_not_saturation_of_all_ux_or_primary_confirmation(self):
+        self.add_minor()
+        self.freeze(); self.matrix(); self.review(failures=[("released", "reading-effort")])
+        result = self.result()
+        self.assertEqual(result["finding"], "SATURATED")
+        self.assertEqual(result["minor_finding"], "REDUCTION_OBSERVED")
+        self.assertEqual(result["totals"]["released"]["target_corrections"], 0)
+        self.assertEqual(result["totals"]["released"]["minor_corrections"], 1)
+        self.assertEqual(result["totals"]["candidate"]["minor_corrections"], 0)
+        self.assertFalse(result["confirmation_signal"])
+        self.assertFalse(result["release_authorized"])
+
+    def test_minor_regression_vetoes_a_major_target_win(self):
+        self.add_minor()
+        self.freeze(); self.matrix()
+        self.review(failures=[("released", "complete-editor"), ("candidate", "reading-effort")])
+        result = self.result()
+        self.assertEqual(result["finding"], "REGRESSION")
+        self.assertEqual(result["minor_finding"], "REGRESSION")
+        self.assertEqual(result["minor_case_regressions"], [self.suite["cases"][0]["id"]])
+
+    def test_minor_unknown_is_not_zero_or_a_pass(self):
+        self.add_minor()
+        self.freeze(); self.matrix(); self.review(unknown=[("candidate", "reading-effort")])
+        result = self.result()
+        self.assertEqual(result["finding"], "INCOMPLETE")
+        self.assertEqual(result["minor_finding"], "INCOMPLETE")
+
+    def test_minor_cannot_weaken_a_guardrail(self):
+        self.add_minor()
+        self.suite["cases"][0]["criteria"][-1]["category"] = "guardrail"
+        with self.assertRaisesRegex(ux.UXError, "weakened guardrails"):
+            self.freeze()
+
+    def test_minor_only_suite_cannot_claim_primary_saturation(self):
+        for case in self.suite["cases"]:
+            for unit in case["criteria"]:
+                if unit["category"] == "target":
+                    unit["severity"] = "minor"
+        with self.assertRaisesRegex(ux.UXError, "primary major/critical target"):
+            self.freeze()
+
+    def test_minor_only_holdout_cannot_confirm_the_primary_endpoint(self):
+        self.add_minor(case_index=1, unit_id="heldout-reading-effort")
+        self.suite["stage"] = "confirmation"
+        self.suite["task_author"] = {"id": "independent-author", "candidate_aware": False,
+                                     "evidence": "author-evidence.md"}
+        (self.inputs / "author-evidence.md").write_text("Synthetic independent task-author evidence.\n")
+        holdout = self.suite["cases"][1]
+        holdout["split"] = "holdout"
+        for unit in holdout["criteria"]:
+            if unit["category"] == "target":
+                unit["severity"] = "minor"
+        with self.assertRaisesRegex(ux.UXError, "fresh major/critical target holdout"):
+            self.freeze()
+
+    def test_minor_case_regression_cannot_be_offset_by_another_case(self):
+        self.add_minor(unit_id="reading-effort-a")
+        self.add_minor(unit_id="reading-effort-b")
+        self.add_minor(case_index=1, unit_id="other-case-effort")
+        self.freeze(); self.matrix()
+        self.review(failures=[("released", "reading-effort-a"), ("released", "reading-effort-b"),
+                              ("candidate", "other-case-effort")])
+        result = self.result()
+        self.assertEqual(result["finding"], "REGRESSION")
+        self.assertEqual(result["minor_finding"], "REGRESSION")
+        self.assertEqual(result["minor_case_regressions"], [self.suite["cases"][1]["id"]])
 
     def test_meaning_loss_or_erasure_scope_vetoes_apparent_win(self):
         for bad in ("cancel-and-validation",):

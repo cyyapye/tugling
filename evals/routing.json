@@ -161,6 +161,41 @@
     "prompt": "Invent a new logo and color palette for a product that does not have an interface yet."
   },
   {
+    "id": "ui-positive-approved-implementation",
+    "skill": "screenshot-first-ui",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "The reporting feature and layout are approved. Implement the new reading-entry mode in the existing detail screen using our shared components, then verify it."
+  },
+  {
+    "id": "ui-positive-clickable-proposal",
+    "skill": "screenshot-first-ui",
+    "kind": "positive",
+    "should_trigger": true,
+    "prompt": "Simplify this existing detail workflow in a clickable proposal. Preserve the documented functionality and use synthetic examples; application implementation comes after design review."
+  },
+  {
+    "id": "ui-negative-undefined-flow",
+    "skill": "screenshot-first-ui",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Brainstorm what a new service should do and which users it should serve. We have no defined workflow or interface to design yet."
+  },
+  {
+    "id": "ui-negative-exact-copy",
+    "skill": "screenshot-first-ui",
+    "kind": "negative",
+    "should_trigger": false,
+    "prompt": "Replace the exact sentence 'No records yet.' with 'No records found.' in the message catalog. No layout, interaction, or visual review is requested."
+  },
+  {
+    "id": "ui-holdout-defined-editor",
+    "skill": "screenshot-first-ui",
+    "kind": "holdout",
+    "should_trigger": true,
+    "prompt": "Add editing for a saved workshop's duration and repeat schedule in this existing admin page. The product rules are in its README; follow the neighboring editor and finish implementation."
+  },
+  {
     "id": "ui-holdout-mobile",
     "skill": "screenshot-first-ui",
     "kind": "holdout",

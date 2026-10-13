@@ -23,17 +23,45 @@ Preserve all earlier studies and their scores; do not rewrite ties into wins.
 
 Each frozen criterion describes one task-level consequence. Count its failure
 once per artifact across widths, with concrete rendered/interaction/storage
-evidence. Do not count screenshots as separate samples. Target corrections are
-the primary descriptive metric. Critical failures and guardrail failures veto a
+evidence. Do not count screenshots as separate samples. Major and critical target
+corrections are the primary descriptive metric. Frozen minor target criteria are
+counted separately in `minor_corrections`; they cannot weaken a guardrail or enter
+the primary correction count. Critical failures and guardrail failures veto a
 favorable result; a target win cannot hide a case-level regression. Taste changes,
 new requirements and necessary clarification of missing facts are not corrections.
 
-- `SATURATED`: released has no target corrections, leaving no measurable lift.
+For editors, predefine realistic changes to units, categories or supporting facts
+and inspect dependent answers in the preview, saved summary and reopened record.
+A correct seeded state or successful click does not establish that their meaning
+survives an edit. Accept implementations that preserve the product's meaning;
+retain an undefined relationship as unknown rather than inventing a product rule.
+Where the documented operation distinguishes missing inputs from incompatible
+inputs, freeze examples of both. Verify the displayed explanation against the
+retained facts as well as whether the operation is accepted or rejected. Correct
+blocking does not repair an incorrect source description or recovery instruction;
+retain those observations under the existing severity and guardrail rules.
+Include the selected option's wording when another input changes its relationship
+to the current record. A stable option identity and a context-dependent qualifier
+need different treatment; accept either accurate contextual wording or an
+unqualified identity whose necessary meaning is clear nearby. Check the draft
+and reopened editor as well as the saved summary. Correct arithmetic alone does
+not establish that the form describes the current relationship correctly.
+
+- `SATURATED`: released has no major/critical target corrections. This says nothing
+  about minor correction burden; inspect the separate minor diagnostic.
 - `NO_MEASURED_IMPROVEMENT`: candidate did not reduce released correction burden.
 - `IMPROVEMENT_SIGNAL`: fewer target corrections, without guardrail or case regressions.
 - `REGRESSION`: candidate loses a critical invariant, guardrail or target case.
 - `INCOMPLETE`: a review unit lacks evidence. Missing usage prevents review admission;
   it is retained as unknown, never counted as zero.
+
+`minor_finding` reports `REDUCTION_OBSERVED`, `NO_REDUCTION`, `REGRESSION`, or
+`INCOMPLETE`. It preserves smaller task-grounded corrections without upgrading
+their severity or mistaking preferences for failures. A minor case regression
+vetoes a favorable overall result even when another case or a major target improves.
+A minor reduction alone cannot establish the primary confirmation signal. Define
+its practical significance and required repetition before builder calls, and report
+that endpoint separately as described in the [judgment guide](judgment/README.md).
 
 A confirmation signal additionally requires three matched attempts, a fresh target
 holdout, a candidate-blind external task author, an independent reviewer who
@@ -66,7 +94,7 @@ python3 -m unittest tests.test_ux_eval
 
 Prepare an external runtime.json with model, effort, cli_version, browser_version,
 timezone, locale, operator_id, candidate_author_id, attempts (1–3), timeout_seconds
-(30–600), repair_rounds (0–2, default zero), max_calls
+(30–1800), repair_rounds (0–2, default zero), max_calls
 (cases × three arms × attempts × (1 + repair_rounds), at most 36), positive
 max_input_tokens/max_output_tokens, and viewport strings such as `1280x900` and
 `390x844`. Include a phone width at most 480px and a desktop width at least 1024px;
@@ -75,6 +103,13 @@ two nearby widths on the same surface cannot supply responsive evidence.
 Use exact committed skill trees; independently verify those source bindings.
 The capture layer cross-checks producer declarations; it does not authenticate a
 CLI or prove which instructions a model read.
+
+Choose the timeout prospectively from relevant completed runs, with time reserved
+for final verification and delivery. A larger allowed ceiling is not a default or
+spending authority: freeze the same approved limit for every arm before admission.
+It does not extend an existing freeze, turn a timed-out attempt into a completion,
+or change the call/token limits, retry policy, quality criteria or separate
+certification runtime.
 
 Runtime `preflight`, `calibration` and `observer_files` reference relative files
 outside Git. Preflight must exercise the builder's full admitted invocation and
@@ -97,6 +132,22 @@ browser at both widths. These structural checks bind retained evidence; an opera
 must still verify producer identity, source access, invocation parity and the actual
 browser observations. They cannot prove a model read a skill from its own claim.
 The freezer retains and hashes every probe dependency outside Git.
+
+Exercise the host's interaction capabilities with small independent controls,
+including an ordinary button and a native form whose submit handler prevents
+navigation. Test pointer and keyboard activation and the resulting state; a click
+receipt alone does not prove submission reached the handler. Preserve outbound
+network restrictions. Disclose supported host capabilities equally to builders;
+an undisclosed host restriction must not become a skill regression. Keep a host
+repair under a new runtime identity and replay all matched artifacts separately.
+
+For an operator-mediated browser, preflight must also exercise service availability
+through the admitted build window and operator handoff. Preserve queue failures
+and response deadlines independently of native completion. A response written
+after its request timed out is retained evidence, not feedback the builder received.
+A successful native exit, known usage and cleanup do not repair a failed browser
+session. Exclude that attempt from matched-runtime improvement claims; a separate
+final-artifact diagnosis cannot retroactively supply builder-time verification.
 
 Calibration must retain actual expected/observed evidence for controls
 named valid-alternative, lost-edit, meaning-loss and unprotected-erasure. A receipt's
