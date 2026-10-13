@@ -40,6 +40,12 @@ inputs, freeze examples of both. Verify the displayed explanation against the
 retained facts as well as whether the operation is accepted or rejected. Correct
 blocking does not repair an incorrect source description or recovery instruction;
 retain those observations under the existing severity and guardrail rules.
+Include the selected option's wording when another input changes its relationship
+to the current record. A stable option identity and a context-dependent qualifier
+need different treatment; accept either accurate contextual wording or an
+unqualified identity whose necessary meaning is clear nearby. Check the draft
+and reopened editor as well as the saved summary. Correct arithmetic alone does
+not establish that the form describes the current relationship correctly.
 
 - `SATURATED`: released has no major/critical target corrections. This says nothing
   about minor correction burden; inspect the separate minor diagnostic.
