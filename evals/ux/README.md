@@ -35,6 +35,11 @@ and inspect dependent answers in the preview, saved summary and reopened record.
 A correct seeded state or successful click does not establish that their meaning
 survives an edit. Accept implementations that preserve the product's meaning;
 retain an undefined relationship as unknown rather than inventing a product rule.
+Where the documented operation distinguishes missing inputs from incompatible
+inputs, freeze examples of both. Verify the displayed explanation against the
+retained facts as well as whether the operation is accepted or rejected. Correct
+blocking does not repair an incorrect source description or recovery instruction;
+retain those observations under the existing severity and guardrail rules.
 
 - `SATURATED`: released has no major/critical target corrections. This says nothing
   about minor correction burden; inspect the separate minor diagnostic.
