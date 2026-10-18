@@ -1,0 +1,6 @@
+interface:
+  display_name: "principle-attack-the-premise"
+  short_description: "Apply when two or more fixes that share one premise have…"
+  default_prompt: "Use $principle-attack-the-premise for this task."
+policy:
+  allow_implicit_invocation: false

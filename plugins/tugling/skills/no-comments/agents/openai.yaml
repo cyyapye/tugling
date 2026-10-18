@@ -1,0 +1,6 @@
+interface:
+  display_name: "no-comments"
+  short_description: "Spawn Comment Sicko, fix accepted findings, and offer…"
+  default_prompt: "Use $no-comments for this task."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "principle-migrate-callers-then-delete-legacy-apis"
+  short_description: "Apply when introducing a new internal API while old callers…"
+  default_prompt: "Use $principle-migrate-callers-then-delete-legacy-apis for this task."
+policy:
+  allow_implicit_invocation: false

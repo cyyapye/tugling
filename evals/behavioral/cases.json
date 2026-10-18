@@ -21,7 +21,8 @@
   "cases": [
     {
       "id": "delivery-plan-api-migration",
-      "skill": "delivery-plan",
+      "skill": "architect",
+      "legacy_skill": "delivery-plan",
       "fixture": "delivery-plan-api-migration",
       "project_type": "python-cli",
       "sandbox": "read-only",
@@ -86,7 +87,8 @@
     },
     {
       "id": "scale-cost-list-api",
-      "skill": "scale-cost-review",
+      "skill": "architect",
+      "legacy_skill": "scale-cost-review",
       "fixture": "scale-cost-list-api",
       "project_type": "python-service",
       "sandbox": "read-only",
@@ -164,7 +166,8 @@
     },
     {
       "id": "async-safety-webhook",
-      "skill": "async-safety",
+      "skill": "principle-make-operations-idempotent",
+      "legacy_skill": "async-safety",
       "fixture": "async-safety-webhook",
       "project_type": "python-service",
       "sandbox": "read-only",
@@ -239,7 +242,8 @@
     },
     {
       "id": "async-safety-retry-lease-proof",
-      "skill": "async-safety",
+      "skill": "principle-make-operations-idempotent",
+      "legacy_skill": "async-safety",
       "fixture": "async-safety-retry-lease-proof",
       "project_type": "python-service",
       "sandbox": "read-only",
@@ -312,7 +316,8 @@
     },
     {
       "id": "async-safety-typescript-worker",
-      "skill": "async-safety",
+      "skill": "principle-make-operations-idempotent",
+      "legacy_skill": "async-safety",
       "fixture": "async-safety-typescript-worker",
       "project_type": "typescript-worker",
       "sandbox": "read-only",
@@ -405,7 +410,8 @@
     },
     {
       "id": "repo-verify-ignored-support-file",
-      "skill": "repo-verify",
+      "skill": "principle-prove-it-works",
+      "legacy_skill": "repo-verify",
       "fixture": "repo-verify-ignored-support-file",
       "project_type": "python-service",
       "sandbox": "read-only",
@@ -420,11 +426,11 @@
           "git status",
           "git --no-optional-locks status"
         ],
-    [
-      "git check-ignore",
-      "git status --short --ignored",
-      "--ignored"
-    ]
+        [
+          "git check-ignore",
+          "git status --short --ignored",
+          "--ignored"
+        ]
       ],
       "prompt": "CI reports that src/generated_helper.py is missing, but the module exists on this machine and the local test command appears green. Diagnose repository truth, run the appropriate checks, and decide whether the current commit is merge-ready. Do not edit files.",
       "decision_questions": [
@@ -484,7 +490,8 @@
     },
     {
       "id": "tugling-bounded-noop",
-      "skill": "tugling",
+      "skill": "poteto-mode",
+      "legacy_skill": "tugling",
       "fixture": "tugling-bounded-noop",
       "project_type": "generic-repository",
       "sandbox": "workspace-write",
@@ -540,7 +547,8 @@
     },
     {
       "id": "skill-delivery-overtrigger",
-      "skill": "skill-delivery",
+      "skill": "poteto-mode",
+      "legacy_skill": "skill-delivery",
       "fixture": "skill-delivery-overtrigger",
       "project_type": "generic-repository",
       "sandbox": "workspace-write",
@@ -620,7 +628,8 @@
     },
     {
       "id": "screenshot-first-mobile-overflow",
-      "skill": "screenshot-first-ui",
+      "skill": "poteto-mode",
+      "legacy_skill": "screenshot-first-ui",
       "fixture": "screenshot-first-mobile-overflow",
       "project_type": "react-ui",
       "sandbox": "read-only",
@@ -706,7 +715,8 @@
     },
     {
       "id": "tugling-project-setup",
-      "skill": "tugling",
+      "skill": "poteto-mode",
+      "legacy_skill": "tugling",
       "fixture": "tugling-project-setup",
       "project_type": "python-cli",
       "sandbox": "read-only",

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tugling"
-  short_description: "Bootstrap projects and finish repository work"
-  default_prompt: "Use $tugling to complete this project setup or repository change through its required verification."

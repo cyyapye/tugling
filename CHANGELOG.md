@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 0.8.0 — Pstack for Codex
+
+- Port Lauren Tan's Pstack catalog: 54 familiar skills, 24 principles, and 23 task playbooks, with pinned provenance and the full MIT attribution.
+- Translate tools, model inheritance, project paths, history access, and task scope for Codex. Use `$poteto-mode` to start and `$poteto-help` to find a focused workflow.
+- Replace the seven former Tugling entry points. Existing project contracts and their explicit helper integrations remain supported; consult the migration map in `docs/lineage.md`.
+- Use Pstack by default. Retain optional Tugling references and useful failure cases for explicit evaluation, without automatic loading.
+- Replace declarative routing cards with observed local installation and workflow checks. Keep structural checks, model observations, and release certification distinct.
+
+This version is prepared in the source checkout; it is not a published or certified release.
+
 ## 0.4.0 - 2026-09-01
 
 - Require async repository reviews to inspect checked-in runtime rails before making retry or recovery claims.

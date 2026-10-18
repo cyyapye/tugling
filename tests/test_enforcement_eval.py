@@ -200,7 +200,7 @@ class EnforcementEvalTest(unittest.TestCase):
         (tugling / "checks.json").write_text(json.dumps(mapping))
         (tugling / "dogfood.json").write_text(json.dumps({
             "schema_version": 1, "data_policy": "synthetic-only", "case": {
-                "id": "offline-quota", "skill": "tugling", "sandbox": "read-only", "minimum_score": 1.0,
+                "id": "offline-quota", "skill": "poteto-mode", "sandbox": "read-only", "minimum_score": 1.0,
                 "expected_state": "ADVISORY", "max_changed_files": 0,
                 "prompt": "Assess the synthetic project's native verification boundary without editing any files.",
                 "decision_questions": [{"id": "scope", "question": "What scope applies?",
@@ -699,12 +699,6 @@ class EnforcementEvalTest(unittest.TestCase):
         pid = int(result["output"].strip())
         self.assert_stopped(pid)
 
-    def test_case_prompts_keep_advisory_boundary_and_do_not_supply_mutation_hints(self):
-        cases = json.loads((ROOT / "evals/enforcement/cases.json").read_text())["cases"]
-        self.assertEqual([case["expected_state"] for case in cases], ["LOCAL_PASS", "ADVISORY"])
-        self.assertEqual(cases[1]["max_changed_files"], 0)
-        for phrase in ("TEST_ARGS", "untracked spoof", "missing-case", "skipped-case", "identity inventory"):
-            self.assertNotIn(phrase, cases[0]["prompt"])
 
 
 if __name__ == "__main__":

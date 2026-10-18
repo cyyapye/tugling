@@ -1,0 +1,6 @@
+interface:
+  display_name: "in-your-own-words"
+  short_description: "Restate in your own words what you think the user's goals…"
+  default_prompt: "Use $in-your-own-words for this task."
+policy:
+  allow_implicit_invocation: false

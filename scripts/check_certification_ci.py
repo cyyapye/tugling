@@ -52,7 +52,7 @@ def serve(path: Path) -> None:
                 "synthetic_auth": self.headers.get("Authorization") == "Bearer " + FAKE_CREDENTIAL,
             })
             write_state(path, state)
-            answer = json.dumps({"selected_skill": "repo-verify", "canonical_verify": "make verify",
+            answer = json.dumps({"selected_skill": "principle-prove-it-works", "canonical_verify": "make verify",
                                  "verification_order": "repository-native-first",
                                  "strongest_proven_state": "ADVISORY", "edited_files": False})
             schema = body.get("text", {}).get("format", {}).get("schema", {})

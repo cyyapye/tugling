@@ -1,0 +1,6 @@
+interface:
+  display_name: "teach"
+  short_description: "Explain a body of work plainly so a person actually…"
+  default_prompt: "Use $teach for this task."
+policy:
+  allow_implicit_invocation: false

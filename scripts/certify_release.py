@@ -191,8 +191,19 @@ def prepare_candidate(destination: Path, request: dict[str, Any], *,
             if (tuple(map(int, plugin["version"].split("."))) <= tuple(map(int, released["version"].split(".")))
                     or f"refs/tags/v{plugin['version']}" in refs):
                 raise CertificationError("changed plugin needs a new, unpublished release version before paid evaluation")
+            if "diagnostic_case" not in request:
+                require_full_catalog_coverage(destination)
     return {"state": "UNCHANGED_PLUGIN" if before == after else "CERTIFICATION_REQUIRED",
             "request": request, "plugin": plugin}
+
+
+def require_full_catalog_coverage(candidate: Path) -> None:
+    matrix = gate.validate_matrix()
+    catalog = set(gate.plugin_identity(candidate)["skills"])
+    if not gate.catalog_coverage.release_covered(catalog, matrix["required_skills"]):
+        raise CertificationError(
+            "full certification blocked: release matrix does not cover the full installed skill catalog"
+        )
 
 
 @contextmanager
@@ -221,6 +232,7 @@ def certify(candidate: Path, request: dict[str, Any], pattern_file: Path,
             output: Path, private: Path, budget: runtime.RunBudget) -> None:
     if "diagnostic_case" in request:
         raise CertificationError("a diagnostic approval cannot run full certification")
+    require_full_catalog_coverage(candidate)
     if not runtime.proxy_arguments():
         raise CertificationError("CI certification requires the official Codex Action proxy")
     codex_bin, version = clean_room.resolve_codex(None)

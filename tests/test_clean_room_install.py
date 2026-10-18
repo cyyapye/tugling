@@ -56,12 +56,12 @@ class CleanRoomInstallTest(unittest.TestCase):
     def test_event_parser_records_skill_read_commands_and_usage(self) -> None:
         events = "\n".join(
             [
-                '{"type":"item.completed","item":{"type":"command_execution","command":"sed repo-verify/SKILL.md"}}',
+                '{"type":"item.completed","item":{"type":"command_execution","command":"sed principle-prove-it-works/SKILL.md"}}',
                 '{"type":"turn.completed","usage":{"input_tokens":11,"cached_input_tokens":7,"output_tokens":3}}',
             ]
         )
         parsed = clean_room.parse_events(events)
-        self.assertEqual(parsed["commands"], ["sed repo-verify/SKILL.md"])
+        self.assertEqual(parsed["commands"], ["sed principle-prove-it-works/SKILL.md"])
         self.assertEqual(parsed["usage"]["input_tokens"], 11)
 
 

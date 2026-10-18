@@ -3,7 +3,7 @@
   "cases": [
     {
       "id": "tugling-new-project-bootstrap",
-      "skill": "tugling",
+      "skill": "poteto-mode",
       "fixture": "tugling-project-bootstrap",
       "project_type": "python-cli",
       "sandbox": "workspace-write",
@@ -22,7 +22,7 @@
     },
     {
       "id": "tugling-authorized-setup-repair",
-      "skill": "tugling",
+      "skill": "poteto-mode",
       "fixture": "tugling-setup-approved",
       "project_type": "python-cli",
       "sandbox": "workspace-write",
@@ -41,7 +41,7 @@
     },
     {
       "id": "tugling-bootstrap-assessment-only",
-      "skill": "tugling",
+      "skill": "poteto-mode",
       "fixture": "tugling-project-bootstrap",
       "project_type": "python-cli",
       "sandbox": "read-only",

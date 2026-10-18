@@ -254,7 +254,7 @@ def write_live_schema(path: Path) -> None:
             "properties": {
                 "selected_skill": {
                     "type": "string",
-                    "enum": ["repo-verify", "generic-checklist", "none"],
+                    "enum": ["principle-prove-it-works", "generic-checklist", "none"],
                 },
                 "canonical_verify": {
                     "type": "string",
@@ -323,7 +323,7 @@ def run_live_discovery(
     final_path = scratch / "live-final.json"
     write_live_schema(schema)
     prompt = (
-        "Use $repo-verify to inspect this synthetic repository read-only. "
+        "Use $principle-prove-it-works to inspect this synthetic repository read-only. "
         "Confirm the canonical verification command, but do not run it and do not edit files. "
         "Return the strongest state supported before verification runs."
     )
@@ -369,13 +369,13 @@ def run_live_discovery(
     final = read_json(final_path) if final_path.is_file() else None
     final_head = git_output(fixture, "rev-parse", "HEAD")
     status = git_output(fixture, "status", "--porcelain", "--untracked-files=all")
-    installed_skill = installed_plugin / "skills" / "repo-verify" / "SKILL.md"
+    installed_skill = installed_plugin / "skills" / "principle-prove-it-works" / "SKILL.md"
     skill_read = any(str(installed_skill) in command for command in events["commands"])
     native_ran = any(re.search(r"(^|\s)make\s+verify(\s|$)", command) for command in events["commands"])
     checks = {
         "live_exit_zero": completed.returncode == 0,
         "live_skill_selected": (
-            isinstance(final, dict) and final.get("selected_skill") == "repo-verify"
+            isinstance(final, dict) and final.get("selected_skill") == "principle-prove-it-works"
         ),
         "live_repository_native_contract": (
             isinstance(final, dict)

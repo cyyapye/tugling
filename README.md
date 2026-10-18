@@ -1,24 +1,53 @@
 # Tugling
 
-**Tiny tools that pull their weight.**
+**Pstack, adapted for Codex.**
 
-Tugling is a small, skills-only Codex plugin for agent-led software delivery. It helps an agent turn a request into the smallest complete change, design hot paths with explicit performance and cost budgets, handle retries safely, and prove the real result before calling the work done.
+Tugling brings [Pstack](https://github.com/cursor/plugins/tree/101b274dd991f694e1f7024be2157e5f3adf07de/pstack) by Lauren Tan to Codex with its familiar skill names and playbooks. Pstack is the default for every workflow. Optional Tugling guidance must demonstrate a substantive advantage before it becomes part of normal use.
 
 It is intentionally portable. Tugling supplies reusable engineering judgment; each repository keeps its own product rules, commands, architecture, security boundaries, and release authority.
 
-## What ships
+## Pstack, adapted for Codex
 
-| Skill | Job |
+Start with `$poteto-mode` and describe the task. Use `$poteto-help` to choose a
+focused skill. The port preserves Pstack's 54 skill names, 24 principles, and
+task playbooks so existing users can carry their habits into Codex.
+
+| What you want | Familiar entry point |
 | --- | --- |
-| `$tugling` | Bootstrap a project, adopt Tugling, or carry multi-step work through verification. |
-| `$delivery-plan` | Produce an executable, repository-grounded implementation plan. |
-| `$scale-cost-review` | Review simplicity, cardinality, hot-path performance, and operating cost. |
-| `$async-safety` | Design duplicate-safe, replay-safe asynchronous workflows. |
-| `$repo-verify` | Use the repository's own gates and report the strongest proven state. |
-| `$screenshot-first-ui` | Diagnose the visual defect before reaching for pixel tweaks. |
-| `$skill-delivery` | Create or revise a skill with routing cases and validation. |
+| Carry a task through the appropriate playbook | `$poteto-mode` |
+| Understand how code works or why it was designed that way | `$how`, `$why`, `$teach` |
+| Design the shape before implementation | `$architect`, `$arena` |
+| Review a change and its effects outside the diff | `$interrogate`, `$blast-radius` |
+| Verify behavior and measurements | `$principle-prove-it-works`, `$tdd`, `$benchmark-checklist`, `$create-verification-skill` |
+| Write clearly and learn from completed work | `$technical-writing`, `$unslop`, `$reflect` |
+| Find a workflow or inspect model preferences | `$poteto-help`, `$setup-pstack` |
 
-The shared vocabulary is the [Tugling Twelve](plugins/tugling/skills/tugling/references/principles.md). The [lineage map](docs/lineage.md) shows how Pstack and project hardening practices were condensed into this smaller core.
+The full catalog is in
+[`poteto-help`](plugins/tugling/skills/poteto-help/SKILL.md). Explicit invocation
+policy follows upstream. Codex uses `$name` where Cursor uses `/name`.
+
+The [Codex adapter](plugins/tugling/skills/poteto-mode/references/codex.md) maps
+tools, model inheritance, history, worktrees, and authorization. Tool-dependent
+workflows report missing capabilities; Cursor cloud agents, external bot services,
+and helper bootstraps are not required or automatically provisioned.
+
+The [addition assessment](evals/pstack/additions-assessment.md) records the
+upstream overlap, possible gaps, and evidence for each former addition. None has
+earned default inclusion. Their references and useful failure cases remain for
+explicit evaluations and existing project contracts. They are not automatically
+loaded by skills, playbooks, or the shared adapter.
+
+The [reuse decisions](docs/lineage.md), [source manifest](plugins/tugling/skills/poteto-mode/references/upstream/sources.json),
+and [MIT attribution](THIRD_PARTY_NOTICES.md) distinguish Pstack's work from the
+Codex port. The earlier [verification cases](evals/pstack/verification-cases.md)
+remain part of the evaluation record.
+
+Version 0.8.0 is a local release candidate; see the
+[shipping preparation and remaining requirements](docs/pstack-0.8.0-readiness.md).
+The existing ten behavioral cases cover four
+upstream entry points; the [coverage record](evals/behavioral/catalog-coverage.json)
+explicitly lists the remaining 50. Certification rejects incomplete catalog
+coverage even when local structural checks and the existing smoke suite pass.
 
 ## Install locally
 
@@ -33,39 +62,34 @@ codex plugin add tugling@tugling
 Start a new Codex thread so the installed skills are discovered, then try:
 
 ```text
-Use $tugling to add this feature. Keep the change small and show me the real verification evidence.
+Use $poteto-mode to add this feature. Keep the change small and show me the real verification evidence.
 ```
 
 The repository is also shaped as a GitHub-backed marketplace. Workspace admins can import `https://github.com/cyyapye/tugling` from the plugin administration UI. See the official [Codex plugin guide](https://developers.openai.com/codex/build-plugins) and [GitHub marketplace sync guide](https://learn.chatgpt.com/docs/enterprise/plugin-management).
 
 ## Set up a project
 
-In a new thread opened on the project, start with:
+Describe the desired native workflow using the familiar entry point:
 
 ```text
-Use $tugling to set up this project. Inspect its conventions, implement the smallest adapter and pinned CI contract, and complete the required verification. Continue through routine local repairs; ask only for decisions that materially change scope or authority.
+Use $poteto-mode to set up this Python CLI project. Reuse its conventions, provide a runnable command and native verification, and prove the requested workflow from a fresh checkout.
 ```
 
-The intended setup delta is deliberately small:
+Pstack supplies the method; the repository owns its stack, commands, CI and
+completion contract. Generic setup does not require a Tugling adapter, receipt
+system, learning ledger, or extra CI gate. For advice only, request an assessment
+without implementation.
 
-- a short `Tugling project adapter` section in the existing `AGENTS.md`;
-- `.tugling/project.json` with the exact Tugling source, native verification argv, and learning mode;
-- one committed synthetic case at `.tugling/dogfood.json`;
-- a deterministic CI check that validates the source pin and adapter without calling a model;
-- an ignored `.tugling/local/` directory only when local learning is enabled.
+## Existing Tugling adapters
 
-For a new project, describe the stack and smallest runnable outcome:
+The retained [adoption](plugins/tugling/skills/poteto-mode/references/extensions/project-adoption.md),
+[native enforcement](plugins/tugling/skills/poteto-mode/references/extensions/project-enforcement.md),
+and [learning](plugins/tugling/skills/poteto-mode/references/extensions/learning-loop.md)
+references document existing opt-in helpers. Use them when explicitly maintaining
+that integration or evaluating it against Pstack. Existing repository contracts
+still apply; this default change does not migrate or remove adopter files.
 
-```text
-Use $tugling to bootstrap this new Python CLI project. Create a minimal runnable command, native tests, repeatable bootstrap and cleanup, concise AGENTS.md, and Codex worktree setup. Prove it works from a fresh checkout.
-```
-
-The [bootstrap workflow](plugins/tugling/skills/tugling/references/project-bootstrap.md)
-establishes the native development contract before adding an adoption adapter.
-It reuses the selected stack and asks only for material missing choices. For an
-assessment without edits, explicitly request “assess setup and propose changes only.”
-
-The bundled project check is dependency-free:
+The dependency-free project check remains available:
 
 ```bash
 python3 /path/to/tugling/plugins/tugling/scripts/project_contract.py \
@@ -74,25 +98,9 @@ python3 /path/to/tugling/plugins/tugling/scripts/project_contract.py \
   --source-mode pinned
 ```
 
-[`templates/PROJECT_ADAPTER.md`](templates/PROJECT_ADAPTER.md) remains useful when a repository needs a fuller domain adapter. The setup workflow preserves existing project rules and commands instead of replacing them.
-
-Projects can optionally [map user flows to native checks](plugins/tugling/skills/repo-verify/references/project-flows.md),
-including where their existing test runner defines launch, readiness, and
-cleanup. The same helper validates the map without executing it. Explicit
-`--run-flow` selections produce local receipts tied to the clean project commit;
-they reuse native tests and make no model calls. A selected-flow pass has narrower
-scope than the repository's canonical completion gate.
-
-The [software factory roadmap](docs/software-factory-roadmap.md) records the
-accepted direction for repeatable factory setup, the Keel reference pilot, and
-the proof required before packaging it for new projects. It describes planned
-capabilities; the setup workflows above describe what ships today.
-
-## Learn locally, by choice
-
-Learning is off by default. A project may opt into `local` mode, where explicit reusable corrections can be summarized into an ignored, permission-restricted JSONL ledger. Tugling installs no capture hook, records no full transcript, sends no telemetry, and uploads nothing.
-
-The bundled helper can capture, digest, and review those local records. A lesson reaches Tugling only after a person chooses `promote`, rewrites it as a sanitized synthetic case, and the released-versus-candidate evaluation passes without a critical holdout regression.
+The [software factory roadmap](docs/software-factory-roadmap.md) records a proposed
+product direction. Its additional machinery still needs evidence against the
+Pstack baseline before becoming the default for new projects.
 
 ## Choose an update posture
 
@@ -114,19 +122,19 @@ You can run the same verification from a terminal:
 make verify
 ```
 
-`make verify` checks the marketplace and plugin manifests, skill frontmatter and UI metadata, the generic/project boundary, routing-fixture coverage, behavioral fixtures, and the dependency-free grader tests.
+`make verify` checks marketplace and plugin manifests, skill metadata, pinned Pstack sources and attribution, local links, behavioral fixtures, and executable helper and evaluator tests. The [test audit](evals/test-audit.md) explains which obsolete checks were removed. The separate [Pstack experience smoke](evals/pstack/README.md) uses a fresh local marketplace install and observed Codex tasks.
 
 It also reconstructs the marketplace package in an empty directory and validates the release matrix and any committed release certificate. It never calls a model or requires credentials.
 
 Use this proof ladder for consequential instruction changes:
 
 1. **Structural:** run `make verify` on every change.
-2. **Synthetic dogfood:** run at least three no-Tugling/candidate comparisons and require the dogfood gate.
-3. **Project dogfood:** run an external case against a clean project checkout without committing project source or results here.
+2. **Pstack method:** use ordinary tasks, hidden criteria, blinded review and actual execution evidence. Compare Pstack on Codex with and without one addition using matched inputs and budgets; see the attributed [evaluation method](evals/pstack/method.md).
+3. **Confirmation:** repeat matched runs on fresh tasks and real project work before claiming an advantage. Keep project source and results outside this repository. Known smoke cases are not unseen holdouts.
 4. **Public install:** install the exact pushed revision from GitHub into an empty Codex home and confirm a fresh read-only task loads the installed skill.
 5. **Promotion:** compare no Tugling, the exact released revision, and the candidate three times on the full bundled suite; require a sanitized release certificate before moving `stable`.
 
-The live harness pins the model and reasoning effort, isolates every run, records commands, Git state, elapsed time, tokens, source identities, regressions, and plugin permission or hook changes, and grades observable decisions rather than prose style. See [Behavioral evaluation](evals/behavioral/README.md) for commands and limits.
+The local runner freezes package identities, records commands, Git state, elapsed time and tokens, and checks actual artifacts. A separate blinded review assesses quality; the parent audits successful skill reads and execution order. The [older decision questionnaire](evals/behavioral/README.md) remains a legacy regression diagnostic and part of the independently controlled release matrix. Its scores do not establish an advantage over Pstack.
 
 Stable promotion is intentionally separate from ordinary CI. The optional [release certification workflow](docs/release-certification.md) runs only after a maintainer explicitly enables it and approves a reviewed commit and token thresholds. It uses a dedicated API credential, the full behavioral matrix, and a separate attestation job. Ordinary PRs, pushes, and merges make no model calls; their real-CLI transport check uses a local fake API. Certification does not promote a release.
 

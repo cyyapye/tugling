@@ -1,4 +1,11 @@
-# Behavioral evaluation
+# Legacy behavioral diagnostics and release matrix
+
+New skill development follows the attributed [Pstack evaluation method](../pstack/method.md).
+This older runner explicitly tells the model it is being evaluated and asks for
+predefined decisions. Its scores are diagnostic history, not blinded Pstack
+behavioral evidence or proof of an advantage over Pstack. The fixtures, executable
+invariants and independently controlled release matrix remain supported; this
+transition does not regrade historical runs or update approved controller pins.
 
 This suite asks a narrower question than `make verify`: does installing Tugling
 change observable engineering decisions without causing unsafe side effects?
@@ -40,6 +47,23 @@ make verify
 
 This validates case and fixture structure and unit-tests the grader without
 calling a model.
+
+The Pstack port retains the ten existing cases and their decision criteria, now
+owned by four upstream skill names. `catalog-coverage.json` lists 50 additional
+entry points without dedicated cases in the controlled release matrix. Separate
+smoke and development runs do not satisfy that certification coverage. Local
+validation requires the inventory to be exact. Full-certification preflight,
+release-proof generation, assembly, and independent certificate verification
+require coverage of the entire installed catalog; a pending declaration never
+waives that requirement. One-case diagnostics remain available.
+
+The shared prompt explicitly requests the current skill when installed, otherwise
+its recorded legacy name when installed, otherwise the same task without a skill.
+This lets both the Pstack port and the released seven-skill package participate
+through their own entry points. It tests explicit invocation rather than implicit
+discovery.
+All conditions receive the same prompt. A no-skill comparison does not measure
+an advantage over Pstack; that needs a matched port-without-extension arm.
 
 ## Live smoke
 

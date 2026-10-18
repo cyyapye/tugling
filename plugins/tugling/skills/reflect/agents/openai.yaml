@@ -1,0 +1,6 @@
+interface:
+  display_name: "reflect"
+  short_description: "Spawn three parallel review subagents over the active…"
+  default_prompt: "Use $reflect for this task."
+policy:
+  allow_implicit_invocation: false

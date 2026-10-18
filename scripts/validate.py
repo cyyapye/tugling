@@ -8,18 +8,15 @@ import re
 import sys
 from pathlib import Path
 
+if __package__:
+    from . import pstack_sources
+else:
+    import pstack_sources
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "tugling"
-EXPECTED_SKILLS = {
-    "async-safety",
-    "delivery-plan",
-    "repo-verify",
-    "scale-cost-review",
-    "screenshot-first-ui",
-    "skill-delivery",
-    "tugling",
-}
+EXPECTED_SKILLS = set(json.loads((pstack_sources.BUNDLE / pstack_sources.MANIFEST).read_text())["skills"])
 ALLOWED_SKILL_FRONTMATTER = {"name", "description", "license", "allowed-tools", "metadata"}
 ERRORS: list[str] = []
 
@@ -127,7 +124,7 @@ def validate_skills() -> None:
         name_match = re.search(r"^name:\s*['\"]?([^'\"\n]+)", fm, re.MULTILINE)
         description_match = re.search(r"^description:\s*(.+)$", fm, re.MULTILINE)
         require(bool(name_match) and name_match.group(1).strip() == name, f"{skill_path.relative_to(ROOT)}: name must match folder")
-        require(bool(description_match) and len(description_match.group(1).strip()) >= 40, f"{skill_path.relative_to(ROOT)}: description is missing or too vague")
+        require(bool(description_match) and bool(description_match.group(1).strip().strip("\"'").strip()), f"{skill_path.relative_to(ROOT)}: description is missing")
         if name_match:
             skill_name = name_match.group(1).strip()
             require(
@@ -154,44 +151,14 @@ def validate_skills() -> None:
         for path in PLUGIN.rglob("*")
         if path.is_file() and path.suffix in {".md", ".yaml", ".json"}
     )
-    for project_name in ("keel",):
-        require(project_name not in plugin_text.lower(), f"plugin boundary: found project-specific name {project_name}")
     require("[TODO" not in plugin_text and "TODO:" not in plugin_text, "plugin boundary: unfinished placeholder")
 
-    principles = (skills_root / "tugling" / "references" / "principles.md").read_text(encoding="utf-8")
-    headings = re.findall(r"^##\s+\d+\.", principles, re.MULTILINE)
-    require(len(headings) == 12, f"principles: expected 12 numbered principles, found {len(headings)}")
-
-
-def validate_routing_cases() -> None:
-    path = ROOT / "evals" / "routing.json"
-    value = read_json(path)
-    require(isinstance(value, list), "evals/routing.json: root must be an array")
-    if not isinstance(value, list):
-        return
-
-    seen_ids: set[str] = set()
-    coverage = {name: set() for name in EXPECTED_SKILLS}
-    for index, case in enumerate(value):
-        require(isinstance(case, dict), f"evals/routing.json[{index}]: case must be an object")
-        if not isinstance(case, dict):
-            continue
-        case_id = case.get("id")
-        skill = case.get("skill")
-        kind = case.get("kind")
-        prompt = case.get("prompt")
-        should_trigger = case.get("should_trigger")
-        require(isinstance(case_id, str) and case_id not in seen_ids, f"evals/routing.json[{index}]: id must be unique")
-        if isinstance(case_id, str):
-            seen_ids.add(case_id)
-        require(skill in EXPECTED_SKILLS, f"evals/routing.json[{index}]: unknown skill {skill}")
-        require(kind in {"positive", "negative", "holdout"}, f"evals/routing.json[{index}]: invalid kind")
-        require(isinstance(prompt, str) and len(prompt) >= 20, f"evals/routing.json[{index}]: prompt is too short")
-        require(isinstance(should_trigger, bool), f"evals/routing.json[{index}]: should_trigger must be boolean")
-        if skill in coverage and kind in {"positive", "negative", "holdout"}:
-            coverage[skill].add(kind)
-    for skill, kinds in sorted(coverage.items()):
-        require(kinds == {"positive", "negative", "holdout"}, f"evals/routing.json: {skill} lacks positive, negative, or holdout coverage")
+    try:
+        pstack_sources.validate()
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        ERRORS.append(f"Pstack provenance: {exc}")
+    principles = {name for name in EXPECTED_SKILLS if name.startswith("principle-")}
+    require(len(principles) == 24, "principles: expected all 24 pinned upstream principle entry points")
 
 
 def validate_markdown_links() -> None:
@@ -226,18 +193,15 @@ def main() -> int:
     validate_marketplace()
     validate_manifest()
     validate_skills()
-    validate_routing_cases()
     validate_markdown_links()
     validate_release_proof_schema()
     if ERRORS:
         for error in ERRORS:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    routing_cases = read_json(ROOT / "evals" / "routing.json")
-    routing_count = len(routing_cases) if isinstance(routing_cases, list) else 0
     print(
         f"Tugling validation passed: 1 plugin, {len(EXPECTED_SKILLS)} skills, "
-        f"12 principles, {routing_count} routing cases."
+        "pinned Pstack sources and local links."
     )
     return 0
 

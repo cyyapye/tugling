@@ -13,6 +13,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+if __package__:
+    from . import catalog_coverage
+else:
+    import catalog_coverage
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITE = ROOT / "evals" / "behavioral" / "cases.json"
@@ -181,6 +185,9 @@ def assemble_certificate(
         "required_conditions": reproducibility.get("conditions") == matrix["conditions"],
         "minimum_attempts": isinstance(attempts, int) and attempts >= matrix["minimum_attempts"],
         "full_case_matrix": case_ids == matrix["required_case_ids"],
+        "full_catalog_behavioral_coverage": catalog_coverage.release_covered(
+            set(current["skills"]), matrix["required_skills"]
+        ),
         "complete_attempt_pairs": (
             isinstance(attempts, int)
             and case_ids == matrix["required_case_ids"]
@@ -207,7 +214,7 @@ def assemble_certificate(
         "clean_room_fresh_task": (
             clean_live.get("ran") is True
             and clean_live.get("repository_unchanged") is True
-            and clean_live.get("selected_skill") == "repo-verify"
+            and clean_live.get("selected_skill") == "principle-prove-it-works"
             and clean_live.get("verification_order") == "repository-native-first"
         ),
     }
@@ -307,6 +314,8 @@ def verify_certificate(
         raise ReleaseGateError("release certificate does not match the current plugin content")
     if certificate.get("version") != current["version"]:
         raise ReleaseGateError("release certificate version does not match the manifest")
+    if not catalog_coverage.release_covered(set(current["skills"]), matrix["required_skills"]):
+        raise ReleaseGateError("release matrix does not cover the full installed skill catalog")
     recorded_matrix = certificate.get("matrix", {})
     if recorded_matrix.get("minimum_attempts") != matrix["minimum_attempts"]:
         raise ReleaseGateError("release certificate uses a stale attempt threshold")
@@ -364,6 +373,9 @@ def validate_repository() -> dict[str, Any]:
         "case_count": len(matrix["required_case_ids"]),
         "project_type_count": len(matrix["project_types"]),
         "certificate_count": len(certificates),
+        "catalog_covered": catalog_coverage.release_covered(
+            set(plugin_identity()["skills"]), matrix["required_skills"]
+        ),
     }
 
 
@@ -392,10 +404,12 @@ def main(argv: Iterable[str] | None = None) -> int:
         if args.command == "validate":
             report = validate_repository()
             print(
-                "Tugling release gate passed: "
+                "Tugling release configuration valid: "
                 f"{report['case_count']} cases across {report['project_type_count']} project types, "
                 f"{report['minimum_attempts']} attempts required."
             )
+            if not report["catalog_covered"]:
+                print("Certification blocked: behavioral cases do not cover the full installed catalog.")
         elif args.command == "assemble":
             certificate = assemble_certificate(
                 version=args.version,

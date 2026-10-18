@@ -3,8 +3,10 @@
 Tugling is a portable, skills-only plugin. Keep product rules and stack choices in
 adopter repositories; keep reusable workflows in `plugins/tugling/skills/`.
 
-- Use the existing seven skills before adding another entry point. Keep their
-  descriptions short and specific; load references only for the relevant mode.
+- Preserve Pstack's familiar skill names and playbooks. Port Codex mechanics;
+  add a new entry point only for a demonstrated gap. Use Pstack by default;
+  an optional Tugling addition must show a substantive advantage before default
+  inclusion. Keep dormant references and useful failure cases for explicit evals.
 - `make verify` is the local completion gate. It needs Python 3.11+, Git, and Make,
   uses disposable synthetic fixtures, and makes no model calls or production
   changes. Run it, repair failures caused by the requested change, and rerun

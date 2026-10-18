@@ -2,6 +2,11 @@
 
 Decision date: 2026-09-16. Status: direction accepted; implementation milestones pending.
 
+Default-policy update, 2026-10-17: Pstack is the baseline for new work. The
+Tugling-specific setup, enforcement and learning machinery described here remains
+an optional proposal or existing-adopter integration. It must demonstrate a
+substantive advantage before default inclusion; see the [addition assessment](../evals/pstack/additions-assessment.md).
+
 Repeatable software factory setup is the intended product outcome. Keel will be
 its first reference implementation. Design the reusable boundaries now, prove
 the workflow on Keel, then reproduce it on a fresh project before packaging it.
@@ -67,9 +72,9 @@ between them, before choosing a new configuration schema:
   attempt, and revision. Distinguish configured, attempted, passed, merged,
   delivered, and observed states; worker-reported success alone is insufficient.
 
-Reuse the existing [project setup workflow](../plugins/tugling/skills/tugling/references/project-setup.md),
-[bootstrap contract](../plugins/tugling/skills/tugling/references/project-bootstrap.md),
-[native flow verification](../plugins/tugling/skills/repo-verify/references/project-flows.md),
+Reuse the existing [project setup workflow](../plugins/tugling/skills/poteto-mode/references/extensions/project-setup.md),
+[bootstrap contract](../plugins/tugling/skills/poteto-mode/references/extensions/project-bootstrap.md),
+[native flow verification](../plugins/tugling/skills/poteto-mode/references/extensions/project-flows.md),
 and [project adapter](../templates/PROJECT_ADAPTER.md). Version any configuration
 extension deliberately; the current adapter schema is not a complete factory
 schema. Avoid introducing a second test or application runtime harness.

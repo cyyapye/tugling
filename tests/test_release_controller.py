@@ -31,6 +31,12 @@ class ReleaseControllerTest(unittest.TestCase):
             shutil.copytree(controller.ROOT / name, self.repo / name,
                             ignore=shutil.ignore_patterns("__pycache__", "runs", "releases"))
         shutil.copy2(controller.ROOT / "Makefile", self.repo / "Makefile")
+        # Promotion fixtures expose a fully covered synthetic catalog. The real
+        # development port remains blocked until its expanded catalog has cases.
+        covered = set(controller.gate.validate_matrix()["required_skills"])
+        for path in (self.repo / "plugins/tugling/skills").glob("*/SKILL.md"):
+            if path.parent.name not in covered:
+                path.rename(path.with_name("method.md"))
         self.approved = self.commit("reviewed controller and stable baseline")
         self.baseline = self.approved
         self.git(self.repo, "branch", "stable", self.baseline)
@@ -103,6 +109,21 @@ class ReleaseControllerTest(unittest.TestCase):
     def test_read_only_preflight_does_not_create_refs(self) -> None:
         before = self.refs()
         self.assertEqual(self.run_promotion(apply=False)["state"], "READY_FOR_REVIEWED_PROMOTION")
+        self.assertEqual(self.refs(), before)
+
+    def test_uncovered_catalog_cannot_publish_even_with_matching_package_evidence(self) -> None:
+        folder = self.repo / "plugins/tugling/skills/how"
+        (folder / "method.md").rename(folder / "SKILL.md")
+        self.update_main()
+        value = json.loads(self.certificate.read_text())
+        value["plugin"] = controller.gate.plugin_identity(self.repo)
+        value["behavioral"]["evaluated_revision"] = self.candidate
+        value["clean_room"]["revision"] = self.candidate
+        self.certificate.write_text(json.dumps(value))
+        self.digest = hashlib.sha256(self.certificate.read_bytes()).hexdigest()
+        before = self.refs()
+        with self.assertRaisesRegex(controller.gate.ReleaseGateError, "full installed skill catalog"):
+            self.run_promotion()
         self.assertEqual(self.refs(), before)
 
     def test_changed_grader_cannot_approve_itself(self) -> None:

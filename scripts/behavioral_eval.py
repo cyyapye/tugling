@@ -20,9 +20,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 if __package__:
-    from . import codex_runtime
+    from . import catalog_coverage, codex_runtime
 else:
-    import codex_runtime
+    import catalog_coverage, codex_runtime
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,6 +236,12 @@ def validate_case(case: Any, *, require_fixture: bool = True) -> list[str]:
 
     if case.get("skill") not in skill_names():
         errors.append(f"{case_id}: unknown skill {case.get('skill')!r}")
+    if "legacy_skill" in case:
+        legacy = case["legacy_skill"]
+        if (not isinstance(legacy, str) or len(legacy) > 64
+                or re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", legacy) is None
+                or legacy == case.get("skill")):
+            errors.append(f"{case_id}: legacy_skill must be a distinct safe skill name")
     if case.get("project_type") not in VALID_PROJECT_TYPES:
         errors.append(f"{case_id}: invalid project_type")
     if require_fixture:
@@ -325,9 +331,7 @@ def validate_suite(suite: Any) -> list[str]:
                 ids.add(case_id)
             if isinstance(case.get("skill"), str):
                 covered.add(case["skill"])
-    missing = skill_names() - covered
-    if missing:
-        errors.append(f"behavioral suite lacks cases for: {sorted(missing)}")
+    errors.extend(catalog_coverage.validate(cases, skill_names()))
 
     gates = suite.get("gates")
     if not isinstance(gates, dict) or set(gates) != {"dogfood", "promotion"}:
@@ -484,11 +488,16 @@ def append_prompt_and_images(argv: list[str], image_paths: list[Path], prompt: s
 
 
 def build_prompt(case: dict[str, Any]) -> str:
+    invocation = f"Use ${case['skill']} if it is installed in that local directory; "
+    if case.get("legacy_skill"):
+        invocation += f"otherwise use ${case['legacy_skill']} if it is installed there; "
+    invocation += "otherwise complete the same task without it."
     lines = [
         "You are participating in a controlled behavioral evaluation in a synthetic or isolated repository.",
         "Work only inside this checkout. Do not use the network or external systems, request approvals, commit, push, merge, or deploy.",
         "Follow repository instructions, inspect local evidence, and run only the commands needed for the task.",
         "Repository-local candidate skills, when present, live under .agents/skills. Use that path and do not search user or system skill directories.",
+        invocation,
         "The expected answers are intentionally not provided. Return JSON matching the supplied schema.",
         f"Set case_id to {case['id']!r}. Return exactly one decision for every id below and use exactly one allowed value.",
         "Cite concrete local files, observed state, or commands in each decision's evidence array.",
@@ -1468,6 +1477,9 @@ def release_proof(
         and baseline["plugin_content_sha256"] != candidate["plugin_content_sha256"],
         "candidate_worktree_clean": not candidate["worktree_dirty"],
         "full_release_case_matrix": summary.get("case_ids") == required_cases,
+        "full_catalog_behavioral_coverage": catalog_coverage.release_covered(
+            skill_names(), matrix.get("required_skills", [])
+        ),
         "minimum_release_attempts": summary.get("attempts", 0) >= minimum_attempts,
         "release_conditions": summary.get("conditions") == required_conditions,
         "promotion_gate": bool(promotion.get("passed")),
@@ -1779,7 +1791,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                 for error in errors:
                     print(f"ERROR: {error}", file=sys.stderr)
                 return 1
-            print(f"Behavioral suite passed: {len(suite['cases'])} cases across {len(skill_names())} skills.")
+            covered = len({case["skill"] for case in suite["cases"]})
+            print(f"Behavioral suite structure valid: {len(suite['cases'])} cases covering "
+                  f"{covered}/{len(skill_names())} skill entry points; no model called.")
             return 0
 
         if args.attempts < 1:

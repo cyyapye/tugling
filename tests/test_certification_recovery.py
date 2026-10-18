@@ -29,7 +29,7 @@ def outcome(p, task_id="t003", attempt=0, passed=True, state="RESULT", usage=Tru
         evidence["checks"] = {name: passed for name in tasks.behavioral_check_names(tasks.task_for(p, task_id)["case_id"])}
     if task_id == "t000" and state == "RESULT":
         raw = {"passed": True, "checks": {}, "plugin": tasks.cert.gate.plugin_identity(),
-               "live": {"ran": True, "repository_unchanged": True, "selected_skill": "repo-verify",
+               "live": {"ran": True, "repository_unchanged": True, "selected_skill": "principle-prove-it-works",
                         "verification_order": "repository-native-first", "installed_skill_read_observed": True}}
         evidence = tasks.clean_evidence(raw, p)
         evidence["checks"] = {k: True for k in evidence["checks"]}

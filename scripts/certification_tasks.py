@@ -231,7 +231,7 @@ def clean_evidence(raw: dict, plan: dict) -> dict:
             "plugin": plugin, "codex": {"version": f"codex-cli {cert.CODEX_VERSION}"},
             "live": {"ran": live.get("ran") is True,
                      "repository_unchanged": live.get("repository_unchanged") is True,
-                     "selected_skill": "repo-verify" if live.get("selected_skill") == "repo-verify" else None,
+                     "selected_skill": "principle-prove-it-works" if live.get("selected_skill") == "principle-prove-it-works" else None,
                      "verification_order": "repository-native-first" if live.get("verification_order") == "repository-native-first" else None,
                      "installed_skill_read_observed": live.get("installed_skill_read_observed") is True,
                      "model": cert.MODEL, "reasoning_effort": cert.EFFORT}}

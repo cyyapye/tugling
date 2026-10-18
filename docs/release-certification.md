@@ -54,7 +54,9 @@ deliberately replacing it. Protect those controls before activation.
    reviewed controller, a successful latest push `Verify` run for the candidate,
    unchanged judging machinery, and current main/stable refs. Reject symlinks,
    submodules, oversized source trees, changed hooks/permissions, or a reused
-   release version. Source trees are limited to 2,000 files and 16 MiB each.
+   release version. Full certification also rejects incomplete installed-catalog
+   coverage before model admission; separate one-case diagnostics do not waive
+   the final release gate. Source trees are limited to 2,000 files and 16 MiB each.
 2. If plugin content is unchanged, return `UNCHANGED_PLUGIN` before accessing the
    API credential. No behavioral certificate or attestation is created. A change
    only to release tooling can therefore complete without a paid run.
