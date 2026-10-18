@@ -42,7 +42,7 @@ and [MIT attribution](THIRD_PARTY_NOTICES.md) distinguish Pstack's work from the
 Codex port. The earlier [verification cases](evals/pstack/verification-cases.md)
 remain part of the evaluation record.
 
-Version 0.8.0 is a local release candidate; see the
+Version 0.8.0 is a draft release candidate; see the
 [shipping preparation and remaining requirements](docs/pstack-0.8.0-readiness.md).
 The existing ten behavioral cases cover four
 upstream entry points; the [coverage record](evals/behavioral/catalog-coverage.json)

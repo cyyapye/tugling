@@ -1,6 +1,6 @@
 # Pstack for Codex 0.8.0: shipping preparation
 
-This is a local release candidate, not a certified or published release. The
+This is a draft release candidate, not a certified or published release. The
 port preserves Pstack's 54 entry points, 24 principles, and 23 playbooks. Optional
 Tugling guidance remains dormant; no enhancement claim is made.
 
@@ -45,6 +45,18 @@ official release SHA256.
 Final deterministic and observed workflow results are recorded in
 [the final port observations](../evals/pstack/port-0.8.0-observations.md).
 Raw requests, replies, traces, fixtures, and review records remain outside Git.
+
+The first public candidate, `833dd2d919f7a7e72c6c334673f5bd2a4833bbd7`,
+is recorded in [draft PR #37](https://github.com/cyyapye/tugling/pull/37). A fresh
+credential-free installation of that exact revision passed with the frozen
+package hash above. Remote runtime, isolation, and synthetic installation checks
+also passed. Remote `make verify` exposed one stale baseline test: it assumed
+every archived commit contained the removed `tugling` skill. Before committing
+the port, that test had inspected the older `HEAD`, masking its stale assumption.
+The failure was reproduced locally and the assertion was replaced with a
+comparison of every materialized skill name and byte content against the
+requested Git revision. Plugin bytes are unchanged. The PR records verification
+of the updated candidate; the original failed run remains visible.
 
 ## Release machinery corrections
 

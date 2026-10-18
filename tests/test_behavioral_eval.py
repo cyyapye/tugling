@@ -505,6 +505,17 @@ raise SystemExit(17 if mode == "failed" else 0)
 
     def test_distinct_released_baseline_is_materialized_with_exact_identity(self) -> None:
         current = harness.git_output(harness.ROOT, "rev-parse", "HEAD")
+        # The requested revision owns its catalog; an old entry point is not
+        # evidence that the complete, exact baseline was materialized.
+        prefix = "plugins/tugling/skills/"
+        expected_skills = {
+            relative.removeprefix(prefix): harness.git_bytes("show", f"{current}:{relative}")
+            for relative in harness.git_output(
+                harness.ROOT, "ls-tree", "-r", "--name-only", current, "--", prefix
+            ).splitlines()
+            if relative.endswith("/SKILL.md")
+        }
+        self.assertTrue(expected_skills)
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(
                 harness,
@@ -516,7 +527,14 @@ raise SystemExit(17 if mode == "failed" else 0)
             ):
                 baseline = harness.resolve_release_baseline("HEAD", Path(directory))
             self.assertEqual(baseline["revision"], current)
-            self.assertTrue((Path(baseline["skills"]) / "tugling" / "SKILL.md").is_file())
+            materialized_skills = Path(baseline["skills"])
+            self.assertEqual(
+                {
+                    path.relative_to(materialized_skills).as_posix(): path.read_bytes()
+                    for path in materialized_skills.glob("*/SKILL.md")
+                },
+                expected_skills,
+            )
             self.assertNotEqual(
                 baseline["plugin_content_sha256"],
                 "0" * 64,
