@@ -13,6 +13,7 @@ from unittest import mock
 
 from scripts import release_controller as controller
 from scripts import promote_release as promotion
+from tests import pstack_release_fixtures as reviewed_fixtures
 
 
 class ReleaseControllerTest(unittest.TestCase):
@@ -31,12 +32,6 @@ class ReleaseControllerTest(unittest.TestCase):
             shutil.copytree(controller.ROOT / name, self.repo / name,
                             ignore=shutil.ignore_patterns("__pycache__", "runs", "releases"))
         shutil.copy2(controller.ROOT / "Makefile", self.repo / "Makefile")
-        # Promotion fixtures expose a fully covered synthetic catalog. The real
-        # development port remains blocked until its expanded catalog has cases.
-        covered = set(controller.gate.validate_matrix()["required_skills"])
-        for path in (self.repo / "plugins/tugling/skills").glob("*/SKILL.md"):
-            if path.parent.name not in covered:
-                path.rename(path.with_name("method.md"))
         self.approved = self.commit("reviewed controller and stable baseline")
         self.baseline = self.approved
         self.git(self.repo, "branch", "stable", self.baseline)
@@ -44,19 +39,12 @@ class ReleaseControllerTest(unittest.TestCase):
         self.intermediate = self.commit("synthetic intermediate revision")
         (self.repo / "release-note.md").write_text("synthetic exact release candidate")
         self.candidate = self.commit("synthetic release candidate")
-        value = json.loads((controller.ROOT / "evals/releases/v0.4.0/certificate.json").read_text())
-        # Synthetic provenance is used only on a disposable local Git remote.
         self.version = controller.gate.plugin_identity(self.repo)["version"]
         self.tag = f"v{self.version}"
         self.certificate = self.root / "external-evidence/certificate.json"
         self.certificate.parent.mkdir(parents=True, exist_ok=True)
-        value["version"] = self.version
-        value["plugin"] = controller.gate.plugin_identity(self.repo)
-        value["matrix"] = {key: item for key, item in controller.gate.validate_matrix().items()
-                           if key != "schema_version"}
-        value["behavioral"]["released_revision"] = self.baseline
-        value["behavioral"]["evaluated_revision"] = self.candidate
-        value["clean_room"]["revision"] = self.candidate
+        value = reviewed_fixtures.certificate(controller.gate.plugin_identity(self.repo), self.candidate,
+                                             self.baseline, self.approved)
         self.certificate.write_text(json.dumps(value))
         self.remote = self.root / "remote.git"
         self.git(self.root, "clone", "--bare", str(self.repo), str(self.remote))
@@ -111,20 +99,19 @@ class ReleaseControllerTest(unittest.TestCase):
         self.assertEqual(self.run_promotion(apply=False)["state"], "READY_FOR_REVIEWED_PROMOTION")
         self.assertEqual(self.refs(), before)
 
-    def test_uncovered_catalog_cannot_publish_even_with_matching_package_evidence(self) -> None:
-        folder = self.repo / "plugins/tugling/skills/how"
-        (folder / "method.md").rename(folder / "SKILL.md")
-        self.update_main()
-        value = json.loads(self.certificate.read_text())
-        value["plugin"] = controller.gate.plugin_identity(self.repo)
-        value["behavioral"]["evaluated_revision"] = self.candidate
-        value["clean_room"]["revision"] = self.candidate
+    def test_legacy_certificate_cannot_authorize_active_publication(self) -> None:
+        value = json.loads((controller.ROOT / "evals/releases/v0.4.0/certificate.json").read_text())
         self.certificate.write_text(json.dumps(value))
         self.digest = hashlib.sha256(self.certificate.read_bytes()).hexdigest()
-        before = self.refs()
-        with self.assertRaisesRegex(controller.gate.ReleaseGateError, "full installed skill catalog"):
-            self.run_promotion()
-        self.assertEqual(self.refs(), before)
+        self.assert_rejected_without_writes("legacy questionnaire")
+
+    def test_mode_only_candidate_change_cannot_reuse_reviewed_package(self) -> None:
+        identity = controller.gate.plugin_identity(self.repo)
+        path = next(path for path in (self.repo / "plugins/tugling").rglob("*.py") if path.stat().st_mode & 0o111)
+        path.chmod(0o644)
+        self.update_main()
+        self.assertEqual(controller.gate.plugin_identity(self.repo), identity)
+        self.assert_rejected_without_writes("executable modes")
 
     def test_changed_grader_cannot_approve_itself(self) -> None:
         marker = self.root / "candidate-code-ran"
@@ -203,7 +190,7 @@ class ReleaseControllerTest(unittest.TestCase):
         self.assert_rejected_without_writes("only regular files")
 
     def test_candidate_package_is_checked_by_trusted_verifier(self) -> None:
-        (self.repo / "plugins/tugling/extra.md").write_text("unreviewed package bytes")
+        (self.repo / "plugins/tugling/skills/how/SKILL.md").write_text("unreviewed package bytes")
         self.update_main()
         before = self.refs()
         with self.assertRaisesRegex(controller.gate.ReleaseGateError, "current plugin content"):

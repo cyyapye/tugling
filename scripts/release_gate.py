@@ -290,6 +290,19 @@ def verify_certificate(
     certificate = read_json(path)
     if not isinstance(certificate, dict):
         raise ReleaseGateError("release certificate must be an object")
+    if certificate.get("schema_version") == 2:
+        if __package__:
+            from . import pstack_release
+        else:
+            import pstack_release
+        pstack_release.verify_certificate(certificate, package_source_root=package_source_root)
+        if stable_ref and certificate["behavioral"]["released_revision"] != git_output("rev-parse", f"{stable_ref}^{{commit}}"):
+            raise ReleaseGateError("stable baseline moved")
+        if require_ancestry:
+            evaluated = certificate["behavioral"]["evaluated_revision"]
+            if git_output("merge-base", evaluated, "HEAD") != evaluated:
+                raise ReleaseGateError("evaluated revision is not an ancestor of the promotion candidate")
+        return certificate
     required = {
         "schema_version",
         "version",
@@ -358,25 +371,23 @@ def verify_certificate(
 
 
 def validate_repository() -> dict[str, Any]:
-    matrix = validate_matrix()
+    if __package__:
+        from . import pstack_release
+    else:
+        import pstack_release
+    rules = pstack_release.policy()
     certificates = sorted(RELEASES.glob("v*/certificate.json")) if RELEASES.is_dir() else []
-    current_version = plugin_identity()["version"]
-    current_path = RELEASES / f"v{current_version}" / "certificate.json"
-    if current_path.is_file():
-        verify_certificate(path=current_path)
     for path in certificates:
         value = read_json(path)
         if not isinstance(value, dict) or value.get("passed") is not True:
             raise ReleaseGateError(f"historical certificate is invalid: {path.relative_to(ROOT)}")
-    return {
-        "minimum_attempts": matrix["minimum_attempts"],
-        "case_count": len(matrix["required_case_ids"]),
-        "project_type_count": len(matrix["project_types"]),
-        "certificate_count": len(certificates),
-        "catalog_covered": catalog_coverage.release_covered(
-            set(plugin_identity()["skills"]), matrix["required_skills"]
-        ),
-    }
+    identity = plugin_identity()
+    report = RELEASES / f"v{identity['version']}" / "pstack-review.json"
+    if report.exists():
+        pstack_release.validate_report(pstack_release.read_json(report), identity)
+    return {"method": rules["method"], "scope": rules["scope"],
+            "workflow_area_count": len(rules["required_areas"]),
+            "certificate_count": len(certificates), "review_present": report.exists()}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -405,11 +416,10 @@ def main(argv: Iterable[str] | None = None) -> int:
             report = validate_repository()
             print(
                 "Tugling release configuration valid: "
-                f"{report['case_count']} cases across {report['project_type_count']} project types, "
-                f"{report['minimum_attempts']} attempts required."
+                f"{report['method']}, {report['scope']}, "
+                f"{report['workflow_area_count']} reviewed workflow areas."
             )
-            if not report["catalog_covered"]:
-                print("Certification blocked: behavioral cases do not cover the full installed catalog.")
+            print("Certification requires separate approval of the exact candidate review digest.")
         elif args.command == "assemble":
             certificate = assemble_certificate(
                 version=args.version,

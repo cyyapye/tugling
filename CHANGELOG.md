@@ -8,6 +8,7 @@
 - Translate tools, model inheritance, project paths, history access, and task scope for Codex. Use `$poteto-mode` to start and `$poteto-help` to find a focused workflow.
 - Replace the seven former Tugling entry points. Existing project contracts and their explicit helper integrations remain supported; consult the migration map in `docs/lineage.md`.
 - Use Pstack by default. Retain optional Tugling references and useful failure cases for explicit evaluation, without automatic loading.
+- Use a maintainer-reviewed Pstack compatibility report for release acceptance. Retain the older questionnaire as an explicit diagnostic, with exact package, public-install, controller and protected-promotion checks still required.
 - Replace declarative routing cards with observed local installation and workflow checks. Keep structural checks, model observations, and release certification distinct.
 
 This version is prepared in the source checkout; it is not a published or certified release.

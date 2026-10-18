@@ -298,6 +298,15 @@ class CertificationGitTest(unittest.TestCase):
             self.prepare()
         self.assertEqual(self.git(self.remote, "show-ref"), before)
 
+    def test_reviewed_evidence_preflight_uses_workflow_policy_instead_of_legacy_catalog(self):
+        self.change_plugin()
+        self.request = {key: value for key, value in self.request.items()
+                        if key not in {"input_limit", "output_limit"}}
+        self.request["review_sha256"] = "d" * 64
+        before = self.git(self.remote, "show-ref")
+        self.assertEqual(self.prepare()["state"], "CERTIFICATION_REQUIRED")
+        self.assertEqual(self.git(self.remote, "show-ref"), before)
+
     def test_uncovered_catalog_still_allows_an_explicit_one_case_diagnostic(self):
         self.change_plugin()
         self.request["diagnostic_case"] = "tugling-bounded-noop"

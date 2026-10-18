@@ -92,6 +92,13 @@ def require_reviewed_ruler(root: Path, controller: str, candidate: str) -> None:
         raise ControllerError("grading or release machinery changed; separately review and pin a new controller")
 
 
+def require_reviewed_package_modes(root: Path, approved: str, candidate: str) -> None:
+    modes = lambda revision: {name: mode for name, (mode, _) in tree(root, revision).items()
+                              if name.startswith("plugins/tugling/")}
+    if modes(approved) != modes(candidate):
+        raise ControllerError("package executable modes differ from the reviewed controller inventory")
+
+
 def materialize_data(root: Path, candidate: str, destination: Path) -> None:
     entries = {
         name: value for name, value in tree(root, candidate).items()
@@ -110,6 +117,7 @@ def materialize_data(root: Path, candidate: str, destination: Path) -> None:
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(git(root, "cat-file", "blob", oid))
+        target.chmod(0o755 if mode == "100755" else 0o644)
 
 
 def remote_refs(root: Path, version: str, env: dict[str, str]) -> dict[str, str]:
@@ -158,11 +166,14 @@ def promote(
         git(repository, "merge-base", "--is-ancestor", certification_controller, candidate)
         source = scratch / "candidate-data"
         materialize_data(repository, candidate, source)
+        require_reviewed_package_modes(repository, certification_controller, candidate)
         if hashlib.sha256(certificate_path.read_bytes()).hexdigest() != certificate_digest:
             raise ControllerError("certificate differs from the reviewed attested digest")
         # Both helpers and their matrix come from the trusted controller, never
         # from candidate-data. The candidate's scripts are not even extracted.
         clean_room.package_report(source)
+        if gate.read_json(certificate_path).get("schema_version") != 2:
+            raise ControllerError("legacy questionnaire certificates cannot authorize active promotion")
         certificate = gate.verify_certificate(path=certificate_path, package_source_root=source)
         if certificate["version"] != version:
             raise ControllerError("requested version differs from the certificate")

@@ -1,10 +1,10 @@
-# Legacy behavioral diagnostics and release matrix
+# Legacy behavioral diagnostics
 
 New skill development follows the attributed [Pstack evaluation method](../pstack/method.md).
 This older runner explicitly tells the model it is being evaluated and asks for
 predefined decisions. Its scores are diagnostic history, not blinded Pstack
 behavioral evidence or proof of an advantage over Pstack. The fixtures, executable
-invariants and independently controlled release matrix remain supported; this
+invariants and historical comparison matrix remain supported for diagnostics; this
 transition does not regrade historical runs or update approved controller pins.
 
 This suite asks a narrower question than `make verify`: does installing Tugling
@@ -36,10 +36,11 @@ command matching; corrected regrades carry no skill-improvement claim.
 
 ## CI-safe checks
 
-Ordinary PR and push CI never calls a model. An optional, separately enabled
-[maintainer certification workflow](../../docs/release-certification.md) uses this
-same full matrix only after explicit commit and usage approval. Its evaluators
-come from an independently pinned controller; contributor PRs receive no API key.
+Ordinary PR and push CI never calls a model. The [maintainer certification
+workflow](../../docs/release-certification.md) now validates a reviewed Pstack
+workflow report without model calls. These legacy cases remain available through
+explicit local runs and [controlled diagnostics](../../docs/legacy-diagnostics.md);
+contributor PRs receive no model API key.
 
 ```bash
 make verify
@@ -48,14 +49,12 @@ make verify
 This validates case and fixture structure and unit-tests the grader without
 calling a model.
 
-The Pstack port retains the ten existing cases and their decision criteria, now
-owned by four upstream skill names. `catalog-coverage.json` lists 50 additional
-entry points without dedicated cases in the controlled release matrix. Separate
-smoke and development runs do not satisfy that certification coverage. Local
-validation requires the inventory to be exact. Full-certification preflight,
-release-proof generation, assembly, and independent certificate verification
-require coverage of the entire installed catalog; a pending declaration never
-waives that requirement. One-case diagnostics remain available.
+The Pstack port retains the ten cases and their decision criteria, now owned by
+four upstream skill names. `catalog-coverage.json` records the 50 names without
+questionnaire cases. Local structural validation keeps this diagnostic inventory
+accurate. The approved release policy no longer requires a case per skill or
+uses the questionnaire score for acceptance. Historical full-matrix proof helpers
+retain their original semantics; their output cannot authorize current promotion.
 
 The shared prompt explicitly requests the current skill when installed, otherwise
 its recorded legacy name when installed, otherwise the same task without a skill.
@@ -69,7 +68,7 @@ an advantage over Pstack; that needs a matched port-without-extension arm.
 
 For the separate new-project, authorized-repair, and assessment-only cases, see
 [project setup diagnostics](../setup/README.md). Their bounded local runner can
-pin `gpt-6-astra` without changing the release matrix or certification runtime.
+pin `gpt-6-astra` without changing the reviewed release policy.
 
 Use an authenticated Codex CLI. Pin the model and reasoning effort so a later
 run is comparable:
@@ -97,7 +96,7 @@ The dogfood gate needs at least three no-Tugling/candidate comparisons, no
 case-level candidate regressions, no critical candidate failure, and an average
 candidate score of at least 85%.
 
-Promotion compares an exact released revision with the candidate and also keeps
+The historical `promotion` diagnostic compares an exact released revision with the candidate and also keeps
 the no-Tugling arm as a sanity check. Provide the released ref and an external
 policy-pattern file whose contents are never copied into the report:
 
@@ -135,15 +134,16 @@ python3 scripts/clean_room_install.py public \
   --out /private/path/clean-room-proof.json
 ```
 
-Then run the full comparison with `--attempts 3 --jobs 3` and assemble the sanitized
-certificate. Raw reports stay outside the repository:
+For historical diagnostic reproduction only, run the comparison with
+`--attempts 3 --jobs 3` and assemble the legacy schema-1 certificate. This file
+cannot authorize active promotion. Keep all generated reports outside Git:
 
 ```bash
 python3 scripts/release_gate.py assemble \
   --version <version> \
   --behavioral-proof /private/path/release-proof.json \
   --clean-room-proof /private/path/clean-room-proof.json \
-  --out evals/releases/v<version>/certificate.json
+  --out /private/path/legacy-certificate.json
 ```
 
 The certificate binds the public install, exact plugin digest, released baseline,

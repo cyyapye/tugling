@@ -13,8 +13,8 @@ It should not require a new Tugling vocabulary or reward resemblance to a prompt
 | Ten existing behavioral fixtures | Keep as regression diagnostics | Migration, scale, retries, repository truth, bounded completion, authoring, UI, and optional adoption still have corresponding shipped workflows. Historical case IDs preserve evidence continuity; they are not public skill names. Their multiple-choice scores do not establish a faithful Pstack experience or an advantage over Pstack. |
 | Project contract, verification, retention, learning, setup, enforcement, and UX tests | Keep | They exercise executable helpers and dormant references retained for existing integrations or explicit comparisons. Removing their public entry points did not remove that code. These checks do not justify making an extension the default. |
 | Process cleanup, usage accounting, evaluator, release, and controller tests | Keep | They prevent misleading evidence, leaked processes, unbounded work, and unauthorized publication. They remain relevant regardless of skill vocabulary. |
-| Pending catalog coverage | Keep as an explicit release blocker | A structural port is not observed behavior. Representative smoke runs do not waive untested entry points or silently change the approved release matrix. |
-| Questionnaire as the normal development quality gate | Retire | Use Pstack's organic-task, hidden-rubric and blinded-review method. Keep legacy assertions only for supported diagnostics and the controlled release matrix. |
+| Pending questionnaire catalog coverage | Retain as diagnostic inventory; retire as a release blocker | The approved Pstack-first release policy checks observed workflow areas and explicit limitations. Fifty missing questionnaire cases do not become fifty mandatory new evaluations. Discovery still does not prove behavior. |
+| Questionnaire as the normal development quality gate | Retire | Use Pstack's organic-task, hidden-rubric and blinded-review method. Keep legacy assertions only for supported diagnostics. |
 | Explicit invocation across renamed release catalogs | Correct | All arms receive the same prompt: use the current entry point when installed, otherwise its explicit legacy alias, otherwise work without the skill. Requesting only the new name had bypassed the released seven-name catalog. Reconstructed install tests protect the mapping; they do not prove model routing. Case IDs, verdict criteria and promotion thresholds are unchanged. |
 | Regression check based only on a changed test file | Strengthen | Execute the delivered regression against the original implementation; a comment-only test change cannot pass. |
 | Matched package, record integrity and observer separation checks | Add | Protect equal starting inputs and budgets, retain failed outcomes, detect altered deliveries, and keep model/condition metadata out of the blinded review bundle. These checks do not grade skill quality. |
@@ -28,7 +28,7 @@ capability handling. It is a local compatibility diagnostic, not certification,
 public installation evidence, a Pstack comparison, or proof of all 54 skills.
 
 Changes here modify controller-owned files. They do not update approved controller
-pins. The release matrix, thresholds, and publication authority remain separate.
+pins. The reviewed-workflow release policy and publication authority remain separate.
 
 The [Pstack evaluation method](pstack/method.md) is now the development path.
 The local adapter adds private package profiles and blinded review bundles around

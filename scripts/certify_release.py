@@ -131,14 +131,14 @@ def authorize(env: dict[str, str]) -> dict[str, Any]:
 
 def require_successful_verify(candidate: str) -> None:
     url = (f"https://api.github.com/repos/{REPOSITORY}/actions/workflows/verify.yml/runs"
-           f"?event=push&head_sha={candidate}&per_page=1")
+           f"?event=push&branch=main&head_sha={candidate}&per_page=1")
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "tugling-certification"}
     if os.environ.get("GH_TOKEN"):
         headers["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
     with urlopen(Request(url, headers=headers), timeout=30) as response:
         runs = json.load(response).get("workflow_runs", [])
-    if (not runs or runs[0].get("head_sha") != candidate
-            or runs[0].get("status") != "completed" or runs[0].get("conclusion") != "success"):
+    if (not runs or runs[0].get("head_sha") != candidate or runs[0].get("head_branch") != "main"
+            or runs[0].get("event") != "push" or runs[0].get("status") != "completed" or runs[0].get("conclusion") != "success"):
         raise CertificationError("latest push Verify run for this exact candidate has not passed")
 
 
@@ -190,8 +190,8 @@ def prepare_candidate(destination: Path, request: dict[str, Any], *,
             refs = controller.remote_refs(destination, plugin["version"], controller.git_env())
             if (tuple(map(int, plugin["version"].split("."))) <= tuple(map(int, released["version"].split(".")))
                     or f"refs/tags/v{plugin['version']}" in refs):
-                raise CertificationError("changed plugin needs a new, unpublished release version before paid evaluation")
-            if "diagnostic_case" not in request:
+                raise CertificationError("changed plugin needs a new, unpublished release version before certification")
+            if "diagnostic_case" not in request and "review_sha256" not in request:
                 require_full_catalog_coverage(destination)
     return {"state": "UNCHANGED_PLUGIN" if before == after else "CERTIFICATION_REQUIRED",
             "request": request, "plugin": plugin}

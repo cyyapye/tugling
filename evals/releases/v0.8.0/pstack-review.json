@@ -1,0 +1,505 @@
+{
+  "attempts": [
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "c15ed6e50d781e49a47b3444b60b308ccdfc0cca651016a973ca1345532e32e4",
+      "failure_kind": "none",
+      "id": "core-help",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "help",
+      "task_sha256": "20cb8b33ffc6830dd7d21429e91803a195b3f1ce4a8b3143fd8f6db362ceb338",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 64768,
+        "input_tokens": 107570,
+        "output_tokens": 1628
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "f1e8482273a0b3f8bd1d0b095a2e10f6f06367b5d1aff105b37602ea896d7e2a",
+      "failure_kind": "none",
+      "id": "core-setup",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "setup",
+      "task_sha256": "92dec3f818b178fd8b9add7b71c161384b5d49d69538c79a0a7d0db761e68ca4",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 68352,
+        "input_tokens": 85715,
+        "output_tokens": 1727
+      }
+    },
+    {
+      "areas": [
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "c39726faa4f2a5038d3c676929dae46b9bd21100f18188a21cd142320432209d",
+      "failure_kind": "none",
+      "id": "core-plan-only",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "plan-only",
+      "task_sha256": "4e951625aa1acc54a353d31cddf524035d97f0df4c9d56ec329e70075fdf2c6d",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 88448,
+        "input_tokens": 112418,
+        "output_tokens": 2192
+      }
+    },
+    {
+      "areas": [
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 4
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "cc633b3b35c2687cacb96fbd09f71fea0d8bc535e54f0d1f880beceff20068ff",
+      "failure_kind": "none",
+      "id": "core-bug-fix",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "bug-fix",
+      "task_sha256": "b7665c121fd9fe9ac90b551d6d2b75da3f31c3a4a97ee931f65686db152936f6",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 222976,
+        "input_tokens": 249133,
+        "output_tokens": 2064
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "c7e420a248c52eab8bb68abbea1e1ff9bd81f9e0097434317db2d4623aefae2c",
+      "failure_kind": "none",
+      "id": "core-verification",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "verification",
+      "task_sha256": "ed6eecea66b677e67bd18c9e1b734711530de31ca27af489a60345a5709ede3c",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 94592,
+        "input_tokens": 106000,
+        "output_tokens": 1696
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "142bb8d7c8a27a36776fd185c40e97f4d846c75c2b08dd01c20b7d247ce8b5ec",
+      "failure_kind": "none",
+      "id": "core-architecture-fallback",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "architecture-fallback",
+      "task_sha256": "f7fbdeb398eceef79bcc72984731b9b2f246cbd2fa3b38f0e3758650b162c793",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 103424,
+        "input_tokens": 131249,
+        "output_tokens": 2645
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "3d10ff92a3a44bab8b44b8f2158f84e9ac695b465529a79dbcac381d81619bdd",
+      "failure_kind": "none",
+      "id": "core-unavailable-integration",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "unavailable-integration",
+      "task_sha256": "7645a5d807c54f2c48d9f785992d2c8937c0a398c95ee4804231659dbf9ba1de",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 115840,
+        "input_tokens": 147962,
+        "output_tokens": 2133
+      }
+    },
+    {
+      "areas": [
+        "history-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "294051eb57a68f8119ee33097bfdb2090338a24a83f6f22a304ac5b85f3e5e0c",
+      "failure_kind": "none",
+      "id": "fresh-resume-greeting-work",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "resume-greeting-work",
+      "task_sha256": "3779ff14d92341a796d097e8367d2c83679b67ecb67aa404a1b96a3c4f01e62a",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 80896,
+        "input_tokens": 97142,
+        "output_tokens": 1804
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 3,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "b7e5ed5b84dbbcc1962eec1daf5883358a7e4d920adf284df9085836c83320dc",
+      "failure_kind": "environment",
+      "id": "fresh-reuse-cli-check",
+      "outcome": "failed",
+      "resolved_by": "authoring-reuse-cli-check",
+      "runtime": "codex-astra",
+      "scenario": "reuse-cli-check",
+      "task_sha256": "da4d895e03045bf213e68f8b06ed2dc582cfb19935f46d6ddd2d22142d16e83c",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 220800,
+        "input_tokens": 247874,
+        "output_tokens": 6663
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "bbd08ab02e5e35d257efe86ced3c241854e999a72542f7efd25c4d674fe9e780",
+      "failure_kind": "none",
+      "id": "fresh-compare-check-approaches",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "compare-check-approaches",
+      "task_sha256": "d2f822f74a578ba75be3c3230900b17963a2797be0aaa91b3c24ec7d46b5e294",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 152192,
+        "input_tokens": 174218,
+        "output_tokens": 2570
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "fb493dcc3d177721a4f16fde4d3b97b9bca01149ed36794833ced787b89c1f1f",
+      "failure_kind": "none",
+      "id": "fresh-cover-cli-inputs",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "cover-cli-inputs",
+      "task_sha256": "c52eb03f945ac2e54a60f597d0e826c5deff819e49c38be7ff91deb55052c8e7",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 98304,
+        "input_tokens": 112272,
+        "output_tokens": 2727
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "d16a8a5fa6a2037e7dd63b0e1747d55551bd0fc09d3026b23b5f5eeb3a877230",
+      "failure_kind": "none",
+      "id": "fresh-explain-quoted-names",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "explain-quoted-names",
+      "task_sha256": "ec6c5592dfc38413120d30c58de59e9da4505e7f3c88d2cbf48c9bc5f9d54d08",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 69760,
+        "input_tokens": 87765,
+        "output_tokens": 1092
+      }
+    },
+    {
+      "areas": [
+        "idle-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "a6b33ae9a1171887d364de508a8a73a4f51190430049eb3b168a513e9f10d0af",
+      "failure_kind": "none",
+      "id": "fresh-wait-for-next-request",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "wait-for-next-request",
+      "task_sha256": "adb0ae00ac3acddaf8cba50eea1251cb4017c274c6dd517367ea83c5c3c4cee2",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 9856,
+        "input_tokens": 12385,
+        "output_tokens": 9
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "fresh",
+      "evidence_sha256": "fecf4fd865dbb8c28154a5cde7fa9c7e7422cd3b39490dbbc7481158a810453a",
+      "failure_kind": "none",
+      "id": "fresh-prepare-short-session",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "prepare-short-session",
+      "task_sha256": "9e57c57ebb013ba3fe48cd69258cb2b07647ca579561686644d65bcccbb2b222",
+      "timeout_seconds": 240,
+      "usage": {
+        "cached_input_tokens": 72064,
+        "input_tokens": 97592,
+        "output_tokens": 1533
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "scoped-skill-directory",
+      "evidence_set": "authoring",
+      "evidence_sha256": "770a977e95775dfc841066ed3051956903bf28da21a104ced5e43f931e0122e9",
+      "failure_kind": "none",
+      "id": "authoring-reuse-cli-check",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "codex-astra",
+      "scenario": "reuse-cli-check",
+      "task_sha256": "da4d895e03045bf213e68f8b06ed2dc582cfb19935f46d6ddd2d22142d16e83c",
+      "timeout_seconds": 360,
+      "usage": {
+        "cached_input_tokens": 289152,
+        "input_tokens": 324631,
+        "output_tokens": 7999
+      }
+    }
+  ],
+  "evidence_sets": [
+    {
+      "attempt_ids": [
+        "core-help",
+        "core-setup",
+        "core-plan-only",
+        "core-bug-fix",
+        "core-verification",
+        "core-architecture-fallback",
+        "core-unavailable-integration"
+      ],
+      "id": "core",
+      "manifest_sha256": "a5e41ca577bc676295e21de8e53108950b5e3c1a89f7177eec6273e1f63e4903"
+    },
+    {
+      "attempt_ids": [
+        "fresh-resume-greeting-work",
+        "fresh-reuse-cli-check",
+        "fresh-compare-check-approaches",
+        "fresh-cover-cli-inputs",
+        "fresh-explain-quoted-names",
+        "fresh-wait-for-next-request",
+        "fresh-prepare-short-session"
+      ],
+      "id": "fresh",
+      "manifest_sha256": "90f7364b86d46a6bc19f9b4500c15cf9eefe015465f895d1033ed2c97dee4ec0"
+    },
+    {
+      "attempt_ids": [
+        "authoring-reuse-cli-check"
+      ],
+      "id": "authoring",
+      "manifest_sha256": "aab3dc9edb3ea1f800b886158c82d2d2d050ca9ba459e7bbdd2f3f9249e9f498"
+    }
+  ],
+  "limitations": [
+    "same-family-review",
+    "development-tasks-not-holdouts",
+    "not-full-catalog-behavior",
+    "not-enhancement-evidence",
+    "builder-usage-only",
+    "authoring-requires-explicit-directory-grant",
+    "repeat-used-longer-timeout"
+  ],
+  "method": "pstack-eval",
+  "plugin": {
+    "content_sha256": "3b6d4e9d8941d14861129d1b4d10baa5104a61ce1dd2477943070d818e5e64e4",
+    "name": "tugling",
+    "skills": [
+      "architect",
+      "arena",
+      "automate-me",
+      "benchmark-checklist",
+      "blast-radius",
+      "bro",
+      "correct",
+      "create-verification-skill",
+      "figure-it-out",
+      "how",
+      "in-your-own-words",
+      "interrogate",
+      "ketchup",
+      "maintain-verification-skill",
+      "make-bot-ui",
+      "no-comments",
+      "poteto-help",
+      "poteto-mode",
+      "principle-attack-the-premise",
+      "principle-boundary-discipline",
+      "principle-build-the-lever",
+      "principle-encode-lessons-in-structure",
+      "principle-exhaust-the-design-space",
+      "principle-experience-first",
+      "principle-explain-the-number",
+      "principle-fix-root-causes",
+      "principle-foundational-thinking",
+      "principle-guard-the-context-window",
+      "principle-laziness-protocol",
+      "principle-make-operations-idempotent",
+      "principle-migrate-callers-then-delete-legacy-apis",
+      "principle-minimize-reader-load",
+      "principle-model-the-domain",
+      "principle-never-block-on-the-human",
+      "principle-outcome-oriented-execution",
+      "principle-prove-it-works",
+      "principle-redesign-from-first-principles",
+      "principle-separate-before-serializing-shared-state",
+      "principle-sequence-verifiable-units",
+      "principle-subtract-before-you-add",
+      "principle-test-behavior-not-implementation",
+      "principle-type-system-discipline",
+      "recall",
+      "reflect",
+      "setup-pstack",
+      "sharpen",
+      "show-me-your-work",
+      "swarm",
+      "tdd",
+      "teach",
+      "technical-writing",
+      "typescript-best-practices",
+      "unslop",
+      "why"
+    ],
+    "version": "0.8.0"
+  },
+  "review": {
+    "evidence_sha256": "18bf4ddd543e6a2fa2f7cb67b7332487f2e952f8f1384d5b5673d972a657693f",
+    "method": "blind-output-plus-parent-trace",
+    "reviewer_family": "same-family",
+    "trace_audit_sha256": "82c97c83158ef331a2ec924d6a08af9b342aa7989b661d8d8550e7b582ae0ca0",
+    "unresolved_criteria": 0
+  },
+  "runtimes": [
+    {
+      "codex_version": "codex-cli 0.163.0-alpha.10.2",
+      "id": "codex-astra",
+      "model": "gpt-6-astra",
+      "reasoning_effort": "xhigh"
+    }
+  ],
+  "schema_version": 1,
+  "scope": "codex-port-compatibility",
+  "upstream_revision": "101b274dd991f694e1f7024be2157e5f3adf07de"
+}

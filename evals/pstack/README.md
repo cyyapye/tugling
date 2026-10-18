@@ -72,5 +72,5 @@ semantic pass: `semantic_review_complete` remains false until a separate review.
 
 Preserve failed runs. Any repair gets a new output directory. A representative
 smoke does not establish all 54 skills, GUI command-picker behavior, public install,
-an advantage over Pstack, release approval, or certification. The separate
-behavioral matrix and its catalog blocker remain unchanged.
+an advantage over Pstack, release approval, or certification. The reviewed release policy requires a separately approved report digest,
+current controller pins, exact-candidate verification, and protected promotion.

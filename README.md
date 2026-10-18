@@ -42,12 +42,12 @@ and [MIT attribution](THIRD_PARTY_NOTICES.md) distinguish Pstack's work from the
 Codex port. The earlier [verification cases](evals/pstack/verification-cases.md)
 remain part of the evaluation record.
 
-Version 0.8.0 is a draft release candidate; see the
+Version 0.8.0 is a release candidate; see the
 [shipping preparation and remaining requirements](docs/pstack-0.8.0-readiness.md).
-The existing ten behavioral cases cover four
-upstream entry points; the [coverage record](evals/behavioral/catalog-coverage.json)
-explicitly lists the remaining 50. Certification rejects incomplete catalog
-coverage even when local structural checks and the existing smoke suite pass.
+The [release policy](evals/pstack/release-policy.json) requires reviewed evidence
+for the Codex workflow areas, with failed attempts and limitations preserved.
+The older questionnaire and its catalog inventory remain diagnostics; counting
+its covered skill names no longer determines release acceptance.
 
 ## Install locally
 
@@ -124,25 +124,25 @@ make verify
 
 `make verify` checks marketplace and plugin manifests, skill metadata, pinned Pstack sources and attribution, local links, behavioral fixtures, and executable helper and evaluator tests. The [test audit](evals/test-audit.md) explains which obsolete checks were removed. The separate [Pstack experience smoke](evals/pstack/README.md) uses a fresh local marketplace install and observed Codex tasks.
 
-It also reconstructs the marketplace package in an empty directory and validates the release matrix and any committed release certificate. It never calls a model or requires credentials.
+It also reconstructs the marketplace package in an empty directory and validates the reviewed-workflow release policy and retained diagnostic fixtures. It never calls a model or requires credentials.
 
 Use this proof ladder for consequential instruction changes:
 
 1. **Structural:** run `make verify` on every change.
 2. **Pstack method:** use ordinary tasks, hidden criteria, blinded review and actual execution evidence. Compare Pstack on Codex with and without one addition using matched inputs and budgets; see the attributed [evaluation method](evals/pstack/method.md).
 3. **Confirmation:** repeat matched runs on fresh tasks and real project work before claiming an advantage. Keep project source and results outside this repository. Known smoke cases are not unseen holdouts.
-4. **Public install:** install the exact pushed revision from GitHub into an empty Codex home and confirm a fresh read-only task loads the installed skill.
-5. **Promotion:** compare no Tugling, the exact released revision, and the candidate three times on the full bundled suite; require a sanitized release certificate before moving `stable`.
+4. **Public install:** install the exact pushed revision from GitHub into an empty credential-free Codex home and compare its package with the observed version.
+5. **Promotion:** approve the sanitized Pstack workflow report, bind it to the exact candidate and baseline through the reviewed controller, and require its attested certificate before moving `stable`.
 
-The local runner freezes package identities, records commands, Git state, elapsed time and tokens, and checks actual artifacts. A separate blinded review assesses quality; the parent audits successful skill reads and execution order. The [older decision questionnaire](evals/behavioral/README.md) remains a legacy regression diagnostic and part of the independently controlled release matrix. Its scores do not establish an advantage over Pstack.
+The local runner freezes package identities, records commands, Git state, elapsed time and tokens, and checks actual artifacts. A separate blinded review assesses quality; the parent audits successful skill reads and execution order. The [older decision questionnaire](evals/behavioral/README.md) remains a legacy regression diagnostic. Its scores do not establish an advantage over Pstack.
 
-Stable promotion is intentionally separate from ordinary CI. The optional [release certification workflow](docs/release-certification.md) runs only after a maintainer explicitly enables it and approves a reviewed commit and token thresholds. It uses a dedicated API credential, the full behavioral matrix, and a separate attestation job. Ordinary PRs, pushes, and merges make no model calls; their real-CLI transport check uses a local fake API. Certification does not promote a release.
+Stable promotion is intentionally separate from ordinary CI. The [release certification workflow](docs/release-certification.md) runs only after a maintainer explicitly enables the reviewed controller and approves the exact candidate, baseline, and workflow-report digest. It validates evidence, provenance, and a fresh public install, then uses a separate attestation job. It makes no model calls and needs no model API key. Ordinary PRs, pushes, and merges make no model calls; their real-CLI transport check uses a local fake API. Certification does not promote a release.
 
 Promotion verifies both CI-attested evidence files for the exact candidate and approved certification run, waits for maintainer environment approval, and atomically publishes `stable` plus an immutable version tag. A fresh runner then installs through the public `stable` alias and checks the exact promoted commit without calling a model. The writer executes only the independently pinned controller and rechecks provenance and GitHub protection settings. Missing controller pins keep promotion disabled. See [Release controller](docs/release-controller.md) for activation, protection boundaries, and recovery. Adopter repositories keep deterministic, model-free CI.
 
 Tugling does not hard-code a model per skill. Pin models in comparable evaluations first; add a recommendation only after repeated evidence shows a meaningful quality, latency, or cost tradeoff for that skill.
 
-The instructions follow OpenAI's [Astra guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra): precise descriptions, conditional references, completion within existing authorization, and proportional verification. These remain portable defaults. Astra-specific evaluation uses `gpt-6-astra` explicitly; it does not change a project's model or the separately reviewed release certification runtime.
+The instructions follow OpenAI's [Astra guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra): precise descriptions, conditional references, completion within existing authorization, and proportional verification. These remain portable defaults. Astra-specific evaluation uses `gpt-6-astra` explicitly; it does not change a project's model or the models recorded in other reviewed evaluations.
 
 ## Design choices
 

@@ -127,6 +127,7 @@ Codex adapter currently uses native tools instead; if a helper becomes a runnabl
 feature, reuse its upstream test command rather than recreating the tests.
 
 The [legacy questionnaire](../behavioral/README.md) remains only for historical
-diagnostics and the independently controlled release matrix. New development
+diagnostics. The [release policy](release-policy.json) uses reviewed workflow
+evidence with preserved failures and explicit limits. New development
 uses this method. Neither a local comparison nor a changed evaluator updates
 controller pins, certifies the catalog, or authorizes publication.

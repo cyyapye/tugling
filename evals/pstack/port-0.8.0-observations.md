@@ -134,9 +134,19 @@ not prove all 54 skills, all 23 playbooks, real delegation, every platform,
 production repositories, visual picker behavior, public installation, or an
 advantage over Pstack. Optional Tugling guidance remains dormant.
 
-The controlled release matrix still covers 4 of 54 skills. Native discovery and
+At the time of these observations, the controlled release matrix covered 4 of 54 skills. Native discovery and
 these observations do not satisfy or replace that gate. Controller changes also
 require independent approval, and certification is disabled. No stable ref,
 version tag, controller pin, certification setting, or active user plugin was
 changed. See [shipping preparation](../../docs/pstack-0.8.0-readiness.md) for the
 remaining release requirements.
+
+## Subsequent release-policy decision
+
+The maintainer subsequently approved replacing that legacy acceptance gate with
+[reviewed Pstack workflow evidence](../../docs/release-certification.md). The
+[sanitized 0.8.0 report](../releases/v0.8.0/pstack-review.json) preserves these
+observations and their limits; the policy change does not improve their scores,
+erase the authoring failure, or establish broader behavioral coverage. Final
+controller verification, exact pin approval, certification and protected promotion
+remain separate requirements.

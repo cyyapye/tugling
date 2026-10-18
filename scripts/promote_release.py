@@ -24,6 +24,7 @@ import clean_room_install as clean_room
 import release_controller as controller
 import release_evidence as evidence
 import release_protection as protection
+import pstack_release as reviewed
 
 
 def authorize(env: dict[str, str]) -> dict[str, str]:
@@ -74,8 +75,9 @@ def verify_and_promote(request: dict[str, str], *, apply: bool,
             token=os.environ.get("GH_TOKEN", "") if apply else "",
         )
         return {**result, "certification_run_id": request["run_id"], "certification_run_attempt": 1,
-                "usage": envelope["usage"], "model": envelope["model"],
-                "reasoning_effort": envelope["reasoning_effort"]}
+                "review_sha256": envelope["review_sha256"], "method": "pstack-eval",
+                "scope": "codex-port-compatibility", "certification_model_calls": 0,
+                "review": reviewed.review_summary(reviewed.read_json(path)["review"])}
 
 
 def require_published(refs: dict[str, str], candidate: str, version: str) -> None:
