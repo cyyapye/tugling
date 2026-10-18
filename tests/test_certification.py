@@ -33,6 +33,23 @@ def approved_environment() -> dict[str, str]:
 
 
 class CertificationRuntimeTest(unittest.TestCase):
+    def test_uncovered_catalog_is_rejected_before_any_model_admission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            budget = cert.runtime.RunBudget(1000, 1000, 91)
+            with mock.patch.object(cert.runtime, "proxy_arguments") as proxy, \
+                 mock.patch.object(cert.clean_room, "public_install") as install, \
+                 mock.patch.object(cert.behavioral, "run_evaluation") as behavioral:
+                with self.assertRaisesRegex(cert.CertificationError, "full installed skill catalog"):
+                    cert.certify(cert.ROOT, cert.authorize(approved_environment()), root / "policy",
+                                 root / "output", root / "private", budget)
+                proxy.assert_not_called()
+                install.assert_not_called()
+                behavioral.assert_not_called()
+            self.assertEqual(budget.tasks, 0)
+            self.assertFalse(budget.in_flight_or_unaccounted_task)
+            self.assertFalse((root / "output").exists())
+
     def test_transport_diagnostics_allow_only_error_categories(self):
         private = "synthetic-private-key-path-message"
         events = [
@@ -69,7 +86,8 @@ class CertificationRuntimeTest(unittest.TestCase):
                                              "api_error_codes": ["invalid_api_key", private],
                                              "message": private}}}
                 budget = cert.runtime.RunBudget(100, 50, 91)
-                with mock.patch.object(cert.runtime, "proxy_arguments", return_value=["synthetic"]), \
+                with mock.patch.object(cert, "require_full_catalog_coverage"), \
+                     mock.patch.object(cert.runtime, "proxy_arguments", return_value=["synthetic"]), \
                      mock.patch.object(cert.clean_room, "resolve_codex", return_value=("synthetic", f"codex-cli {cert.CODEX_VERSION}")), \
                      mock.patch.object(cert, "require_fresh_refs"), mock.patch.object(cert, "check_public_policy"), \
                      mock.patch.object(cert.clean_room, "public_install", return_value=result), \
@@ -264,12 +282,36 @@ class CertificationGitTest(unittest.TestCase):
         self.assertEqual(self.git(self.remote, "show-ref"), before)
 
     def test_changed_plugin_uses_exact_candidate_without_writing_remote_refs(self):
+        self.use_fully_covered_catalog()
         self.change_plugin()
         before = self.git(self.remote, "show-ref")
         plan = self.prepare()
         self.assertEqual(plan["state"], "CERTIFICATION_REQUIRED")
         self.assertEqual(plan["plugin"]["version"], self.candidate_version)
         self.assertEqual(self.git(self.root / "candidate", "rev-parse", "HEAD"), self.request["candidate_sha"])
+        self.assertEqual(self.git(self.remote, "show-ref"), before)
+
+    def test_uncovered_catalog_blocks_full_preflight_without_writing_remote_refs(self):
+        self.change_plugin()
+        before = self.git(self.remote, "show-ref")
+        with self.assertRaisesRegex(cert.CertificationError, "full installed skill catalog"):
+            self.prepare()
+        self.assertEqual(self.git(self.remote, "show-ref"), before)
+
+    def test_reviewed_evidence_preflight_uses_workflow_policy_instead_of_legacy_catalog(self):
+        self.change_plugin()
+        self.request = {key: value for key, value in self.request.items()
+                        if key not in {"input_limit", "output_limit"}}
+        self.request["review_sha256"] = "d" * 64
+        before = self.git(self.remote, "show-ref")
+        self.assertEqual(self.prepare()["state"], "CERTIFICATION_REQUIRED")
+        self.assertEqual(self.git(self.remote, "show-ref"), before)
+
+    def test_uncovered_catalog_still_allows_an_explicit_one_case_diagnostic(self):
+        self.change_plugin()
+        self.request["diagnostic_case"] = "tugling-bounded-noop"
+        before = self.git(self.remote, "show-ref")
+        self.assertEqual(self.prepare()["state"], "CERTIFICATION_REQUIRED")
         self.assertEqual(self.git(self.remote, "show-ref"), before)
 
     def test_candidate_cannot_replace_its_own_grader(self):
@@ -313,8 +355,8 @@ class CertificationGitTest(unittest.TestCase):
             self.prepare()
 
     def test_existing_version_is_rejected_before_model_work(self):
-        (self.repo / "plugins/tugling/skills/repo-verify/SKILL.md").write_text(
-            (self.repo / "plugins/tugling/skills/repo-verify/SKILL.md").read_text() + "\nSynthetic change.\n")
+        (self.repo / "plugins/tugling/skills/principle-prove-it-works/SKILL.md").write_text(
+            (self.repo / "plugins/tugling/skills/principle-prove-it-works/SKILL.md").read_text() + "\nSynthetic change.\n")
         self.publish()
         with self.assertRaisesRegex(cert.CertificationError, "new, unpublished release version"):
             self.prepare()
@@ -322,6 +364,7 @@ class CertificationGitTest(unittest.TestCase):
     def test_full_orchestration_counts_all_conditions_and_withholds_failed_certificate(self):
         # Substitute only the model-task boundary. Real Git identities, scans,
         # full matrix aggregation, gates, assembly and artifact validation run.
+        self.use_fully_covered_catalog()
         self.change_plugin()
         self.prepare()
         candidate = self.root / "candidate"
@@ -336,7 +379,7 @@ class CertificationGitTest(unittest.TestCase):
                 "plugin": cert.gate.plugin_identity(kwargs["expected_root"]),
                 "codex": {"version": version}, "live": {"ran": True, "model": cert.MODEL,
                     "reasoning_effort": cert.EFFORT, "repository_unchanged": True,
-                    "selected_skill": "repo-verify", "verification_order": "repository-native-first",
+                    "selected_skill": "principle-prove-it-works", "verification_order": "repository-native-first",
                     "installed_skill_read_observed": True,
                     "usage": {"input_tokens": 10, "output_tokens": 1, "cached_input_tokens": 0}}}
 
@@ -386,6 +429,7 @@ class CertificationGitTest(unittest.TestCase):
     def test_checkpoint_aggregation_preserves_the_real_release_gate(self):
         from scripts import certification_tasks as tasks
         from scripts import certification_jobs as jobs
+        self.use_fully_covered_catalog()
         self.change_plugin()
         patterns = self.root / "checkpoint-policy.txt"
         patterns.write_text("synthetic-private-sentinel-" + str(time.time_ns()))
@@ -399,9 +443,10 @@ class CertificationGitTest(unittest.TestCase):
                 if task["id"] == "t000":
                     raw = {"passed": True, "checks": {}, "plugin": cert.gate.plugin_identity(self.repo),
                         "live": {"ran": True, "repository_unchanged": True,
-                            "selected_skill": "repo-verify", "verification_order": "repository-native-first",
+                            "selected_skill": "principle-prove-it-works", "verification_order": "repository-native-first",
                             "installed_skill_read_observed": True}}
-                    evidence = tasks.clean_evidence(raw, manifest)
+                    with cert.candidate_source(self.repo):
+                        evidence = tasks.clean_evidence(raw, manifest)
                     evidence["checks"] = {key: True for key in evidence["checks"]}
                     evidence["passed"] = True
                 else:
@@ -433,6 +478,17 @@ class CertificationGitTest(unittest.TestCase):
                             if task["case_id"] == "tugling-bounded-noop" and task["condition"] == "candidate"])
                     self.assertFalse((output / "certificate.json").exists())
         self.assertEqual(before, self.git(self.remote, "show-ref"))
+
+    def use_fully_covered_catalog(self):
+        # This orchestration fixture exposes only the skills its matrix covers.
+        # Separate release-gate tests reject the actual incomplete Pstack catalog.
+        covered = set(cert.gate.validate_matrix()["required_skills"])
+        for path in (self.repo / "plugins/tugling/skills").glob("*/SKILL.md"):
+            if path.parent.name not in covered:
+                path.rename(path.with_name("method.md"))
+        self.enterContext(mock.patch.object(
+            cert.behavioral, "SKILLS", self.repo / "plugins/tugling/skills"
+        ))
 
 
 class CertificationArtifactTest(unittest.TestCase):

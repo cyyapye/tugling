@@ -60,6 +60,11 @@ def digest_tree(root: Path) -> str:
     return digest.hexdigest()
 
 
+def executable_paths(root: Path) -> set[str]:
+    return {path.relative_to(root).as_posix() for path in root.rglob("*")
+            if path.is_file() and path.stat().st_mode & 0o111}
+
+
 def command_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env.update(
@@ -254,7 +259,7 @@ def write_live_schema(path: Path) -> None:
             "properties": {
                 "selected_skill": {
                     "type": "string",
-                    "enum": ["repo-verify", "generic-checklist", "none"],
+                    "enum": ["principle-prove-it-works", "generic-checklist", "none"],
                 },
                 "canonical_verify": {
                     "type": "string",
@@ -323,7 +328,7 @@ def run_live_discovery(
     final_path = scratch / "live-final.json"
     write_live_schema(schema)
     prompt = (
-        "Use $repo-verify to inspect this synthetic repository read-only. "
+        "Use $principle-prove-it-works to inspect this synthetic repository read-only. "
         "Confirm the canonical verification command, but do not run it and do not edit files. "
         "Return the strongest state supported before verification runs."
     )
@@ -369,13 +374,13 @@ def run_live_discovery(
     final = read_json(final_path) if final_path.is_file() else None
     final_head = git_output(fixture, "rev-parse", "HEAD")
     status = git_output(fixture, "status", "--porcelain", "--untracked-files=all")
-    installed_skill = installed_plugin / "skills" / "repo-verify" / "SKILL.md"
+    installed_skill = installed_plugin / "skills" / "principle-prove-it-works" / "SKILL.md"
     skill_read = any(str(installed_skill) in command for command in events["commands"])
     native_ran = any(re.search(r"(^|\s)make\s+verify(\s|$)", command) for command in events["commands"])
     checks = {
         "live_exit_zero": completed.returncode == 0,
         "live_skill_selected": (
-            isinstance(final, dict) and final.get("selected_skill") == "repo-verify"
+            isinstance(final, dict) and final.get("selected_skill") == "principle-prove-it-works"
         ),
         "live_repository_native_contract": (
             isinstance(final, dict)
@@ -436,13 +441,14 @@ def public_install(
             or (ref != expected_revision and (ref != "stable" or live))):
         raise CleanRoomError("--ref must be an exact SHA, or stable with an expected SHA and no live task")
     expected = package_report(expected_root)
+    expected_executables = executable_paths(expected_root / PLUGIN_RELATIVE)
     with tempfile.TemporaryDirectory(prefix="tugling-public-install-") as directory:
         scratch = Path(directory)
         codex_home = scratch / "codex-home"
         codex_home.mkdir(mode=0o700)
         env = command_env({"CODEX_HOME": str(codex_home)})
-        if ref == "stable":
-            # The post-publication canary uses neither account credentials nor
+        if not live:
+            # A free public installation uses neither account credentials nor
             # inherited user Git/config settings, and never starts a model task.
             env = {key: value for key, value in env.items()
                    if key in {"PATH", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "NO_COLOR"}}
@@ -498,8 +504,10 @@ def public_install(
             "plugin_add": installed.returncode == 0,
             "exact_public_revision": resolved == expected_revision,
             "isolated_install_path": installed_inside_home,
-            "marketplace_package_matches_candidate": installed_report == expected,
-            "installed_plugin_matches_candidate": installed_plugin_report == expected,
+            "marketplace_package_matches_candidate": (installed_report == expected
+                and executable_paths(marketplace_root / PLUGIN_RELATIVE) == expected_executables),
+            "installed_plugin_matches_candidate": (installed_plugin_report == expected
+                and executable_paths(installed_path) == expected_executables),
         }
         live_report: dict[str, Any] = {"ran": False}
         if live and installed_path.is_dir():

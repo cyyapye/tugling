@@ -1,0 +1,6 @@
+interface:
+  display_name: "Make Bot UI"
+  short_description: "- Use when building a custom UI (page, dashboard, buttons)…"
+  default_prompt: "Use $make-bot-ui for this task."
+policy:
+  allow_implicit_invocation: false

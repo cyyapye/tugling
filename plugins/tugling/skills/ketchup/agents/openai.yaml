@@ -1,0 +1,6 @@
+interface:
+  display_name: "ketchup"
+  short_description: "Catch the user up on what changed in this chat since their…"
+  default_prompt: "Use $ketchup for this task."
+policy:
+  allow_implicit_invocation: false

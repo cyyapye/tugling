@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import release_gate as gate
 
@@ -62,7 +63,7 @@ class ReleaseGateTest(unittest.TestCase):
                 "ran": True,
                 "model": "model-test",
                 "reasoning_effort": "medium",
-                "selected_skill": "repo-verify",
+                "selected_skill": "principle-prove-it-works",
                 "verification_order": "repository-native-first",
                 "installed_skill_read_observed": False,
                 "repository_unchanged": True,
@@ -83,7 +84,13 @@ class ReleaseGateTest(unittest.TestCase):
             )
         )
 
-    def test_certificate_assembles_and_verifies_from_matching_proofs(self) -> None:
+    def test_certificate_assembles_and_verifies_when_catalog_is_fully_covered(self) -> None:
+        plugin = gate.plugin_identity()
+        plugin["skills"] = gate.validate_matrix()["required_skills"]
+        with patch.object(gate, "plugin_identity", return_value=plugin):
+            self.assert_matching_proofs_verify()
+
+    def assert_matching_proofs_verify(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             behavioral, clean = self.proofs(root)
@@ -97,6 +104,24 @@ class ReleaseGateTest(unittest.TestCase):
             certificate_path.write_text(json.dumps(certificate), encoding="utf-8")
             verified = gate.verify_certificate(path=certificate_path)
             self.assertEqual(verified["plugin"], gate.plugin_identity())
+
+    def test_incomplete_catalog_cannot_be_certified_even_with_otherwise_green_proofs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            behavioral, clean = self.proofs(root)
+            certificate = gate.assemble_certificate(
+                version=gate.plugin_identity()["version"],
+                behavioral_path=behavioral, clean_room_path=clean,
+            )
+            self.assertFalse(certificate["passed"])
+            self.assertFalse(certificate["checks"]["full_catalog_behavioral_coverage"])
+            # A fabricated passed flag cannot bypass the independent catalog check.
+            certificate["passed"] = True
+            certificate["checks"]["full_catalog_behavioral_coverage"] = True
+            path = root / "certificate.json"
+            path.write_text(json.dumps(certificate))
+            with self.assertRaisesRegex(gate.ReleaseGateError, "full installed skill catalog"):
+                gate.verify_certificate(path=path)
 
     def test_certificate_rejects_fewer_than_three_attempts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

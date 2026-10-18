@@ -1,0 +1,6 @@
+interface:
+  display_name: "principle-guard-the-context-window"
+  short_description: "Apply when context is filling up: large outputs, long files,…"
+  default_prompt: "Use $principle-guard-the-context-window for this task."
+policy:
+  allow_implicit_invocation: false

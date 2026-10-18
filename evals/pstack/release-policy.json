@@ -1,0 +1,35 @@
+{
+  "allowed_environments": [
+    "workspace-write",
+    "scoped-skill-directory"
+  ],
+  "allowed_limitations": [
+    "same-family-review",
+    "development-tasks-not-holdouts",
+    "not-full-catalog-behavior",
+    "not-enhancement-evidence",
+    "builder-usage-only",
+    "authoring-requires-explicit-directory-grant",
+    "repeat-used-longer-timeout"
+  ],
+  "method": "pstack-eval",
+  "required_areas": [
+    "discovery-and-setup",
+    "planning-scope",
+    "repair-and-regression",
+    "verification-honesty",
+    "capability-fallbacks",
+    "history-scope",
+    "skill-authoring",
+    "idle-scope"
+  ],
+  "required_limitations": [
+    "same-family-review",
+    "development-tasks-not-holdouts",
+    "not-full-catalog-behavior",
+    "not-enhancement-evidence",
+    "builder-usage-only"
+  ],
+  "schema_version": 1,
+  "scope": "codex-port-compatibility"
+}

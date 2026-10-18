@@ -1,0 +1,4 @@
+interface:
+  display_name: "setup-pstack"
+  short_description: "Configure Pstack model preferences in Codex."
+  default_prompt: "Use $setup-pstack for this task."

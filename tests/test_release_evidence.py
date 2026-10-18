@@ -16,6 +16,7 @@ import zipfile
 from scripts import release_evidence as evidence
 from scripts import release_protection as protection
 from scripts import promote_release as promotion
+from tests import pstack_release_fixtures as reviewed_fixtures
 
 
 class ReleaseEvidenceTest(unittest.TestCase):
@@ -36,19 +37,11 @@ class ReleaseEvidenceTest(unittest.TestCase):
                          "size_in_bytes": 10000, "workflow_run": {"id": 123, "head_sha": self.pin}}
         self.additional_artifacts = []
         cert = evidence.certification
-        self.certificate = cert.gate.read_json(cert.ROOT / "evals/releases/v0.4.0/certificate.json")
-        self.certificate["behavioral"].update(evaluated_revision=self.candidate, released_revision=self.baseline)
-        self.certificate["clean_room"].update(revision=self.candidate, codex_version=f"codex-cli {cert.CODEX_VERSION}")
-        for section in ("behavioral", "clean_room"):
-            self.certificate[section].update(model=cert.MODEL, reasoning_effort=cert.EFFORT)
-        self.envelope = {"schema_version": 1, "state": "CERTIFIED", "repository": "cyyapye/tugling",
-            "controller_sha": self.pin, "candidate_sha": self.candidate, "baseline_sha": self.baseline,
-            "run_id": "123", "run_attempt": 1, "input_limit": 1000, "output_limit": 1000,
-            "created_at": "2026-09-05T00:00:00Z", "model": cert.MODEL,
-            "reasoning_effort": cert.EFFORT, "codex_version": f"codex-cli {cert.CODEX_VERSION}",
-            "usage": {"completed_tasks": 91, "task_limit": 91, "input_limit": 1000, "output_limit": 1000,
-                "input_tokens": 100, "output_tokens": 50, "cached_input_tokens": 25,
-                "in_flight_or_unaccounted_task": False, "accounting": "between-tasks-not-hard-billing-cap"}}
+        self.certificate = reviewed_fixtures.certificate(cert.gate.plugin_identity(), self.candidate,
+                                                        self.baseline, self.pin)
+        self.envelope = {"schema_version": 2, "state": "CERTIFIED",
+            **reviewed_fixtures.request(self.candidate, self.baseline, self.pin),
+            "created_at": self.certificate["created_at"]}
         self.source = self.root / "source"
         self.source.mkdir()
         cert.gate.write_json(self.source / "certificate.json", self.certificate)
@@ -178,7 +171,17 @@ class ReleaseEvidenceTest(unittest.TestCase):
 
     def test_signed_envelope_for_another_candidate_is_rejected(self):
         self.envelope["candidate_sha"] = "d" * 40
-        with self.assertRaises(evidence.certification.CertificationError):
+        with self.assertRaises(evidence.reviewed.ReviewedReleaseError):
+            self.fetch()
+
+    def test_legacy_signed_envelope_cannot_authorize_active_promotion(self):
+        self.envelope["schema_version"] = 1
+        with self.assertRaisesRegex(evidence.EvidenceError, "legacy questionnaire"):
+            self.fetch()
+
+    def test_signed_report_digest_cannot_be_substituted(self):
+        self.envelope["review_sha256"] = "e" * 64
+        with self.assertRaises(evidence.reviewed.ReviewedReleaseError):
             self.fetch()
 
     def test_rerun_started_during_download_invalidates_evidence(self):

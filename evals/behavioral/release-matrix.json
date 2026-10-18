@@ -19,13 +19,10 @@
     "tugling-project-setup"
   ],
   "required_skills": [
-    "async-safety",
-    "delivery-plan",
-    "repo-verify",
-    "scale-cost-review",
-    "screenshot-first-ui",
-    "skill-delivery",
-    "tugling"
+    "architect",
+    "poteto-mode",
+    "principle-make-operations-idempotent",
+    "principle-prove-it-works"
   ],
   "project_types": {
     "python-cli": [

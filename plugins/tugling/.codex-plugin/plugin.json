@@ -1,7 +1,7 @@
 {
   "name": "tugling",
-  "version": "0.7.0",
-  "description": "Portable engineering skills for planning, designing, verifying, and shipping software.",
+  "version": "0.8.0",
+  "description": "Pstack’s familiar skills and playbooks adapted for Codex.",
   "author": {
     "name": "Ye Cheng",
     "url": "https://github.com/cyyapye"
@@ -19,14 +19,14 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Tugling",
-    "shortDescription": "Tiny tools for shipping better software.",
-    "longDescription": "A compact, repository-aware engineering stack for turning intent into a small, scalable change with current-run proof.",
+    "shortDescription": "Pstack skills and playbooks for Codex.",
+    "longDescription": "Lauren Tan’s Pstack methods and familiar skill names, adapted for Codex tools and model settings. Pstack is the default; optional Tugling guidance must demonstrate a substantive advantage before inclusion.",
     "developerName": "Ye Cheng",
     "category": "Productivity",
     "capabilities": [
       "Interactive",
       "Write"
     ],
-    "defaultPrompt": "Use Tugling to carry this repository change from intent through verification."
+    "defaultPrompt": "Use $poteto-mode to carry this repository change through its appropriate playbook and verification."
   }
 }

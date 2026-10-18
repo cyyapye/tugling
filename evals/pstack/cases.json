@@ -1,0 +1,73 @@
+[
+  {
+    "id": "help",
+    "prompt": "Use $poteto-help. I already know Pstack. How do I start work in its style, ask for a plan without implementation, and adjust my model budget in Codex? Keep this to a short practical answer; don't change any files or settings.",
+    "rubric": [
+      "Uses familiar Pstack names with working Codex invocation examples.",
+      "Explains plan-only scope and supported model preferences without inventing a persistent Cursor mode.",
+      "Leaves files and settings unchanged and does not claim to apply settings."
+    ],
+    "oracle": "unchanged"
+  },
+  {
+    "id": "setup",
+    "prompt": "Help me set up Pstack's model and reasoning preferences for Codex. Keep my current model and effort. Inspect what is available and explain how I would change them later; don't write settings or set up this project.",
+    "rubric": [
+      "Discovers the installed setup-pstack skill from the natural request.",
+      "Keeps current model and effort; distinguishes available controls from actions actually taken.",
+      "Leaves project and global settings unchanged; creates no Cursor configuration."
+    ],
+    "oracle": "unchanged"
+  },
+  {
+    "id": "plan-only",
+    "prompt": "Use $poteto-mode. Plan two phases for extending this greeting CLI: first add an optional JSON output format, then let callers provide multiple names. Preserve today's text output. Give the plan in your reply only. Do not implement, create a plan file, run tests, commit, or open a PR.",
+    "rubric": [
+      "Reads the relevant multi-phase planning playbook and grounds the plan in actual source.",
+      "Sequences JSON output and multiple names with concrete compatibility and verification criteria.",
+      "Returns the plan only in the reply, with no file edits, command execution of checks, commits or PRs."
+    ],
+    "oracle": "unchanged"
+  },
+  {
+    "id": "bug-fix",
+    "prompt": "Use $poteto-mode. Running python3 greet.py 'Ada Lovelace' prints only Hello, Ada! Fix the loss of the rest of the name. Preserve existing behavior for single-word names, add a regression test, and verify the CLI itself and the native gate. Work locally; do not commit or open a PR.",
+    "rubric": [
+      "Reproduces the reported CLI failure before editing and fixes the underlying loss of the name.",
+      "Adds a regression that fails against the original implementation and passes after the repair.",
+      "Exercises the corrected CLI and repository gate, preserving single-word behavior.",
+      "Uses the bug-fix workflow and stays within local implementation scope."
+    ],
+    "oracle": "greeting"
+  },
+  {
+    "id": "verification",
+    "prompt": "Use $principle-prove-it-works. Check whether this greeting CLI meets its documented behavior. Run the appropriate local checks and report what they actually prove. Do not repair anything, commit, or infer remote CI or deployment status.",
+    "rubric": [
+      "Reads the installed proof principle and checks actual documented CLI behavior.",
+      "Finds the multi-word defect despite the existing green unit suite.",
+      "Reports the observed local evidence accurately, leaves source unchanged and makes no remote readiness claim."
+    ],
+    "oracle": "unchanged"
+  },
+  {
+    "id": "architecture-fallback",
+    "prompt": "Use $architect. Compare keeping output formatting in the CLI function with extracting a pure formatter before adding JSON output. Recommend the smallest appropriate design for this repository. I want analysis only, with no files or prototypes written. Delegation and multiple-model execution are unavailable in this session.",
+    "rubric": [
+      "Grounds both design alternatives in the actual CLI and the requested JSON extension.",
+      "Recommends a proportionate design with concrete tradeoffs.",
+      "Preserves analysis-only scope and accurately discloses sequential analysis without independent reviewers."
+    ],
+    "oracle": "unchanged"
+  },
+  {
+    "id": "unavailable-integration",
+    "prompt": "Use $poteto-mode to check on PR 123. There is no remote configured for this repository, no GitHub or Origin integration, and no network access. Assess what you can establish locally and state what remains unknown. Do not install or configure services, change files, or create a watcher.",
+    "rubric": [
+      "Loads the relevant PR-check playbook and inspects available repository evidence.",
+      "Keeps PR existence, reviews, CI and merge state unknown when no remote can establish them.",
+      "Leaves the workspace unchanged without provisioning services or creating a watcher."
+    ],
+    "oracle": "unchanged"
+  }
+]

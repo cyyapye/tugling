@@ -14,8 +14,10 @@ import zipfile
 
 if __package__:
     from . import certify_release as certification
+    from . import pstack_release as reviewed
 else:
     import certify_release as certification
+    import pstack_release as reviewed
 
 REPOSITORY = certification.REPOSITORY
 CERTIFY_WORKFLOW = ".github/workflows/certify-release.yml"
@@ -142,15 +144,12 @@ def fetch_verified(*, run_id: str, pin: str, candidate: str, digest: str,
     baseline = envelope.get("baseline_sha", "")
     if not isinstance(baseline, str) or not certification.controller.SHA.fullmatch(baseline):
         raise EvidenceError("invalid certified stable baseline")
-    limits = {}
-    for key, ceiling in (("input_limit", 100_000_000), ("output_limit", 10_000_000)):
-        value = envelope.get(key)
-        if type(value) is not int or not 0 < value <= ceiling:
-            raise EvidenceError("invalid certified token threshold")
-        limits[key] = value
+    if envelope.get("schema_version") != 2:
+        raise EvidenceError("legacy questionnaire evidence cannot authorize active promotion")
     request = {"repository": REPOSITORY, "controller_sha": pin, "candidate_sha": candidate,
-               "baseline_sha": baseline, "run_id": run_id, "run_attempt": 1, **limits}
-    certification.validate_artifact(output, request)
+               "baseline_sha": baseline, "run_id": run_id, "run_attempt": 1,
+               "review_sha256": envelope.get("review_sha256")}
+    reviewed.validate_artifact(output, request)
     if envelope["certificate_sha256"] != digest:
         raise EvidenceError("attested certificate differs from the maintainer-reviewed digest")
     # A rerun while downloading invalidates the original first-attempt request.

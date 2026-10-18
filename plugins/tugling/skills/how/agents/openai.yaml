@@ -1,0 +1,6 @@
+interface:
+  display_name: "how"
+  short_description: "Use for \\\"how does X work\\\", code walkthroughs before…"
+  default_prompt: "Use $how for this task."
+policy:
+  allow_implicit_invocation: false

@@ -13,6 +13,7 @@ from unittest import mock
 
 from scripts import release_controller as controller
 from scripts import promote_release as promotion
+from tests import pstack_release_fixtures as reviewed_fixtures
 
 
 class ReleaseControllerTest(unittest.TestCase):
@@ -38,19 +39,12 @@ class ReleaseControllerTest(unittest.TestCase):
         self.intermediate = self.commit("synthetic intermediate revision")
         (self.repo / "release-note.md").write_text("synthetic exact release candidate")
         self.candidate = self.commit("synthetic release candidate")
-        value = json.loads((controller.ROOT / "evals/releases/v0.4.0/certificate.json").read_text())
-        # Synthetic provenance is used only on a disposable local Git remote.
         self.version = controller.gate.plugin_identity(self.repo)["version"]
         self.tag = f"v{self.version}"
         self.certificate = self.root / "external-evidence/certificate.json"
         self.certificate.parent.mkdir(parents=True, exist_ok=True)
-        value["version"] = self.version
-        value["plugin"] = controller.gate.plugin_identity(self.repo)
-        value["matrix"] = {key: item for key, item in controller.gate.validate_matrix().items()
-                           if key != "schema_version"}
-        value["behavioral"]["released_revision"] = self.baseline
-        value["behavioral"]["evaluated_revision"] = self.candidate
-        value["clean_room"]["revision"] = self.candidate
+        value = reviewed_fixtures.certificate(controller.gate.plugin_identity(self.repo), self.candidate,
+                                             self.baseline, self.approved)
         self.certificate.write_text(json.dumps(value))
         self.remote = self.root / "remote.git"
         self.git(self.root, "clone", "--bare", str(self.repo), str(self.remote))
@@ -104,6 +98,20 @@ class ReleaseControllerTest(unittest.TestCase):
         before = self.refs()
         self.assertEqual(self.run_promotion(apply=False)["state"], "READY_FOR_REVIEWED_PROMOTION")
         self.assertEqual(self.refs(), before)
+
+    def test_legacy_certificate_cannot_authorize_active_publication(self) -> None:
+        value = json.loads((controller.ROOT / "evals/releases/v0.4.0/certificate.json").read_text())
+        self.certificate.write_text(json.dumps(value))
+        self.digest = hashlib.sha256(self.certificate.read_bytes()).hexdigest()
+        self.assert_rejected_without_writes("legacy questionnaire")
+
+    def test_mode_only_candidate_change_cannot_reuse_reviewed_package(self) -> None:
+        identity = controller.gate.plugin_identity(self.repo)
+        path = next(path for path in (self.repo / "plugins/tugling").rglob("*.py") if path.stat().st_mode & 0o111)
+        path.chmod(0o644)
+        self.update_main()
+        self.assertEqual(controller.gate.plugin_identity(self.repo), identity)
+        self.assert_rejected_without_writes("executable modes")
 
     def test_changed_grader_cannot_approve_itself(self) -> None:
         marker = self.root / "candidate-code-ran"
@@ -182,7 +190,7 @@ class ReleaseControllerTest(unittest.TestCase):
         self.assert_rejected_without_writes("only regular files")
 
     def test_candidate_package_is_checked_by_trusted_verifier(self) -> None:
-        (self.repo / "plugins/tugling/extra.md").write_text("unreviewed package bytes")
+        (self.repo / "plugins/tugling/skills/how/SKILL.md").write_text("unreviewed package bytes")
         self.update_main()
         before = self.refs()
         with self.assertRaisesRegex(controller.gate.ReleaseGateError, "current plugin content"):

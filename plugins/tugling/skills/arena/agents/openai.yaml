@@ -1,0 +1,6 @@
+interface:
+  display_name: "arena"
+  short_description: "Spawn N parallel candidates at the same task, pick a base,…"
+  default_prompt: "Use $arena for this task."
+policy:
+  allow_implicit_invocation: false

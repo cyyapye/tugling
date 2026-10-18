@@ -58,7 +58,7 @@ class ProjectContractTest(unittest.TestCase):
             "data_policy": "synthetic-only",
             "case": {
                 "id": "project-boundary",
-                "skill": "tugling",
+                "skill": "poteto-mode",
                 "sandbox": "read-only",
                 "minimum_score": 0.8,
                 "expected_state": "ADVISORY",

@@ -8,7 +8,7 @@ Ordinary push and PR checks remain deterministic and credential-free.
 
 The workflow stays disabled while `TUGLING_RELEASE_CONTROLLER_SHA` or
 `TUGLING_CERTIFICATION_CONTROLLER_SHA` is unset. Merging this code does not approve
-a controller, enable paid certification, or publish a plugin release.
+a controller, enable certification, or publish a plugin release.
 
 ## Evidence and execution boundaries
 
@@ -21,7 +21,7 @@ The workflow uses four separate standard GitHub-hosted Ubuntu jobs:
    verify both files with `gh attestation verify`. Check the certificate against
    the candidate package, exact main/stable refs, and the successful latest push
    `Verify` run. Write the release identity, certificate digest, and observed
-   usage to the workflow summary for the maintainer to review.
+   builder usage and review limits to the workflow summary for the maintainer to review.
 2. **Candidate verification:** check out the exact candidate with `contents: read`
    and `persist-credentials: false`, and run `make verify`.
 3. **Promotion:** wait for approval in `tugling-stable`, then start a fresh runner
@@ -46,10 +46,12 @@ workflow must have completed successfully; reruns, fork workflows, expired or
 ambiguous artifacts, and unsuccessful signing jobs are rejected.
 
 The signed envelope binds the certificate digest, exact candidate SHA, exact
-stable baseline, controller SHA, run/attempt, reviewed model/runtime, complete
-91-task matrix, and observed usage. The reviewing maintainer supplies the
-certificate digest separately. The controller compares the certificate with
-regular package files extracted from Git objects. **An ancestor's certificate
+stable baseline, controller SHA, run/attempt, and approved report digest. The
+schema-2 certificate contains the reviewed workflow report, its runtime and
+observed builder usage, declared limits, policy digest, and exact public-install
+identity. The reviewing maintainer supplies the certificate digest separately.
+The controller compares it with regular package files extracted from Git objects
+and requires package executable modes to match the approved controller. **An ancestor's certificate
 cannot certify a later commit**, even when the plugin content is unchanged.
 Committed legacy certificates are historical records and cannot authorize this
 promotion path. Never commit an external certificate to manufacture a new release
@@ -143,10 +145,12 @@ native/remote verification:
    controller tag. Set the separately reviewed full SHAs in
    `TUGLING_RELEASE_CONTROLLER_SHA` and `TUGLING_CERTIFICATION_CONTROLLER_SHA`.
    Neither variable is supplied by a candidate job or updated from CI.
-2. Obtain a successful certification for a new plugin version with separately
-   approved API credentials and token thresholds. Download both sanitized JSON
-   files and review the certificate's checks, scores, identity, and usage.
-   Calculate the SHA256 of the original `certificate.json` bytes.
+2. Review the exact candidate's `pstack-review.json` and its underlying evidence.
+   Approve that report digest and enable reviewed certification explicitly.
+   Obtain a successful [certification](release-certification.md) for the new plugin
+   version; it makes no model calls. Download both signed JSON files and review
+   their checks, identity, observed builder usage and limits. Calculate the SHA256
+   of the original `certificate.json` bytes.
 3. Dispatch `promote-stable.yml` from the promotion controller tag, supplying
    `candidate_sha`, `version` without `v`, `certification_run_id`, and
    `certificate_sha256`. The candidate must still be exact current main.
@@ -183,8 +187,9 @@ missing certificates or authorize additional model charges.
   overwrite the newer release. A product defect needs a new version and evidence.
 
 Only `PROMOTED_AND_INSTALL_VERIFIED` proves the fresh stable-alias installation.
-It does not claim a new live model evaluation; paid behavioral/discovery proof
-comes from the preceding certification. The final main read is a freshness check,
+It does not claim a new live model evaluation. The certificate binds previously
+observed workflows and their maintainer-approved review; its installation check
+makes no model calls. The final main read is a freshness check,
 not a transaction lock on main. Atomicity covers stable and the version tag.
 The canary is inline because a `GITHUB_TOKEN` push does not trigger another push
 workflow. There is no automatic rollback, tag deletion, model rerun, or retry loop.

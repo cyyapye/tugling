@@ -1,0 +1,6 @@
+interface:
+  display_name: "principle-build-the-lever"
+  short_description: "Apply to any non-trivial work, not just bulk work: edits,…"
+  default_prompt: "Use $principle-build-the-lever for this task."
+policy:
+  allow_implicit_invocation: false

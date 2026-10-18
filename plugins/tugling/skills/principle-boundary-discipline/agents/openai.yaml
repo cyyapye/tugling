@@ -1,0 +1,6 @@
+interface:
+  display_name: "principle-boundary-discipline"
+  short_description: "Apply when wiring validation, error handling, or framework…"
+  default_prompt: "Use $principle-boundary-discipline for this task."
+policy:
+  allow_implicit_invocation: false
