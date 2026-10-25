@@ -17,6 +17,10 @@ invariants, and add only the missing setup requested by the user.
 - **Enforcement:** to enforce accepted project rules, read
   [project-enforcement.md](project-enforcement.md). Add native assertions, a
   required map, and canonical/CI execution with demonstrated failure proof.
+- **UI delivery setup:** when requested, use the existing
+  [project UI evidence workflow](project-evidence.md)
+  to bind the project's theme, library, reference screens and native checks.
+  This is independent of global plugin installation or release adoption.
 
 Combine these modes only when the request calls for them. Bootstrap alone does
 not require a Tugling source pin, dogfood case, or adoption CI. Adoption alone
