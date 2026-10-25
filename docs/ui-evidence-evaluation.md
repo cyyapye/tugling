@@ -41,3 +41,20 @@ Before a behavior or release-quality claim, perform the existing consequential
 instruction and release evaluation gates with isolated guidance and the exact
 candidate revision. Local helper validation does not activate controller pins,
 install a plugin, authorize publication or certify an entire product workflow.
+
+## Current Pstack-base candidate checks
+
+On the current Pstack base, package/source validation, all 357 local tests,
+behavioral/UX suite structure and clean-package validation passed. The complete
+`make verify` command remained nonzero at release validation: the existing
+review binds the released plugin bytes, which this candidate changes. The old
+review was preserved; its identity was not rewritten to claim coverage of new
+content. Fresh exact-package observations and the repository's release review
+remain outstanding. These results qualify a local candidate for further work,
+not a release-ready package.
+
+Independent forward-testing found that a generated first-look mapping could be
+modified without rejection. The helper now derives and validates all reviewer
+inputs from the packet; synthetic tamper and restoration cases cover that
+repair. The adopter's matching local helper was repaired too. This supports an
+evidence-integrity claim, not an improvement in the LLM's visual judgment.

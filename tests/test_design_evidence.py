@@ -1,7 +1,7 @@
 """Synthetic evidence only: structural checks are not rendered-review proof."""
 import base64
 import copy
-import importlib.util
+import types
 import json
 from pathlib import Path
 import tempfile
@@ -9,9 +9,9 @@ import unittest
 
 
 HELPER = Path(__file__).resolve().parents[1] / "plugins/tugling/skills/poteto-mode/scripts/design_evidence.py"
-SPEC = importlib.util.spec_from_file_location("design_evidence", HELPER)
-evidence = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(evidence)
+evidence = types.ModuleType("design_evidence")
+evidence.__file__ = str(HELPER)
+exec(compile(HELPER.read_text(), str(HELPER), "exec"), evidence.__dict__)
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=")
 
 
