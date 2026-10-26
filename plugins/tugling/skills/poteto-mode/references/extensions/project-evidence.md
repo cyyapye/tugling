@@ -25,6 +25,11 @@ Prepare a JSON profile with this shape, using paths relative to the adopter:
   "theme": "src/theme.css",
   "components": "src/ui/index.ts",
   "catalogue": "browser-tests/catalogue.tsx",
+  "agentGuide": {
+    "indexCommand": ["npm", "run", "ui-guide"],
+    "queryCommand": ["npm", "run", "ui-guide", "--", "<component or task>"],
+    "previewIndex": "/ui/agent-index.json"
+  },
   "viewports": ["desktop", "mobile"],
   "references": {"reading": "Approved record detail"},
   "checks": {"browser": ["npm", "test"], "handoff": ["make", "verify"]},
@@ -41,6 +46,13 @@ assets and configuration in source roots/files; a file omitted from this list
 cannot be checked for drift. Use narrow source roots excluding dependencies,
 generated artifacts, private inputs and evidence output. Source roots include
 all regular files, including image/font assets; symlinks are rejected.
+
+`agentGuide` is optional discovery metadata for a project's existing guide. Omit
+it when none exists; UI work alone does not require building a generator. When
+present, inspect the commands before running them and query the relevant control
+or task before coding. Keep its authored guidance, inventory, example sources
+and generator covered by `sourceFiles` or `sourceRoots`, with canonical rules in
+`contracts`. Commands are metadata only; this helper never executes them.
 
 Run the bundled Python 3.11+ helper by its actual skill path:
 
@@ -66,6 +78,8 @@ enforcement from a profile listing commands.
 3. **Implement:** compose the existing library and tokens. Application policy and
    data ownership stay in the application. Reuse existing authorization for
    ordinary repairs; new concepts follow the project's actual approval rules.
+   Maintain affected catalogue and guide inputs in the same change, following
+   [the upkeep rules below](#maintain-the-design-system-with-the-change).
 4. **Verify:** run native behavior/style/accessibility checks required by the
    project; capture current-run images at configured viewports. Review intentional
    visual changes before updating baselines, then replay with updates disabled.
@@ -80,6 +94,35 @@ justify no application changes. Mechanical edits keep focused verification;
 backend-only changes do not acquire this workflow. If independent review cannot
 run, say so; self-review is not an independent pass. Preserve unresolved issues
 and the project's handoff gate even when a reviewer reports no findings.
+
+## Maintain the design system with the change
+
+The agent changing a shared control, approved composition or usage rule owns its
+affected documentation and examples before handoff. Read the project's adapter
+to locate those inputs; do not assume another project uses the same files or
+generator.
+
+- Update approved rules, when-to-use guidance, inventory entries, examples and
+  required states when the change affects them. Remove or migrate obsolete
+  references when a control is renamed or removed. Check prose against current
+  behavior even when its links and types still pass.
+- Edit the authoritative inputs. When the project generates a guide, regenerate
+  it through the project command. Do not hand-edit generated JSON or copy a
+  second set of APIs, tokens or rules into the guide. Record an approved design correction in the
+  canonical rules; do not turn a local exception into a universal rule.
+- When a guide exists, query the affected entry after updating its inputs.
+  Inspect the matching rendered example when appearance or behavior changed, and run the relevant
+  native checks. Missing-reference checks cannot prove that guidance is true;
+  the required rendered review still applies to material changes.
+
+Reuse that leaves the component contract and guidance unchanged needs no guide
+edit. Mechanical copy fixes keep focused checks; backend-only work does not
+trigger catalogue maintenance. Preserve synthetic-only and approval rules from
+the project. In the handoff, identify the affected inputs and checks, or briefly
+state why no design-system update was needed. Keep publication and plugin release
+separate from local implementation.
+
+## Package review evidence
 
 The brief is JSON with `id`, `task`, `meaning`, `scope` (`review`,
 `approved-pattern` or `new-concept`), `patternBasis`, `requiredStates`,

@@ -80,12 +80,18 @@ def inside(root, name):
 def validate_profile(profile):
     object_fields(profile, ["schemaVersion", "project", "contracts", "sourceRoots", "sourceFiles",
                             "theme", "components", "catalogue", "references", "checks", "criteria"],
-                  ["viewports"])
+                  ["viewports", "agentGuide"])
     require(profile["schemaVersion"] == 1, "Unsupported profile version")
     for key in ["project", "theme", "components", "catalogue"]:
         text(profile[key])
     for key in ["contracts", "sourceFiles"]:
         text_list(profile[key])
+    if "agentGuide" in profile:
+        guide = profile["agentGuide"]
+        object_fields(guide, ["indexCommand", "queryCommand", "previewIndex"])
+        text_list(guide["indexCommand"])
+        text_list(guide["queryCommand"])
+        text(guide["previewIndex"])
     text_list(profile["sourceRoots"], 0)
     for key in ["references", "checks"]:
         require(isinstance(profile[key], dict) and profile[key], "Missing " + key)

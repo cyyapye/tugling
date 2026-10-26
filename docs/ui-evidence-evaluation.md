@@ -19,6 +19,30 @@ not better design judgment or one-shot delivery.
 | Backend-only task | Skip UI setup/review and preserve backend verification. |
 | New UI concept | Preserve the project's actual concept-approval boundary; a model result is not approval. |
 
+## Guide maintenance cases
+
+The upkeep rule adapts Pstack's existing
+[verification-skill maintenance](../plugins/tugling/skills/maintain-verification-skill/SKILL.md)
+distinction between stale documentation and product regressions. It applies to
+affected UI inputs during delivery; it does not introduce a recurring audit or
+another default skill.
+
+| Case | Observable requirement |
+| --- | --- |
+| Rename a shared document-picker control | Migrate its public API, catalogue inventory and example references; query the resulting guide and verify the changed control. Do not patch generated JSON. |
+| Correct guidance that says a failed save clears a form, while the approved implementation retains the draft | Update the canonical rule and authored usage guidance even though links and types pass; keep the correct product behavior and its failure-state example. |
+| Use an unchanged existing button on another page | Reuse its guide and contract; leave unaffected guide inputs alone and keep checks proportionate. |
+| Repair a backend queue retry | Preserve backend verification; do not start catalogue maintenance. |
+| Update a project with handwritten examples and no generator | Maintain the relevant examples and rules through its existing workflow; do not impose the sample guide commands or create a generator. |
+
+These are reviewable routing and completion cases, not observed model outcomes.
+Native helper tests cover optional guide metadata, rejection of malformed
+commands, no implicit command execution, and review invalidation after authored
+guidance changes. They do not prove that an agent notices misleading prose. No
+new model comparison has been run for this narrow maintenance amendment; any
+claim of behavioral improvement or release readiness still needs the existing
+evaluation and release gates.
+
 The helper's native unit tests use synthetic files and one-pixel images. They
 prove automation contracts, not rendering, accessibility, review independence or
 test success. Run `make verify` for the repository's full local gate.
@@ -42,7 +66,7 @@ instruction and release evaluation gates with isolated guidance and the exact
 candidate revision. Local helper validation does not activate controller pins,
 install a plugin, authorize publication or certify an entire product workflow.
 
-## Current Pstack-base candidate checks
+## Earlier Pstack-base candidate checks
 
 On the current Pstack base, package/source validation, all 357 local tests,
 behavioral/UX suite structure and clean-package validation passed. The complete
@@ -58,3 +82,17 @@ modified without rejection. The helper now derives and validates all reviewer
 inputs from the packet; synthetic tamper and restoration cases cover that
 repair. The adopter's matching local helper was repaired too. This supports an
 evidence-integrity claim, not an improvement in the LLM's visual judgment.
+
+## Maintenance amendment checks
+
+Package/source validation, all 360 native tests, behavioral/UX case validation
+and clean-package validation passed after adding optional agent-guide metadata
+and the upkeep rule. The adopter's existing guide tests and skill structure
+checks also passed. Its adapter was accepted by the shared helper, with the
+authored guidance, inventory, examples, rules and generator included in source
+tracking.
+
+`make verify` still ends nonzero at release validation: the prior reviewed
+package does not match this candidate's plugin content. That report and the
+controller pins remain unchanged. No new model comparison, plugin installation,
+publication or release certification was performed for this amendment.

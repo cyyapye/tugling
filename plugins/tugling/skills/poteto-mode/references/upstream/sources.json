@@ -1310,7 +1310,7 @@
     },
     {
       "path": "poteto-mode/references/extensions/project-evidence.md",
-      "sha256": "d5111be5703293288866e15b0d88d14ce6ceb9d81f1059305b002575a370a36b"
+      "sha256": "21db492876a4bcc6537ebe2aa768968107f6d0da7496db6df23c84f27c68bb7c"
     },
     {
       "path": "poteto-mode/references/extensions/project-flows.md",
@@ -1318,7 +1318,7 @@
     },
     {
       "path": "poteto-mode/references/extensions/project-setup.md",
-      "sha256": "7da9f9ba7356b9a150de948d220af4db5c2434fe5d12c6fdbb4fb9b352e51bab"
+      "sha256": "9031b99a252f6322e5cd595a107268ae90bd75aa03458b380fe584fc0ec3a297"
     },
     {
       "path": "poteto-mode/references/extensions/repo-verify.md",
@@ -1342,7 +1342,7 @@
     },
     {
       "path": "poteto-mode/scripts/design_evidence.py",
-      "sha256": "0f813221ac849bbeb8f914b35a0ddae23086b01f72ad1ef6304dac9041322708"
+      "sha256": "26fbdbaeded478387a84a6e69d76832c3a810bd0f109f0a4c10d4c33136c12d1"
     },
     {
       "path": "principle-attack-the-premise/agents/openai.yaml",

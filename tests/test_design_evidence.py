@@ -79,6 +79,44 @@ class DesignEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence.initialize(self.root, self.profile_path)["status"], "UNCHANGED")
         self.assertEqual(target.stat().st_mtime_ns, before)
 
+    def test_agent_guide_metadata_is_preserved_without_running_commands(self):
+        sentinel = self.root / "must-not-run"
+        guide = {"indexCommand": ["touch", str(sentinel)],
+                 "queryCommand": ["guide", "<component or task>"],
+                 "previewIndex": "/ui/agent-index.json"}
+        self.profile["agentGuide"] = guide
+        self.write(self.root / evidence.PROFILE, self.profile)
+        self.write(self.profile_path, self.profile)
+        self.assertEqual(evidence.initialize(self.root, self.profile_path)["status"], "UNCHANGED")
+        self.review()
+        self.assertEqual(self.check()["status"], "REVIEW_COMPLETE")
+        self.assertEqual(evidence.read_json(self.root / evidence.PROFILE)["agentGuide"], guide)
+        self.assertFalse(sentinel.exists())
+
+    def test_invalid_agent_guide_metadata_is_rejected(self):
+        valid = {"indexCommand": ["guide"], "queryCommand": ["guide", "query"],
+                 "previewIndex": "/ui/agent-index.json"}
+        for invalid in [None, {}, {**valid, "indexCommand": []},
+                        {**valid, "queryCommand": "guide query"},
+                        {**valid, "previewIndex": " "}, {**valid, "unknown": True}]:
+            with self.subTest(guide=invalid):
+                self.profile["agentGuide"] = invalid
+                with self.assertRaises(ValueError):
+                    evidence.validate_profile(self.profile)
+
+    def test_authored_guide_input_change_invalidates_review(self):
+        guide_source = self.root / "guidance.md"
+        guide_source.write_text("Use the compact control for one choice.")
+        self.profile["sourceFiles"].append("guidance.md")
+        self.profile["agentGuide"] = {"indexCommand": ["guide"],
+                                      "queryCommand": ["guide", "<component or task>"],
+                                      "previewIndex": "/ui/agent-index.json"}
+        self.write(self.root / evidence.PROFILE, self.profile)
+        self.review()
+        guide_source.write_text("Use the expanded control for one choice.")
+        with self.assertRaisesRegex(ValueError, "Project source changed"):
+            self.check()
+
     def test_changed_setup_preserves_user_configuration(self):
         self.profile["project"] = "Changed"
         self.write(self.profile_path, self.profile)
