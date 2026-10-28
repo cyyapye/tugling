@@ -1310,7 +1310,7 @@
     },
     {
       "path": "poteto-mode/references/extensions/project-evidence.md",
-      "sha256": "21db492876a4bcc6537ebe2aa768968107f6d0da7496db6df23c84f27c68bb7c"
+      "sha256": "eeb63791b7ad4ecdf52d867b3493a04431f9bf1c5cf7385430147da72ace4a1c"
     },
     {
       "path": "poteto-mode/references/extensions/project-flows.md",
@@ -1339,6 +1339,10 @@
     {
       "path": "poteto-mode/references/extensions/tugling.md",
       "sha256": "871c4248a51aacc8e0a175fdf06c4244945f827ad61a3a34a0dfefaca43d98aa"
+    },
+    {
+      "path": "poteto-mode/references/extensions/ui-style-enforcement.md",
+      "sha256": "260d2c57ca2dba432acf015a66dd104f47e196b3f18487f93438489c883ee771"
     },
     {
       "path": "poteto-mode/scripts/design_evidence.py",

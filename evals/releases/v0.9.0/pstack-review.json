@@ -1,0 +1,505 @@
+{
+  "attempts": [
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "843ff8f50a1a8825084b1eaeae13d49fd36d30e24f4dee4e1a828de1a5e2225d",
+      "failure_kind": "none",
+      "id": "core-help",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "help",
+      "task_sha256": "5877131ae2dfcf39c7ad2219e4b239eaa219271f7d0c5364d54eee7b12920d24",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 89088,
+        "input_tokens": 130468,
+        "output_tokens": 1894
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "d2577d4f310da82f645265f8f47602480fdb388988abdd4c86a0cd4a2db7e322",
+      "failure_kind": "none",
+      "id": "core-setup",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "setup",
+      "task_sha256": "430df6cbfb09ef8520c162bacfa361fd68eeb0174f7720ffe2890bc1393a3f93",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 83072,
+        "input_tokens": 115360,
+        "output_tokens": 3052
+      }
+    },
+    {
+      "areas": [
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "af60440eca7bada604b0198c844529da37b8c8d951bf77a895787becad78a155",
+      "failure_kind": "none",
+      "id": "core-plan-only",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "plan-only",
+      "task_sha256": "f51eb84a781bdb3fe5ae0c2ea24015c4e596241cfcdf31e8fd30a2459dea13d5",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 129408,
+        "input_tokens": 173204,
+        "output_tokens": 2468
+      }
+    },
+    {
+      "areas": [
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 4
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "f80a7ca7448f471cdd32cc0f04cf18dab749169b1d9ef0d692d95f0533189f25",
+      "failure_kind": "none",
+      "id": "core-bug-fix",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "bug-fix",
+      "task_sha256": "2d56ff3ab4144505c4985143d68e6ad072374a0d16ffd4b82714465cf7da2756",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 202240,
+        "input_tokens": 249773,
+        "output_tokens": 3968
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "0d5ef98bee2ac1f1fb49a59d22e480dfae8a1d477201e47ac9fdb609222c405b",
+      "failure_kind": "none",
+      "id": "core-verification",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "verification",
+      "task_sha256": "37758a1939ff75c5c96016fd35d1f1a72d788c1ee64c1c0c74472f1b35e064a6",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 118656,
+        "input_tokens": 129770,
+        "output_tokens": 2660
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "504beedb252e92a12d81c247114b5b51d927a103ed41fcbfc5ee602ac1bc1a6e",
+      "failure_kind": "none",
+      "id": "core-architecture-fallback",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "architecture-fallback",
+      "task_sha256": "7efa58962e6bfe9b5d271bcb0d491c108c9b80b9afe399623154a1da06ea4ad2",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 158848,
+        "input_tokens": 185513,
+        "output_tokens": 3694
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "1169162c14e028e293f8c5884f902c2bbe1c6454c11298621e1c1281b0b58eca",
+      "failure_kind": "none",
+      "id": "core-unavailable-integration",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "unavailable-integration",
+      "task_sha256": "b5bbf446f03205cd0f9139394d1c3c5ad05fccf53685e4ab70e986a9ed0eee3f",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 146432,
+        "input_tokens": 183726,
+        "output_tokens": 3756
+      }
+    },
+    {
+      "areas": [
+        "history-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "54f0afb0918c710335782fb76ba83550e4d3a01d584c480da4785f5d84e61a71",
+      "failure_kind": "none",
+      "id": "extended-resume-greeting-work",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "resume-greeting-work",
+      "task_sha256": "95de307fcd7e1bf678087218894a0021d172c44f50f3a98072e4cab1ca240ddc",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 143616,
+        "input_tokens": 187801,
+        "output_tokens": 3454
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 3,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "c53aa9865f9b8a3596bc9809810ef0ea27e7f8b6d2d8a987e57877ee1c701fcb",
+      "failure_kind": "environment",
+      "id": "extended-reuse-cli-check",
+      "outcome": "failed",
+      "resolved_by": "authoring-repeat-reuse-cli-check",
+      "runtime": "configured-codex",
+      "scenario": "reuse-cli-check",
+      "task_sha256": "4497af55f9871aba5151d948f712af227a14945c44eae475fc26a24deaf3c6dd",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 307840,
+        "input_tokens": 369514,
+        "output_tokens": 8882
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "e10c26a0c37de86445d8c4c68c8f9d0c72161aeb86c3557cac95375ebb5a8d5a",
+      "failure_kind": "none",
+      "id": "extended-compare-check-approaches",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "compare-check-approaches",
+      "task_sha256": "0c2286b1fbd83372c40d1fb11a407feb0f2615d8094b160ea84ad96ef3dbb300",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 189056,
+        "input_tokens": 224412,
+        "output_tokens": 3643
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "e68ad2d8374c1ace808f0c9025a7fd689033c80422422b2bef42b55741581fea",
+      "failure_kind": "none",
+      "id": "extended-cover-cli-inputs",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "cover-cli-inputs",
+      "task_sha256": "75bf17c3efd431f10a0e83db1e4fd927b6bdbb79491e00c69c15e020e017d5b4",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 147328,
+        "input_tokens": 183496,
+        "output_tokens": 3729
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "a809bf3eb30e5cbd7cc5d7010c182f06feeb914b61fd4a2bd11b6a846e477e02",
+      "failure_kind": "none",
+      "id": "extended-explain-quoted-names",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "explain-quoted-names",
+      "task_sha256": "a8055a5098c816619c9be9ea9dd09df4c578b81cbfdd14e26afbf83c5845462b",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 114176,
+        "input_tokens": 130491,
+        "output_tokens": 1647
+      }
+    },
+    {
+      "areas": [
+        "idle-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "1c4e5abb709316f490e4916c5deb6edeccdc08f9ff36a2056922469beb817566",
+      "failure_kind": "none",
+      "id": "extended-wait-for-next-request",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "wait-for-next-request",
+      "task_sha256": "58e2af41856d0ca3329f5bb3937db35a0e1fccb3b15ad66541b8f8d6dd4d879e",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 9856,
+        "input_tokens": 12390,
+        "output_tokens": 9
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "extended",
+      "evidence_sha256": "ffd9d2e3837b0d3ffcc46e37c22c1eeced488cea9610438ec4a83d3f5a3fa72a",
+      "failure_kind": "none",
+      "id": "extended-prepare-short-session",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "prepare-short-session",
+      "task_sha256": "1f03e2f036f434549a61b9d11b9d28b10ad70f8006b6ac0748de12c27272ce58",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 67968,
+        "input_tokens": 96984,
+        "output_tokens": 2231
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "scoped-skill-directory",
+      "evidence_set": "authoring-repeat",
+      "evidence_sha256": "906eec4ecc774a63a8ce1fa0b7ef47abe55a40c0bde5009d260c4842ba5d9945",
+      "failure_kind": "none",
+      "id": "authoring-repeat-reuse-cli-check",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "reuse-cli-check",
+      "task_sha256": "4497af55f9871aba5151d948f712af227a14945c44eae475fc26a24deaf3c6dd",
+      "timeout_seconds": 600,
+      "usage": {
+        "cached_input_tokens": 343168,
+        "input_tokens": 373184,
+        "output_tokens": 8874
+      }
+    }
+  ],
+  "evidence_sets": [
+    {
+      "attempt_ids": [
+        "core-help",
+        "core-setup",
+        "core-plan-only",
+        "core-bug-fix",
+        "core-verification",
+        "core-architecture-fallback",
+        "core-unavailable-integration"
+      ],
+      "id": "core",
+      "manifest_sha256": "2fb4a64894752fd412acebf777c7c564c9841f9fa435ae9888a744528963183b"
+    },
+    {
+      "attempt_ids": [
+        "extended-resume-greeting-work",
+        "extended-reuse-cli-check",
+        "extended-compare-check-approaches",
+        "extended-cover-cli-inputs",
+        "extended-explain-quoted-names",
+        "extended-wait-for-next-request",
+        "extended-prepare-short-session"
+      ],
+      "id": "extended",
+      "manifest_sha256": "0cc9f60412232123d48113cdf0eecf99ac2384e1af29d0b8d44987121899d48f"
+    },
+    {
+      "attempt_ids": [
+        "authoring-repeat-reuse-cli-check"
+      ],
+      "id": "authoring-repeat",
+      "manifest_sha256": "9bb45402e3ae4b02446f1305e9ddd25af91c5b63379345c042fc98ce88f860b2"
+    }
+  ],
+  "limitations": [
+    "authoring-requires-explicit-directory-grant",
+    "builder-usage-only",
+    "development-tasks-not-holdouts",
+    "not-enhancement-evidence",
+    "not-full-catalog-behavior",
+    "repeat-used-longer-timeout",
+    "same-family-review"
+  ],
+  "method": "pstack-eval",
+  "plugin": {
+    "content_sha256": "e0a6c0a566789543614d74ba60e604db89ae5ac8e043bf0c3e0146a9282e18e0",
+    "name": "tugling",
+    "skills": [
+      "architect",
+      "arena",
+      "automate-me",
+      "benchmark-checklist",
+      "blast-radius",
+      "bro",
+      "correct",
+      "create-verification-skill",
+      "figure-it-out",
+      "how",
+      "in-your-own-words",
+      "interrogate",
+      "ketchup",
+      "maintain-verification-skill",
+      "make-bot-ui",
+      "no-comments",
+      "poteto-help",
+      "poteto-mode",
+      "principle-attack-the-premise",
+      "principle-boundary-discipline",
+      "principle-build-the-lever",
+      "principle-encode-lessons-in-structure",
+      "principle-exhaust-the-design-space",
+      "principle-experience-first",
+      "principle-explain-the-number",
+      "principle-fix-root-causes",
+      "principle-foundational-thinking",
+      "principle-guard-the-context-window",
+      "principle-laziness-protocol",
+      "principle-make-operations-idempotent",
+      "principle-migrate-callers-then-delete-legacy-apis",
+      "principle-minimize-reader-load",
+      "principle-model-the-domain",
+      "principle-never-block-on-the-human",
+      "principle-outcome-oriented-execution",
+      "principle-prove-it-works",
+      "principle-redesign-from-first-principles",
+      "principle-separate-before-serializing-shared-state",
+      "principle-sequence-verifiable-units",
+      "principle-subtract-before-you-add",
+      "principle-test-behavior-not-implementation",
+      "principle-type-system-discipline",
+      "recall",
+      "reflect",
+      "setup-pstack",
+      "sharpen",
+      "show-me-your-work",
+      "swarm",
+      "tdd",
+      "teach",
+      "technical-writing",
+      "typescript-best-practices",
+      "unslop",
+      "why"
+    ],
+    "version": "0.9.0"
+  },
+  "review": {
+    "evidence_sha256": "860abc22524d01e9049de2db9ec0986f298c59639f0fa74ed40385e506f8b80a",
+    "method": "blind-output-plus-parent-trace",
+    "reviewer_family": "same-family",
+    "trace_audit_sha256": "6533b6c6feeb9a060e24eb4e17c1973074cb2be00d8e52842ce83f14e999aed7",
+    "unresolved_criteria": 0
+  },
+  "runtimes": [
+    {
+      "codex_version": "codex-cli 0.164.0-alpha.11.1",
+      "id": "configured-codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "xhigh"
+    }
+  ],
+  "schema_version": 1,
+  "scope": "codex-port-compatibility",
+  "upstream_revision": "101b274dd991f694e1f7024be2157e5f3adf07de"
+}

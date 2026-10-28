@@ -1,8 +1,8 @@
 # UI evidence setup candidate
 
-This is a local candidate extending the optional project-setup and screenshot-diagnosis
-references. It does not add a default skill entry point, change the released plugin version
-or activate release-controller changes. It claims deterministic evidence handling,
+This 0.9.0 release candidate extends the optional project-setup and screenshot-diagnosis
+references. It does not add a default skill entry point or activate release-controller
+changes. The stable baseline remains 0.8.0 until separate certification and promotion. It claims deterministic evidence handling,
 not better design judgment or one-shot delivery.
 
 ## Cases fixed for evaluation
@@ -92,7 +92,56 @@ checks also passed. Its adapter was accepted by the shared helper, with the
 authored guidance, inventory, examples, rules and generator included in source
 tracking.
 
-`make verify` still ends nonzero at release validation: the prior reviewed
+At that stage, `make verify` ended nonzero at release validation: the prior reviewed
 package does not match this candidate's plugin content. That report and the
 controller pins remain unchanged. No new model comparison, plugin installation,
 publication or release certification was performed for this amendment.
+
+## Verification setup trial
+
+A disposable external-project trial exercised the existing Tailwind v4 theme and
+workspace component library without installing Tugling globally. Profile setup
+created the adapter, repeated without a change, and rejected a conflicting
+profile without overwriting it.
+
+The adopter's normal ESLint command used official `@shadcn/lint` 0.2.3 on one
+explicitly scoped reference route. A shared-button padding/color/shape probe
+failed with five errors across `no-restyle`, `no-arbitrary-values` and
+`no-raw-colors`. A correction using component variants and permitted layout
+classes passed. This is a scoped enforcement proof, not an app-wide rollout.
+
+A fresh-context reviewer inspected actual desktop/mobile captures without the
+hidden scorecard and found both seeded defects: contradictory save-success copy
+and disabled recovery. Its original response contained unsupported JSON fields;
+the helper rejected it. The same reviewer corrected the schema without changing
+its findings, and the helper returned `CHANGES_REQUESTED`. After repairs, actual
+lint, 194 unit tests, types, build, two browser scenarios and an additional
+Tab/Space/Enter navigation probe passed. A second fresh-context reviewer found
+no actionable defects on the repaired evidence; the helper returned
+`REVIEW_COMPLETE`. Both first-look records and actual responses were retained.
+
+The second packet's references match its unchanged initial state; they are not
+an independent historical-design benchmark. Screen-reader audio and broad
+accessibility certification were outside this bounded trial. Detection of two
+known defects demonstrates execution and a capability, not general accuracy,
+a measured advantage over the released skill, or one-shot delivery.
+
+Native checks also exposed a profile-freezing bug: external documentation links
+were treated as local files. The dependency walker now leaves external URLs as
+references. The full native run had 359 passing cases and this one error; the
+unchanged regression case passed after the repair. Package/source, behavioral
+suite structure, UX suite structure and clean-package checks passed. Release
+validation remains blocked because the existing review binds different plugin
+bytes. Its reviewed report and controller pins were preserved. No release or
+publication is claimed by this trial.
+
+## 0.9.0 release preparation
+
+The [exact-package release report](../evals/releases/v0.9.0/README.md) now records
+fresh compatibility observations, independent output review and parent trace
+reconciliation. The final native gate passed 360 tests; release validation also
+accepts the new report against the frozen package. The earlier results above
+remain historical evidence, including failures and limitations. These new
+compatibility observations do not establish a UI-judgment advantage or turn the
+maintenance cases into a measured behavioral comparison. Controller approval,
+release certification and stable promotion remain separate.

@@ -68,6 +68,23 @@ enforcement was requested, connect project-owned assertions to normal checks
 and demonstrate their failure against the prohibited behavior. Do not claim
 enforcement from a profile listing commands.
 
+## Finish requested verification setup
+
+A profile alone is discovery metadata, not a working verification setup. When the
+user requests enforcement, follow [UI style enforcement](ui-style-enforcement.md)
+to configure the actual project linter and prove a prohibited change fails.
+Include its config, dependency manifest and lockfile in source tracking. Run a
+browser launch and one real capture before starting a material delivery; if the
+runner cannot launch, resolve the supported execution path before claiming the
+workflow works. Do not silently omit browser checks.
+
+For requested judge setup, perform the Challenge step on real evidence and
+validate the actual response. Preserve the reviewer session and first-look notes,
+then repair accepted findings and recapture. A template validates neither reviewer
+execution nor defect detection. A seeded-defect demonstration tests a known
+capability; keep expected findings hidden from the reviewer and report false
+positives and misses. It does not establish general design superiority.
+
 ## Use for a delivery
 
 1. **Discover:** inspect the adapter, relevant sources and current render. Select

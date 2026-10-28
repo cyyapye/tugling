@@ -1,7 +1,7 @@
 {
   "name": "tugling",
-  "version": "0.8.0",
-  "description": "Pstack’s familiar skills and playbooks adapted for Codex.",
+  "version": "0.9.0",
+  "description": "Pstack\u2019s familiar skills and playbooks adapted for Codex.",
   "author": {
     "name": "Ye Cheng",
     "url": "https://github.com/cyyapye"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Tugling",
     "shortDescription": "Pstack skills and playbooks for Codex.",
-    "longDescription": "Lauren Tan’s Pstack methods and familiar skill names, adapted for Codex tools and model settings. Pstack is the default; optional Tugling guidance must demonstrate a substantive advantage before inclusion.",
+    "longDescription": "Lauren Tan\u2019s Pstack methods and familiar skill names, adapted for Codex tools and model settings. Pstack is the default; optional Tugling guidance must demonstrate a substantive advantage before inclusion.",
     "developerName": "Ye Cheng",
     "category": "Productivity",
     "capabilities": [
