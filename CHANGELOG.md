@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-### 0.8.0 — Pstack for Codex
+### 0.9.0 — Project UI evidence
+
+- Add an optional project UI profile and dependency-free evidence helper. Bind reviews to configured source, assets, native logs and required viewport/state captures; reject missing or stale evidence.
+- Maintain affected catalogue and agent-guide inputs during UI delivery, while preserving each adopter's theme, component APIs, native gates and approval boundaries.
+- Document stack-appropriate style enforcement, including scoped official shadcn lint setup with a failing probe and passing correction, and actual independent rendered review.
+- Preserve Pstack's 54 entry points and explicit invocation policy. Existing project contracts may opt into the workflow; no global installation or automatic default adoption is introduced.
+- Fix evaluation-profile dependency discovery so external documentation links are not treated as local files.
+
+This candidate is not certified or promoted. Its release evidence and independent controller review remain separate from source preparation.
+
+## 0.8.0 — Pstack for Codex
 
 - Port Lauren Tan's Pstack catalog: 54 familiar skills, 24 principles, and 23 task playbooks, with pinned provenance and the full MIT attribution.
 - Translate tools, model inheritance, project paths, history access, and task scope for Codex. Use `$poteto-mode` to start and `$poteto-help` to find a focused workflow.
@@ -10,8 +20,6 @@
 - Use Pstack by default. Retain optional Tugling references and useful failure cases for explicit evaluation, without automatic loading.
 - Use a maintainer-reviewed Pstack compatibility report for release acceptance. Retain the older questionnaire as an explicit diagnostic, with exact package, public-install, controller and protected-promotion checks still required.
 - Replace declarative routing cards with observed local installation and workflow checks. Keep structural checks, model observations, and release certification distinct.
-
-This version is prepared in the source checkout; it is not a published or certified release.
 
 ## 0.4.0 - 2026-09-01
 

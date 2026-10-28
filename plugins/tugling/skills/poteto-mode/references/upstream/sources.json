@@ -1309,12 +1309,16 @@
       "sha256": "0abb29a3aa76280f0f9398291dbf526c2922fc2323d06dc165e3121f87c73e1d"
     },
     {
+      "path": "poteto-mode/references/extensions/project-evidence.md",
+      "sha256": "eeb63791b7ad4ecdf52d867b3493a04431f9bf1c5cf7385430147da72ace4a1c"
+    },
+    {
       "path": "poteto-mode/references/extensions/project-flows.md",
       "sha256": "0ff81d65a4ade0098b43d736ff9a7929560f59252551b1af99e112823ee9e1f3"
     },
     {
       "path": "poteto-mode/references/extensions/project-setup.md",
-      "sha256": "610568a7701a190453ecc98c4a95953937f3e08ede04259fab503337b1f91fe4"
+      "sha256": "9031b99a252f6322e5cd595a107268ae90bd75aa03458b380fe584fc0ec3a297"
     },
     {
       "path": "poteto-mode/references/extensions/repo-verify.md",
@@ -1326,7 +1330,7 @@
     },
     {
       "path": "poteto-mode/references/extensions/screenshot-first-ui.md",
-      "sha256": "af7d3745d83ddfd78cc8b15c9babe85a006c4c09b09815e89187e1fc802ea9a8"
+      "sha256": "a59e573b8a2541dc36e7b59761725639858e67bb40f72fc6084b3e1518d04bf3"
     },
     {
       "path": "poteto-mode/references/extensions/skill-delivery.md",
@@ -1335,6 +1339,14 @@
     {
       "path": "poteto-mode/references/extensions/tugling.md",
       "sha256": "871c4248a51aacc8e0a175fdf06c4244945f827ad61a3a34a0dfefaca43d98aa"
+    },
+    {
+      "path": "poteto-mode/references/extensions/ui-style-enforcement.md",
+      "sha256": "260d2c57ca2dba432acf015a66dd104f47e196b3f18487f93438489c883ee771"
+    },
+    {
+      "path": "poteto-mode/scripts/design_evidence.py",
+      "sha256": "26fbdbaeded478387a84a6e69d76832c3a810bd0f109f0a4c10d4c33136c12d1"
     },
     {
       "path": "principle-attack-the-premise/agents/openai.yaml",

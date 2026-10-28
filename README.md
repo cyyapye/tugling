@@ -42,8 +42,9 @@ and [MIT attribution](THIRD_PARTY_NOTICES.md) distinguish Pstack's work from the
 Codex port. The earlier [verification cases](evals/pstack/verification-cases.md)
 remain part of the evaluation record.
 
-Version 0.8.0 is a release candidate; see the
-[shipping preparation and remaining requirements](docs/pstack-0.8.0-readiness.md).
+Version 0.9.0 prepares the optional [project UI evidence workflow](docs/ui-evidence-evaluation.md).
+The released baseline remains 0.8.0 until separate certification and stable promotion.
+See the [release preparation](evals/releases/v0.9.0/README.md) for evidence and remaining requirements.
 The [release policy](evals/pstack/release-policy.json) requires reviewed evidence
 for the Codex workflow areas, with failed attempts and limitations preserved.
 The older questionnaire and its catalog inventory remain diagnostics; counting

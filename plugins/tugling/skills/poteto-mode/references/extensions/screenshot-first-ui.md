@@ -8,6 +8,13 @@ The addition here is structural diagnosis of an existing interface. Pixel parity
 is a different contract: when requested, preserve the accepted baseline and prove
 equivalence with the repository's image comparison, rather than redesigning it.
 
+When the user requests repeatable UI delivery or the project already uses
+`.tugling/ui.json`, read [project evidence](project-evidence.md).
+It connects project-specific contracts and native checks to a reviewable packet.
+Keep ordinary diagnosis on the workflow below; the packet is not a prerequisite
+for a small correction, a replacement for native checks, or a design approval.
+
+
 ## Inspect before editing
 
 1. Read the repository's interface, accessibility, copy, and visual-test contracts.

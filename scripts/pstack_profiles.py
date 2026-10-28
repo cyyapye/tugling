@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+from urllib.parse import urlsplit
 
 if __package__:
     from . import pstack_sources as sources, pstack_smoke as smoke
@@ -95,6 +96,9 @@ def freeze(source: Path, out: Path, extension: str) -> dict:
             raise ValueError("extension dependency escaped its source directory")
         needed.add(path)
         for link in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", path.read_text()):
+            # Web documentation is a reference, not a local extension to copy.
+            if urlsplit(link).scheme or link.startswith("//"):
+                continue
             linked = (path.parent / link).resolve()
             if linked.is_relative_to((bundle / EXTENSIONS).resolve()):
                 pending.append(linked)
