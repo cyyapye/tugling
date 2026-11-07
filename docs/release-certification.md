@@ -21,8 +21,12 @@ The report binds the exact package content, upstream revision, runtime, frozen
 attempt inventory, private evidence hashes, rubric counts, observed builder usage,
 blind review and parent trace audit. It preserves failed attempts. A failed
 environment attempt can be resolved only by a later passing attempt with the same
-scenario, runtime, task digest, areas and criteria count, using the explicitly
-granted skill directory. The original failure remains failed. Behavioral failures
+scenario, runtime, task digest, areas and criteria count. The repeat must either
+use an explicitly granted skill directory or restore the host launcher while
+retaining the builder's `workspace-write` sandbox. A host-launch repeat records
+`host-launched-workspace-write` and the `repeat-restored-host-launch` limitation;
+it does not authorize an unsandboxed builder or omit the original failed attempt.
+The original failure remains failed. Behavioral failures
 cannot be relabeled as successful or erased by an automatic retry.
 
 The report must disclose same-family review, development tasks rather than

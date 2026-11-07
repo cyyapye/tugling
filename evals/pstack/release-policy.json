@@ -1,7 +1,8 @@
 {
   "allowed_environments": [
     "workspace-write",
-    "scoped-skill-directory"
+    "scoped-skill-directory",
+    "host-launched-workspace-write"
   ],
   "allowed_limitations": [
     "same-family-review",
@@ -10,7 +11,8 @@
     "not-enhancement-evidence",
     "builder-usage-only",
     "authoring-requires-explicit-directory-grant",
-    "repeat-used-longer-timeout"
+    "repeat-used-longer-timeout",
+    "repeat-restored-host-launch"
   ],
   "method": "pstack-eval",
   "required_areas": [
