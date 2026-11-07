@@ -1,0 +1,600 @@
+{
+  "attempts": [
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 1,
+        "passed": 2
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "ca45348dd0f6cf7f707347201aeb52229ec645f5b7d9e85f3c4e0f614bb626bc",
+      "failure_kind": "environment",
+      "id": "core-help",
+      "outcome": "failed",
+      "resolved_by": "core-host-help",
+      "runtime": "configured-codex",
+      "scenario": "help",
+      "task_sha256": "5877131ae2dfcf39c7ad2219e4b239eaa219271f7d0c5364d54eee7b12920d24",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 55296,
+        "input_tokens": 72667,
+        "output_tokens": 1411
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 1,
+        "passed": 2
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "98e6d9b05c89e036c861bf4e507f06f9fa089e19c9b038580199f4a14facb867",
+      "failure_kind": "environment",
+      "id": "core-setup",
+      "outcome": "failed",
+      "resolved_by": "core-host-setup",
+      "runtime": "configured-codex",
+      "scenario": "setup",
+      "task_sha256": "430df6cbfb09ef8520c162bacfa361fd68eeb0174f7720ffe2890bc1393a3f93",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 55552,
+        "input_tokens": 73641,
+        "output_tokens": 1278
+      }
+    },
+    {
+      "areas": [
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 1,
+        "passed": 2
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "92a96e8062ab8646b54e26bf60e6cc2690f3456e13d0279a47bef386d34d4ee3",
+      "failure_kind": "environment",
+      "id": "core-plan-only",
+      "outcome": "failed",
+      "resolved_by": "core-host-plan-only",
+      "runtime": "configured-codex",
+      "scenario": "plan-only",
+      "task_sha256": "f51eb84a781bdb3fe5ae0c2ea24015c4e596241cfcdf31e8fd30a2459dea13d5",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 58624,
+        "input_tokens": 90323,
+        "output_tokens": 1634
+      }
+    },
+    {
+      "areas": [
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 4,
+        "passed": 0
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core",
+      "evidence_sha256": "074a92df34b4402af963c08a01091252b038e89001dee2070eb51d382da6ed9e",
+      "failure_kind": "environment",
+      "id": "core-bug-fix",
+      "outcome": "failed",
+      "resolved_by": "core-host-bug-fix",
+      "runtime": "configured-codex",
+      "scenario": "bug-fix",
+      "task_sha256": "2d56ff3ab4144505c4985143d68e6ad072374a0d16ffd4b82714465cf7da2756",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 41600,
+        "input_tokens": 58491,
+        "output_tokens": 907
+      }
+    },
+    {
+      "areas": [
+        "history-scope"
+      ],
+      "criteria": {
+        "failed": 2,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "additional",
+      "evidence_sha256": "5158a8c6f1de6ad89eab898a4f7952f9493dcc083db22b29d80f65e113ce54ac",
+      "failure_kind": "environment",
+      "id": "additional-resume-greeting-work",
+      "outcome": "failed",
+      "resolved_by": "additional-host-resume-greeting-work",
+      "runtime": "configured-codex",
+      "scenario": "resume-greeting-work",
+      "task_sha256": "95de307fcd7e1bf678087218894a0021d172c44f50f3a98072e4cab1ca240ddc",
+      "timeout_seconds": 600,
+      "usage": {
+        "cached_input_tokens": 52224,
+        "input_tokens": 70350,
+        "output_tokens": 985
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 5,
+        "passed": 1
+      },
+      "environment": "workspace-write",
+      "evidence_set": "additional",
+      "evidence_sha256": "b5349128d9dfa48f5bfde53366e0ebc07bbdfd287a7e728ecaa78aa7f464d9d5",
+      "failure_kind": "environment",
+      "id": "additional-author-local-cli-check",
+      "outcome": "failed",
+      "resolved_by": "additional-host-author-local-cli-check",
+      "runtime": "configured-codex",
+      "scenario": "author-local-cli-check",
+      "task_sha256": "2576cf14268c5e656e78336767c1205d468cc7988da367c66177fe38cf635a67",
+      "timeout_seconds": 600,
+      "usage": {
+        "cached_input_tokens": 79488,
+        "input_tokens": 96564,
+        "output_tokens": 1146
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 3,
+        "passed": 0
+      },
+      "environment": "workspace-write",
+      "evidence_set": "handoff",
+      "evidence_sha256": "0479619b1c27fdb48adda223cfb5e9821e1cf58c55172af89f2c65d03533db06",
+      "failure_kind": "environment",
+      "id": "handoff-handoff-contract-access",
+      "outcome": "failed",
+      "resolved_by": "handoff-host-handoff-contract-access",
+      "runtime": "configured-codex",
+      "scenario": "handoff-contract-access",
+      "task_sha256": "228ab2dc7ec708048b9c5843b626fb300b5d1c05ad5f8cee812dc008c815cbd0",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 116224,
+        "input_tokens": 146000,
+        "output_tokens": 2785
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "fc03f48bc426b1b641d554562185513def028d2bc46ed8ba9884d6a6d1bd6235",
+      "failure_kind": "none",
+      "id": "core-host-help",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "help",
+      "task_sha256": "5877131ae2dfcf39c7ad2219e4b239eaa219271f7d0c5364d54eee7b12920d24",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 107648,
+        "input_tokens": 139860,
+        "output_tokens": 1894
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "34883c1a1ba78a69fe68dc8cb482ad74c08a4122ddf1accdc471a373942633b7",
+      "failure_kind": "none",
+      "id": "core-host-setup",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "setup",
+      "task_sha256": "430df6cbfb09ef8520c162bacfa361fd68eeb0174f7720ffe2890bc1393a3f93",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 92800,
+        "input_tokens": 121117,
+        "output_tokens": 2155
+      }
+    },
+    {
+      "areas": [
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "f5f17e0e4eed8bb5fb81449973cfa93600e528270de79aa6b21be4f870c613ac",
+      "failure_kind": "none",
+      "id": "core-host-plan-only",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "plan-only",
+      "task_sha256": "f51eb84a781bdb3fe5ae0c2ea24015c4e596241cfcdf31e8fd30a2459dea13d5",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 154112,
+        "input_tokens": 189734,
+        "output_tokens": 2655
+      }
+    },
+    {
+      "areas": [
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 4
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "ac4bc76f7dfb9394311d45091d024ed0220617e08f99e4dc53089e54348d7ee1",
+      "failure_kind": "none",
+      "id": "core-host-bug-fix",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "bug-fix",
+      "task_sha256": "2d56ff3ab4144505c4985143d68e6ad072374a0d16ffd4b82714465cf7da2756",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 247168,
+        "input_tokens": 308361,
+        "output_tokens": 3897
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "6f60a9f92c315db28a1921144b1eab68c09ffafb3e6e405d03c0960801c78770",
+      "failure_kind": "none",
+      "id": "core-host-verification",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "verification",
+      "task_sha256": "37758a1939ff75c5c96016fd35d1f1a72d788c1ee64c1c0c74472f1b35e064a6",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 104448,
+        "input_tokens": 136672,
+        "output_tokens": 2295
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "e39a3bf4f205721d010ad77ed987851806754e292f8da19b3f13eed0fd5aa754",
+      "failure_kind": "none",
+      "id": "core-host-architecture-fallback",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "architecture-fallback",
+      "task_sha256": "7efa58962e6bfe9b5d271bcb0d491c108c9b80b9afe399623154a1da06ea4ad2",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 169728,
+        "input_tokens": 200175,
+        "output_tokens": 3975
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-host",
+      "evidence_sha256": "56df6f08e9513e4abcffca0e4cfc37d43c7ae07528d1fbbb19d6769e15546eb0",
+      "failure_kind": "none",
+      "id": "core-host-unavailable-integration",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "unavailable-integration",
+      "task_sha256": "b5bbf446f03205cd0f9139394d1c3c5ad05fccf53685e4ab70e986a9ed0eee3f",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 144768,
+        "input_tokens": 164927,
+        "output_tokens": 2714
+      }
+    },
+    {
+      "areas": [
+        "history-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "additional-host",
+      "evidence_sha256": "a8894a758fe257007b6a52c24b2bee2baef898e106ca6ccfeaf1c9ae7fde5a50",
+      "failure_kind": "none",
+      "id": "additional-host-resume-greeting-work",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "resume-greeting-work",
+      "task_sha256": "95de307fcd7e1bf678087218894a0021d172c44f50f3a98072e4cab1ca240ddc",
+      "timeout_seconds": 600,
+      "usage": {
+        "cached_input_tokens": 161664,
+        "input_tokens": 184786,
+        "output_tokens": 2901
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "additional-host",
+      "evidence_sha256": "041584767d9e9149cce167fb0421ad6689c18136ba482d24ae4dfa78151683da",
+      "failure_kind": "none",
+      "id": "additional-host-author-local-cli-check",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "author-local-cli-check",
+      "task_sha256": "2576cf14268c5e656e78336767c1205d468cc7988da367c66177fe38cf635a67",
+      "timeout_seconds": 600,
+      "usage": {
+        "cached_input_tokens": 222848,
+        "input_tokens": 245187,
+        "output_tokens": 7913
+      }
+    },
+    {
+      "areas": [
+        "idle-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "additional-host",
+      "evidence_sha256": "e0a0421cb85907a5a03c637c637669b6f29d80698b5c32e529c0cb68f2162f24",
+      "failure_kind": "none",
+      "id": "additional-host-wait-for-next-request",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "wait-for-next-request",
+      "task_sha256": "58e2af41856d0ca3329f5bb3937db35a0e1fccb3b15ad66541b8f8d6dd4d879e",
+      "timeout_seconds": 600,
+      "usage": {
+        "cached_input_tokens": 9856,
+        "input_tokens": 12970,
+        "output_tokens": 9
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "handoff-host",
+      "evidence_sha256": "a781422bbb8c19102705a27e2e0948c134aff0d37eaae3ad3d189fb7515f6a1a",
+      "failure_kind": "none",
+      "id": "handoff-host-handoff-contract-access",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "handoff-contract-access",
+      "task_sha256": "228ab2dc7ec708048b9c5843b626fb300b5d1c05ad5f8cee812dc008c815cbd0",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 280320,
+        "input_tokens": 314710,
+        "output_tokens": 9455
+      }
+    }
+  ],
+  "evidence_sets": [
+    {
+      "attempt_ids": [
+        "core-help",
+        "core-setup",
+        "core-plan-only",
+        "core-bug-fix"
+      ],
+      "id": "core",
+      "manifest_sha256": "83f3bf4b633943c2cfb105f314e7873911441d2475c5ed1a3bf320f6f1221ae6"
+    },
+    {
+      "attempt_ids": [
+        "additional-resume-greeting-work",
+        "additional-author-local-cli-check"
+      ],
+      "id": "additional",
+      "manifest_sha256": "4fcee77ee0f8d44b11dfbe6cfa8bb0a5f5c5cd8f31f6abdacdf20c90fc25a92f"
+    },
+    {
+      "attempt_ids": [
+        "handoff-handoff-contract-access"
+      ],
+      "id": "handoff",
+      "manifest_sha256": "3f364f9da71e09d9b361f9968c79fd8ab518c38ea7260ea36fe852521dc4d7e4"
+    },
+    {
+      "attempt_ids": [
+        "core-host-help",
+        "core-host-setup",
+        "core-host-plan-only",
+        "core-host-bug-fix",
+        "core-host-verification",
+        "core-host-architecture-fallback",
+        "core-host-unavailable-integration"
+      ],
+      "id": "core-host",
+      "manifest_sha256": "2a46a3ea4a209dad56e97e967b7c4b37ed99ab570b1435905d3ede964c98cde3"
+    },
+    {
+      "attempt_ids": [
+        "additional-host-resume-greeting-work",
+        "additional-host-author-local-cli-check",
+        "additional-host-wait-for-next-request"
+      ],
+      "id": "additional-host",
+      "manifest_sha256": "fffc136a2e447d40e7da1ee01251131e6317957fbff4b1cec4ab7c5cd032413b"
+    },
+    {
+      "attempt_ids": [
+        "handoff-host-handoff-contract-access"
+      ],
+      "id": "handoff-host",
+      "manifest_sha256": "eeb378d9b99f5f1635e6ef1d0a53a42ae9887b8a6d4f5656925aa9a1b97b335b"
+    }
+  ],
+  "limitations": [
+    "builder-usage-only",
+    "development-tasks-not-holdouts",
+    "not-enhancement-evidence",
+    "not-full-catalog-behavior",
+    "repeat-restored-host-launch",
+    "same-family-review"
+  ],
+  "method": "pstack-eval",
+  "plugin": {
+    "content_sha256": "68c03eaa25a427784953a4a0c40401dc656b3db9a7c00d9cdc4f5ca10d5abdd8",
+    "name": "tugling",
+    "skills": [
+      "architect",
+      "arena",
+      "automate-me",
+      "benchmark-checklist",
+      "blast-radius",
+      "bro",
+      "correct",
+      "create-verification-skill",
+      "figure-it-out",
+      "how",
+      "in-your-own-words",
+      "interrogate",
+      "ketchup",
+      "maintain-verification-skill",
+      "make-bot-ui",
+      "no-comments",
+      "poteto-help",
+      "poteto-mode",
+      "principle-attack-the-premise",
+      "principle-boundary-discipline",
+      "principle-build-the-lever",
+      "principle-encode-lessons-in-structure",
+      "principle-exhaust-the-design-space",
+      "principle-experience-first",
+      "principle-explain-the-number",
+      "principle-fix-root-causes",
+      "principle-foundational-thinking",
+      "principle-guard-the-context-window",
+      "principle-laziness-protocol",
+      "principle-make-operations-idempotent",
+      "principle-migrate-callers-then-delete-legacy-apis",
+      "principle-minimize-reader-load",
+      "principle-model-the-domain",
+      "principle-never-block-on-the-human",
+      "principle-outcome-oriented-execution",
+      "principle-prove-it-works",
+      "principle-redesign-from-first-principles",
+      "principle-separate-before-serializing-shared-state",
+      "principle-sequence-verifiable-units",
+      "principle-subtract-before-you-add",
+      "principle-test-behavior-not-implementation",
+      "principle-type-system-discipline",
+      "recall",
+      "reflect",
+      "setup-pstack",
+      "sharpen",
+      "show-me-your-work",
+      "swarm",
+      "tdd",
+      "teach",
+      "technical-writing",
+      "typescript-best-practices",
+      "unslop",
+      "why"
+    ],
+    "version": "0.9.1"
+  },
+  "review": {
+    "evidence_sha256": "ad0f365b381206222decc98a4f1f1d22b07b230e547003b25707c95b9f747541",
+    "method": "blind-output-plus-parent-trace",
+    "reviewer_family": "same-family",
+    "trace_audit_sha256": "18351c5c2c5a8e620eab2237e6fdb133296eb0d2c38437b069301d192aefde19",
+    "unresolved_criteria": 0
+  },
+  "runtimes": [
+    {
+      "codex_version": "codex-cli 0.167.0-alpha.3.2",
+      "id": "configured-codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "xhigh"
+    }
+  ],
+  "schema_version": 1,
+  "scope": "codex-port-compatibility",
+  "upstream_revision": "101b274dd991f694e1f7024be2157e5f3adf07de"
+}
