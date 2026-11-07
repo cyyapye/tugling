@@ -101,8 +101,12 @@ positives and misses. It does not establish general design superiority.
    project; capture current-run images at configured viewports. Review intentional
    visual changes before updating baselines, then replay with updates disabled.
 5. **Challenge:** for material rendered review, delegate a fresh-context reviewer
-   the generated instructions and evidence. Preserve actual responses. Start with
-   unaided interpretation before the brief or later disclosure supplies context.
+   the generated instructions and evidence. Grant read-only access to the packet
+   and its exact referenced project contract files: the helper hashes those
+   contracts but does not copy them into the packet. Preserve the first-look
+   order; permission to read contracts does not mean reading them before the
+   unaided notes. Preserve actual responses. Start with unaided interpretation
+   before the brief or later disclosure supplies context.
    Adjudicate disagreements using the product contract and native evidence; do
    not automatically accept every model finding or treat silence as proof.
 
