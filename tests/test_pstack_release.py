@@ -53,6 +53,21 @@ class ReviewedEvidenceTest(unittest.TestCase):
         self.assertEqual(summary["preserved_failures"][0]["resolved_by"], "authorized-repeat")
         self.assertIn("builder-usage-only", summary["limitations"])
 
+    def test_host_launcher_repeat_preserves_failure_and_requires_disclosure(self):
+        original, repeat = self.resolved_failure()
+        repeat.update(environment="host-launched-workspace-write", timeout_seconds=original["timeout_seconds"])
+        self.report["limitations"] = sorted(reviewed.LIMITATIONS | reviewed.HOST_LAUNCH_LIMITATIONS)
+        summary = reviewed.review_summary(reviewed.validate_report(self.report, self.plugin))
+        self.assertEqual(summary["outcomes"], {"passed": 8, "failed": 1})
+        self.assertEqual(summary["preserved_failures"][0]["resolved_by"], repeat["id"])
+        self.assertIn("repeat-restored-host-launch", summary["limitations"])
+        for change in (lambda r: r["attempts"][-1].update(environment="workspace-write"),
+                       lambda r: r["limitations"].remove("repeat-restored-host-launch")):
+            value = copy.deepcopy(self.report)
+            change(value)
+            with self.subTest(value=value["limitations"]), self.assertRaises(reviewed.ReviewedReleaseError):
+                reviewed.validate_report(value, self.plugin)
+
     def test_missing_failure_resolution_or_false_pass_is_rejected(self):
         self.resolved_failure()
         for change in (lambda r: r["attempts"][-2].update(resolved_by=None),

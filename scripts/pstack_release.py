@@ -31,10 +31,11 @@ METHOD = "pstack-eval"
 SCOPE = "codex-port-compatibility"
 AREAS = {"discovery-and-setup", "planning-scope", "repair-and-regression", "verification-honesty",
          "capability-fallbacks", "history-scope", "skill-authoring", "idle-scope"}
-ENVIRONMENTS = {"workspace-write", "scoped-skill-directory"}
+ENVIRONMENTS = {"workspace-write", "scoped-skill-directory", "host-launched-workspace-write"}
 LIMITATIONS = {"same-family-review", "development-tasks-not-holdouts", "not-full-catalog-behavior",
                "not-enhancement-evidence", "builder-usage-only"}
 EXTRA_LIMITATIONS = {"authoring-requires-explicit-directory-grant", "repeat-used-longer-timeout"}
+HOST_LAUNCH_LIMITATIONS = {"repeat-restored-host-launch"}
 CHECKS = {"reviewed_workflows", "exact_package", "attributed_sources", "public_policy",
           "fresh_public_install", "successful_verify", "reviewed_controller", "fresh_refs"}
 INSTALL_CHECKS = {"marketplace_add", "plugin_add", "exact_public_revision", "isolated_install_path",
@@ -102,7 +103,7 @@ def policy() -> dict[str, Any]:
             or set(identifiers(value["required_areas"])) != AREAS
             or set(identifiers(value["allowed_environments"])) != ENVIRONMENTS
             or set(identifiers(value["required_limitations"])) != LIMITATIONS
-            or set(identifiers(value["allowed_limitations"])) != LIMITATIONS | EXTRA_LIMITATIONS):
+            or set(identifiers(value["allowed_limitations"])) != LIMITATIONS | EXTRA_LIMITATIONS | HOST_LAUNCH_LIMITATIONS):
         raise ReviewedReleaseError("unsupported reviewed release policy")
     return value
 
@@ -117,7 +118,8 @@ def validate_report(report: Any, plugin: dict[str, Any]) -> dict[str, Any]:
     if report["plugin"] != plugin:
         raise ReviewedReleaseError("review does not match current plugin content")
     match(report["upstream_revision"], controller.SHA, "upstream revision")
-    if not set(rules["required_limitations"]) <= set(identifiers(report["limitations"], allowed=LIMITATIONS | EXTRA_LIMITATIONS)):
+    if not set(rules["required_limitations"]) <= set(identifiers(
+            report["limitations"], allowed=LIMITATIONS | EXTRA_LIMITATIONS | HOST_LAUNCH_LIMITATIONS)):
         raise ReviewedReleaseError("review limitations are incomplete")
     for key, bound in (("evidence_sets", 20), ("runtimes", 20), ("attempts", 100)):
         if not isinstance(report[key], list) or not 0 < len(report[key]) <= bound:
@@ -189,11 +191,13 @@ def validate_report(report: Any, plugin: dict[str, Any]) -> dict[str, Any]:
         if (resolution.get("id") not in later or resolution.get("outcome") != "passed"
                 or any(resolution.get(key) != item[key] for key in ("scenario", "runtime", "task_sha256", "areas"))
                 or item["environment"] != "workspace-write"
-                or resolution.get("environment") != "scoped-skill-directory"
+                or resolution.get("environment") not in {"scoped-skill-directory", "host-launched-workspace-write"}
                 or item["criteria"]["passed"] + item["criteria"]["failed"] != resolution["criteria"]["passed"]):
             raise ReviewedReleaseError("failed attempt lacks a matching authorized environment resolution")
     if any(item["environment"] == "scoped-skill-directory" for item in attempts.values()) and not EXTRA_LIMITATIONS <= set(report["limitations"]):
         raise ReviewedReleaseError("environment repeat limitations are missing")
+    if any(item["environment"] == "host-launched-workspace-write" for item in attempts.values()) and not HOST_LAUNCH_LIMITATIONS <= set(report["limitations"]):
+        raise ReviewedReleaseError("host launch repeat limitations are missing")
     if covered != AREAS:
         raise ReviewedReleaseError("required workflow areas lack successful reviewed evidence")
     review = fields(report["review"], {"method", "reviewer_family", "evidence_sha256", "trace_audit_sha256",
