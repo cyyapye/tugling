@@ -13,6 +13,7 @@ from unittest import mock
 
 from scripts import pstack_release as reviewed
 from tests import pstack_release_fixtures as fixtures
+from tests.git_package_fixtures import omit_statechart_corpus
 
 
 class ReviewedEvidenceTest(unittest.TestCase):
@@ -21,7 +22,8 @@ class ReviewedEvidenceTest(unittest.TestCase):
         self.report = fixtures.report(self.plugin)
 
     def test_report_validates_workflow_areas_without_per_skill_questionnaires(self):
-        self.assertEqual(len(self.plugin["skills"]), 54)
+        self.assertEqual(len(self.plugin["skills"]), 59)
+        self.assertIn("setup-ui", self.plugin["skills"])
         value = reviewed.validate_report(self.report, self.plugin)
         self.assertEqual(len(value["attempts"]), 8)
         self.assertEqual(value["scope"], "codex-port-compatibility")
@@ -189,6 +191,7 @@ class CandidateReviewTest(unittest.TestCase):
         self.repo.mkdir()
         for name in ("plugins", ".agents"):
             shutil.copytree(reviewed.ROOT / name, self.repo / name)
+        omit_statechart_corpus(self.repo)
         self.git("init", "--initial-branch=main", "--template=", ".")
         self.git("config", "user.name", "Synthetic review")
         self.git("config", "user.email", "synthetic@example.invalid")

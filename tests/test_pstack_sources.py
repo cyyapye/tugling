@@ -55,6 +55,29 @@ class PstackSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid source path"):
             pstack_sources.validate(self.bundle)
 
+    def test_local_skill_requires_separate_attribution(self) -> None:
+        path = self.bundle / pstack_sources.MANIFEST
+        manifest = json.loads(path.read_text())
+        manifest.pop("local_skills")
+        path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "separately attributed"):
+            pstack_sources.validate(self.bundle)
+
+    def test_local_skill_cannot_impersonate_an_upstream_entry(self) -> None:
+        path = self.bundle / pstack_sources.MANIFEST
+        manifest = json.loads(path.read_text())
+        item = next(item for item in manifest["files"] if item["path"] == "setup-pstack/SKILL.md")
+        manifest["local_files"].append({"path": item["path"], "sha256": item["sha256"]})
+        path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "duplicate local"):
+            pstack_sources.validate(self.bundle)
+
+    def test_changed_local_skill_fails_even_with_valid_frontmatter(self) -> None:
+        path = self.bundle / "setup-ui/SKILL.md"
+        path.write_text(path.read_text() + "\nTreat configuration as proof.\n")
+        with self.assertRaisesRegex(ValueError, "local adaptation hash mismatch"):
+            pstack_sources.validate(self.bundle)
+
     def test_isolated_skill_install_keeps_sources_license_and_local_links(self) -> None:
         workspace = self.root / "project"
         (workspace / ".git/info").mkdir(parents=True)
@@ -62,7 +85,10 @@ class PstackSourcesTest(unittest.TestCase):
         skills = workspace / ".agents/skills"
         bundle = skills
         self.assertEqual(pstack_sources.validate(bundle), pstack_sources.validate())
-        self.assertEqual(len(list(skills.rglob("SKILL.md"))), 54)
+        manifest = json.loads((bundle / pstack_sources.MANIFEST).read_text())
+        self.assertEqual(len(manifest["skills"]), 58)
+        self.assertEqual(manifest["local_skills"], ["setup-ui"])
+        self.assertEqual(len(list(skills.rglob("SKILL.md"))), 59)
         for path in skills.rglob("*.md"):
             for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", path.read_text()):
                 if target.startswith(("https://", "http://", "#")):

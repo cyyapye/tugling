@@ -1,0 +1,8 @@
+:root { --surface: #fff; --ink: #17252a; --accent: #12665f; --gap: 1rem; }
+body { color: var(--ink); background: var(--surface); font-family: system-ui; }
+.button { padding: .6rem var(--gap); border: 1px solid currentColor; border-radius: .4rem; }
+.button--primary { background: var(--accent); color: var(--surface); }
+.button--quiet { background: var(--surface); color: var(--ink); }
+.field { display: grid; gap: .3rem; }
+.empty { padding: calc(var(--gap) * 2); text-align: center; }
+.summary { display: flex; flex-wrap: wrap; gap: var(--gap); }

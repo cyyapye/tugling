@@ -1,7 +1,7 @@
 # Pstack evaluation on Codex
 
 Use Lauren Tan's [Pstack Eval playbook](../../plugins/tugling/skills/poteto-mode/playbooks/eval.md)
-as the development method. It is copied from [the pinned upstream source](https://github.com/cursor/plugins/blob/101b274dd991f694e1f7024be2157e5f3adf07de/pstack/skills/poteto-mode/playbooks/eval.md)
+as the development method. It is copied from [the pinned upstream source](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/poteto-mode/playbooks/eval.md)
 under its [MIT license](../../plugins/tugling/skills/poteto-mode/references/upstream/LICENSE).
 This page supplies Codex execution details, not a competing playbook.
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -14,7 +15,13 @@ class PstackProfilesTest(unittest.TestCase):
             base, enhanced = out / "pstack" / prefix, out / "enhanced" / prefix
             self.assertFalse((base / profiles.EXTENSIONS).exists())
             self.assertEqual(report["pstack"]["skills"], report["enhanced"]["skills"])
-            self.assertEqual(len(report["pstack"]["skills"]), 54)
+            self.assertEqual(len(report["pstack"]["skills"]), 58)
+            self.assertNotIn("setup-ui", report["pstack"]["skills"])
+            self.assertFalse((base / "setup-ui").exists())
+            for path in base.rglob("*.md"):
+                for link in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", path.read_text()):
+                    if "://" not in link and not link.startswith("#"):
+                        self.assertTrue((path.parent / link).exists(), f"broken baseline link: {path}: {link}")
             for relative in (profiles.sources.LICENSE, "poteto-mode/playbooks/eval.md", "poteto-mode/playbooks/investigation.md"):
                 self.assertEqual((base / relative).read_bytes(), (profiles.sources.BUNDLE / relative).read_bytes())
             self.assertIn("plan-only request", (base / "architect/SKILL.md").read_text())

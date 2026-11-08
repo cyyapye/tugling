@@ -14,6 +14,7 @@ from unittest import mock
 from scripts import release_controller as controller
 from scripts import promote_release as promotion
 from tests import pstack_release_fixtures as reviewed_fixtures
+from tests.git_package_fixtures import omit_statechart_corpus
 
 
 class ReleaseControllerTest(unittest.TestCase):
@@ -31,6 +32,7 @@ class ReleaseControllerTest(unittest.TestCase):
         for name in ("plugins", ".agents", "scripts", "tests", ".github", "evals"):
             shutil.copytree(controller.ROOT / name, self.repo / name,
                             ignore=shutil.ignore_patterns("__pycache__", "runs", "releases"))
+        omit_statechart_corpus(self.repo)
         shutil.copy2(controller.ROOT / "Makefile", self.repo / "Makefile")
         self.approved = self.commit("reviewed controller and stable baseline")
         self.baseline = self.approved

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mend House — book a repair</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body data-page="booking">
+<header class="site-header"><a class="brand" href="index.html">Mend House</a><span>Neighbourhood repair evenings</span></header>
+<main class="page booking-layout">
+  <section><p class="eyebrow">Thursday · 6–8 pm</p><h1>Give a favourite thing another chance.</h1><p class="lede">Bring one small item. A volunteer will look at it with you and help where they can.</p><div class="panel"><h2>Before you book</h2><p>Repairs are free. Parts may cost extra, and we can’t guarantee a repair. Please stay with your item.</p><p>14 Willow Lane · Step-free entrance on the courtyard side.</p></div></section>
+  <section class="panel"><h2>Save a place</h2><form id="booking-form">
+    <label class="field">Your name<input name="name" required autocomplete="name" maxlength="60"></label>
+    <label class="field">Email<input name="email" type="email" required autocomplete="email"></label>
+    <label class="field">What are you bringing?<select name="category"><option>Clothing</option><option>Small appliance</option><option>Other household item</option></select></label>
+    <label class="field">Tell us a little about it<textarea name="item" required maxlength="160" rows="3" placeholder="For example: a loose handle on a small saucepan"></textarea></label>
+    <p class="muted">Your contact details are used to organise this session.</p><button class="button" type="submit">Reserve a place</button>
+  </form><div id="booking-result" class="notice" role="status" hidden></div></section>
+</main>
+<footer class="page muted">Mend House pilot · <a href="desk.html">Host desk</a> · <a href="arrivals.html">Arrival screen</a></footer>
+</body></html>

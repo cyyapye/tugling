@@ -16,7 +16,8 @@ else:
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "tugling"
-EXPECTED_SKILLS = set(json.loads((pstack_sources.BUNDLE / pstack_sources.MANIFEST).read_text())["skills"])
+SOURCE_MANIFEST = json.loads((pstack_sources.BUNDLE / pstack_sources.MANIFEST).read_text())
+EXPECTED_SKILLS = set(SOURCE_MANIFEST["skills"] + SOURCE_MANIFEST.get("local_skills", []))
 ALLOWED_SKILL_FRONTMATTER = {"name", "description", "license", "allowed-tools", "metadata"}
 ERRORS: list[str] = []
 

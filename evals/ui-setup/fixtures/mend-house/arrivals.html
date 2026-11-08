@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mend House — welcome</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body data-page="arrivals" class="kiosk">
+<main class="kiosk-content"><p class="kiosk-brand">Mend House</p><h1>Welcome. Let’s get you settled.</h1><p>Enter the four-digit reference from your booking.</p>
+  <form id="arrival-form"><label for="reference">Booking reference</label><input id="reference" name="reference" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required placeholder="1234"><button class="kiosk-button" type="submit">I’m here</button></form>
+  <p id="arrival-result" role="status"></p><p class="kiosk-help">No reference? Please speak to the host at the welcome desk.</p>
+</main></body></html>

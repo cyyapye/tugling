@@ -13,11 +13,20 @@ implementation history rather than a coherent set of user intentions. Keeping
 them would make Pstack users learn replacement names without an established
 benefit. Existing tests and migration convenience did not justify that cost.
 
-The public catalog now preserves all 54 names from the pinned Pstack revision,
+The public catalog now preserves all 58 names from the pinned Pstack revision,
 including `poteto-mode`, `poteto-help`, `how`, `why`, `architect`, `arena`, and
 the 24 `principle-*` skills. Pstack's task playbooks remain under `poteto-mode`.
 There is no newly invented seven-part taxonomy and no competing Tugling menu.
 Codex invocation uses `$name` instead of Cursor's `/name`.
+
+Tugling additionally authors [`setup-ui`](../plugins/tugling/skills/setup-ui/SKILL.md).
+It fills a requested discovery gap: `setup-pstack` configures model preferences,
+while the UI setup references lacked a single entry point and an explicit
+assessment of library completeness and extraction opportunities. It reuses the
+existing UI evidence and style-enforcement workflows and adds a source-backed
+library assessment. The manifest records it under `local_skills` and hashes its
+files under `local_files`; it is not attributed to upstream Pstack. See the
+[bounded development evidence](../evals/ui-setup/README.md) for coverage and limits.
 
 ## Former entry points
 
@@ -43,8 +52,8 @@ request in ordinary language still goes to the relevant playbook.
 
 ## Source and attribution
 
-The source is [Pstack by Lauren Tan](https://github.com/cursor/plugins/tree/101b274dd991f694e1f7024be2157e5f3adf07de/pstack)
-at commit `101b274dd991f694e1f7024be2157e5f3adf07de`, inspected on 2026-10-17.
+The source is [Pstack by Lauren Tan](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack)
+at commit `c742dd61706fbacc1b95f1a20b7b988cf096ce6c`, inspected on 2026-11-08.
 The [manifest](../plugins/tugling/skills/poteto-mode/references/upstream/sources.json)
 records original paths, original and distributed hashes, per-file adaptations,
 and an inventory of locally authored metadata and extensions. The full
@@ -64,15 +73,17 @@ Cursor keyboard shortcuts or writing Cursor model rules in Codex. Models inherit
 the current session. A missing integration or independent reviewer is reported
 as missing, not simulated and claimed as executed.
 
-Upstream helper sources are included for traceability but their bootstraps are
-not a runtime dependency. The adapter uses available native task, worktree,
+Orchestration uses native host tools. Optional upstream workflows such as
+`statechart` retain their documented runtime and installation requirements;
+ordinary plugin installation does not run those bootstraps. The adapter uses available native task, worktree,
 automation, GitHub, browser, and terminal tools. It does not provision a bot,
 install a daemon, change global configuration, or authorize external writes.
 
 ## Evidence and maintenance
 
 All ten existing behavioral cases and their decision criteria remain. They now
-exercise four upstream entry points. The other 50 are explicitly declared in the
+exercise four upstream entry points. The other 54 upstream names and the local
+`setup-ui` entry point are explicitly declared in the
 [coverage record](../evals/behavioral/catalog-coverage.json). This declaration
 allows local development checks; it does not waive full coverage for release.
 Both release-proof generation and independent certificate verification reject

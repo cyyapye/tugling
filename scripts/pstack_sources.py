@@ -74,8 +74,7 @@ def validate(bundle: Path = BUNDLE, upstream_root: Path | None = None) -> int:
         if name == LICENSE and (source != "pstack/LICENSE" or changes or item["sha256"] != item["upstream_sha256"]):
             raise ValueError("Pstack license must be an unchanged upstream copy")
     copied_skills = sorted(Path(item["path"]).parent.name for item in files if item["path"].endswith("/SKILL.md"))
-    actual_skills = sorted(path.parent.name for path in bundle.glob("*/SKILL.md"))
-    if manifest.get("skills") != copied_skills or actual_skills != copied_skills:
+    if manifest.get("skills") != copied_skills:
         raise ValueError("Pstack entry points must match the attributed upstream catalog")
     local_files = manifest.get("local_files")
     if not isinstance(local_files, list):
@@ -87,6 +86,12 @@ def validate(bundle: Path = BUNDLE, upstream_root: Path | None = None) -> int:
         seen.add(name)
         if digest(safe_path(bundle, name)) != item.get("sha256"):
             raise ValueError(f"local adaptation hash mismatch: {name}")
+    local_skills = sorted(Path(item["path"]).parent.name for item in local_files if item["path"].endswith("/SKILL.md"))
+    if manifest.get("local_skills", []) != local_skills or set(local_skills) & set(copied_skills):
+        raise ValueError("local entry points must be separately attributed")
+    actual_skills = sorted(path.parent.name for path in bundle.glob("*/SKILL.md"))
+    if actual_skills != sorted(copied_skills + local_skills):
+        raise ValueError("installed entry points must match upstream and local catalogs")
     actual = {p.relative_to(bundle).as_posix() for p in bundle.rglob("*") if p.is_file() or p.is_symlink()}
     if actual != seen | {MANIFEST} or LICENSE not in seen:
         raise ValueError("Pstack inventory must cover every bundled file and its license")

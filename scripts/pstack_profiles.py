@@ -48,6 +48,9 @@ def refresh_manifest(bundle: Path) -> None:
             item["sha256"] = sha
     manifest["local_files"] = [dict(item, sha256=sources.digest(bundle / item["path"]))
                                 for item in manifest["local_files"] if (bundle / item["path"]).exists()]
+    manifest["local_skills"] = sorted(Path(item["path"]).parent.name
+                                      for item in manifest["local_files"]
+                                      if item["path"].endswith("/SKILL.md"))
     path.write_text(json.dumps(manifest, indent=2) + "\n")
     sources.validate(bundle)
 
@@ -67,6 +70,9 @@ def freeze(source: Path, out: Path, extension: str) -> dict:
     shutil.copy2(source / smoke.package.MARKETPLACE, base / smoke.package.MARKETPLACE)
     shutil.copytree(source / smoke.package.PLUGIN_RELATIVE, base / smoke.package.PLUGIN_RELATIVE)
     base_skills = base / smoke.package.PLUGIN_RELATIVE / "skills"
+    local_skills = json.loads((base_skills / sources.MANIFEST).read_text()).get("local_skills", [])
+    for name in local_skills:
+        shutil.rmtree(base_skills / name)
     shutil.rmtree(base_skills / EXTENSIONS)
     adapter = base_skills / ADAPTER
     text = adapter.read_text()
@@ -77,6 +83,13 @@ def freeze(source: Path, out: Path, extension: str) -> dict:
         blocks = path.read_text().split("\n\n")
         rendered = []
         for block in blocks:
+            # Local entry points are not part of either Pstack comparison arm.
+            lines = block.splitlines()
+            links_local = lambda line: any(f"/{name}/SKILL.md)" in line for name in local_skills)
+            if lines and lines[0].startswith("|"):
+                block = "\n".join(line for line in lines if not links_local(line))
+            elif links_local(block):
+                continue
             if "extensions/" in block and "](" in block:
                 if relative in RETAIN:
                     rendered.append(RETAIN[relative])

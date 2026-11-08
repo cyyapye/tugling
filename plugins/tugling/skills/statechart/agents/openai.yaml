@@ -1,0 +1,6 @@
+interface:
+  display_name: "Statechart"
+  short_description: "Check TLA+ models and explain paths through states"
+  default_prompt: "Use $statechart to check this model and explain its states and counterexamples."
+policy:
+  allow_implicit_invocation: false

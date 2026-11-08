@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mend House — host desk</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body data-page="desk">
+<header class="site-header"><a class="brand" href="index.html">Mend House</a><nav aria-label="Host"><strong>Tonight’s desk</strong> <a href="arrivals.html">Open arrival screen</a></nav></header>
+<main class="page">
+  <div class="heading-row"><div><p class="eyebrow">Thursday · Willow Lane</p><h1>Tonight’s repair list</h1></div><button class="button secondary" id="print-list">Print list</button></div>
+  <div class="summary-grid"><section class="panel"><h2>Expected</h2><p class="metric" id="expected">—</p></section><section class="panel"><h2>Here now</h2><p class="metric" id="arrived">—</p></section><section class="panel"><h2>Volunteer cover</h2><p>2 textiles · 1 electrical</p><p class="muted">Confirmed by the session lead.</p></section></div>
+  <section class="panel"><div class="heading-row"><h2>Guests</h2><label>Show <select id="status-filter"><option value="all">Everyone</option><option value="expected">Expected</option><option value="arrived">Arrived</option></select></label></div>
+    <div class="table-scroll"><table><thead><tr><th scope="col">Guest</th><th scope="col">Item</th><th scope="col">Reference</th><th scope="col">Status</th><th scope="col">Arrival</th></tr></thead><tbody id="guest-rows"></tbody></table></div><p id="empty-list" class="muted" hidden>No guests in this view.</p>
+  </section><p id="desk-status" role="status"></p>
+</main><footer class="page muted">Pilot desk · Changes are saved in this browser.</footer>
+</body></html>
