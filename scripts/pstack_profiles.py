@@ -38,6 +38,22 @@ RETAIN = {
 }
 
 
+def omit_local_skill_links(text: str, local_skills: list[str]) -> str:
+    """Exclude local-entry-point prose from both private comparison arms."""
+    rendered = []
+    for block in text.split("\n\n"):
+        links_local = lambda line: any(f"/{name}/SKILL.md)" in line for name in local_skills)
+        lines = block.splitlines()
+        if lines and lines[0].startswith("|"):
+            rendered.append("\n".join(line for line in lines if not links_local(line)))
+        elif any(line.startswith("- ") for line in lines):
+            rendered.append("".join(item for item in re.split(r"(?m)(?=^- )", block)
+                                    if not links_local(item)).rstrip("\n"))
+        elif not links_local(block):
+            rendered.append(block)
+    return "\n\n".join(rendered)
+
+
 def refresh_manifest(bundle: Path) -> None:
     path = bundle / sources.MANIFEST
     manifest = json.loads(path.read_text())
@@ -48,6 +64,9 @@ def refresh_manifest(bundle: Path) -> None:
             item["sha256"] = sha
     manifest["local_files"] = [dict(item, sha256=sources.digest(bundle / item["path"]))
                                 for item in manifest["local_files"] if (bundle / item["path"]).exists()]
+    manifest["local_skills"] = sorted(Path(item["path"]).parent.name
+                                      for item in manifest["local_files"]
+                                      if item["path"].endswith("/SKILL.md"))
     path.write_text(json.dumps(manifest, indent=2) + "\n")
     sources.validate(bundle)
 
@@ -67,6 +86,9 @@ def freeze(source: Path, out: Path, extension: str) -> dict:
     shutil.copy2(source / smoke.package.MARKETPLACE, base / smoke.package.MARKETPLACE)
     shutil.copytree(source / smoke.package.PLUGIN_RELATIVE, base / smoke.package.PLUGIN_RELATIVE)
     base_skills = base / smoke.package.PLUGIN_RELATIVE / "skills"
+    local_skills = json.loads((base_skills / sources.MANIFEST).read_text()).get("local_skills", [])
+    for name in local_skills:
+        shutil.rmtree(base_skills / name)
     shutil.rmtree(base_skills / EXTENSIONS)
     adapter = base_skills / ADAPTER
     text = adapter.read_text()
@@ -74,7 +96,7 @@ def freeze(source: Path, out: Path, extension: str) -> dict:
     adapter.write_text(text[:start] + text[end:])
     for path in base_skills.rglob("*.md"):
         relative = path.relative_to(base_skills).as_posix()
-        blocks = path.read_text().split("\n\n")
+        blocks = omit_local_skill_links(path.read_text(), local_skills).split("\n\n")
         rendered = []
         for block in blocks:
             if "extensions/" in block and "](" in block:
@@ -104,7 +126,7 @@ def freeze(source: Path, out: Path, extension: str) -> dict:
                 pending.append(linked)
         dest = target / path.relative_to(bundle)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, dest)
+        dest.write_text(omit_local_skill_links(path.read_text(), local_skills))
     with (target / ADAPTER).open("a") as stream:
         stream.write(f"\n{TRIGGERS[extension]}, read [{extension}](extensions/{extension}.md).\n")
     manifest = json.loads((target / sources.MANIFEST).read_text())

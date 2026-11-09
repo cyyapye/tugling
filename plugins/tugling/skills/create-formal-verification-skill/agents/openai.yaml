@@ -1,0 +1,6 @@
+interface:
+  display_name: "Create formal verification skill"
+  short_description: "Generate and prove project-local formal verification"
+  default_prompt: "Use $create-formal-verification-skill to verify a consequential property in this project and prove the generated check can fail."
+policy:
+  allow_implicit_invocation: false

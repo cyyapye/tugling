@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "appointments-assessment",
+      "kind": "positive-development",
+      "fixture": "fixtures/appointments",
+      "prompt": "Use $setup-ui to assess our current UI library for completeness and recommend reuse or extraction changes. Assessment only; give the report in your reply.",
+      "criteria": [
+        "Read consumers, shared implementations, theme, and the existing review; preserve every project file including ignored files.",
+        "Identify existing Field and EmptyState reuse opportunities in Appointments; do not propose competing shared primitives or reopen the completed Button work.",
+        "Rank concrete recommendations with source evidence, proposed ownership or API, benefit, effort, regression risk, and verification; inspect smaller existing primitives before larger page abstractions.",
+        "Treat Overview repetition as local or a watchlist item unless a demonstrated stable shared consumer contract justifies more; do not invent a generic component shopping list.",
+        "Distinguish source conclusions from unavailable browser, accessibility, native lint, and independent-review evidence; do not claim setup was executed."
+      ]
+    },
+    {
+      "id": "help-only",
+      "kind": "negative-development",
+      "fixture": "fixtures/appointments",
+      "prompt": "How do I run $setup-ui myself? Just explain the command and assessment-only option; don't start setup.",
+      "criteria": [
+        "Explain the single skill invocation and its default assessment plus native verification workflow.",
+        "Explain a read-only assessment request without implying it configures lint or runs a reviewer.",
+        "Leave all project files unchanged and do not launch setup, browser, lint, installation, or review work."
+      ]
+    },
+    {
+      "id": "mend-house-assessment",
+      "kind": "independently-authored-holdout",
+      "fixture": "fixtures/mend-house",
+      "prompt": "We’ve got this small Mend House pilot and are thinking about adding a host shift-handover screen next. Before we build more, please assess how complete the current UI is and what foundation we already have to reuse. I’d like practical recommendations on what to keep, what needs attention first, and where shared UI would actually help us. Please just give me the assessment and recommendations; don’t change the project or build the next screen yet.",
+      "criteria_file": "holdout-criteria.md",
+      "authorship": "Fresh-context author received only the requested capability and constraints, not the candidate skill."
+    }
+  ]
+}

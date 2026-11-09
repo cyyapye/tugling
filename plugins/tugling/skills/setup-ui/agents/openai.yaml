@@ -1,0 +1,6 @@
+interface:
+  display_name: "Set up UI delivery"
+  short_description: "Guided UI setup with approvals and stepwise proof."
+  default_prompt: "Use $setup-ui to guide me through UI setup, explain each step, ask before applying proposed changes, implement what I approve, and show each step's results."
+policy:
+  allow_implicit_invocation: false

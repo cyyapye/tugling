@@ -33,7 +33,7 @@ The report must disclose same-family review, development tasks rather than
 holdouts, incomplete catalog behavior coverage, no enhancement claim, and usage
 limited to builders. A directory-granted repeat also discloses its environment
 and longer timeout. These are compatibility observations, not a claim that every
-one of the 54 skills works in every setting or that Tugling outperforms Pstack.
+one of the current skills works in every setting or that Tugling outperforms Pstack.
 
 **Maintainer approval of the exact report digest is the semantic trust boundary.**
 The validator checks identity, schema, consistency, required observations and

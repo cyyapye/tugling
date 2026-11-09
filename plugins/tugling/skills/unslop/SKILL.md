@@ -1,6 +1,6 @@
 ---
 name: unslop
-description: "Remove generic AI phrasing and repetitive framing from prose while preserving the author’s meaning. Use for unslop or requested prose cleanup."
+description: "Cut AI tells from any writing."
 ---
 
 Read the [Codex adapter](../poteto-mode/references/codex.md) once per session before applying this skill. It governs tool, model, scope, and path translations below.

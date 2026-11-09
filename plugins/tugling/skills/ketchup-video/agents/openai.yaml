@@ -1,0 +1,6 @@
+interface:
+  display_name: "Ketchup video"
+  short_description: "Catch up with a short subtitled progress video"
+  default_prompt: "Use $ketchup-video to explain the changes and decisions waiting on me."
+policy:
+  allow_implicit_invocation: false

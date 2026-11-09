@@ -48,16 +48,17 @@ The default answer is `$poteto-mode`, which runs most of the others when its ste
 |---|---|
 | Do any non-trivial task with rigor | [`$poteto-mode`](../poteto-mode/SKILL.md) |
 | Check that the agent understood their goal and the problem before it starts | [`$in-your-own-words`](../in-your-own-words/SKILL.md) |
-| Aim a task higher before starting: more expert, more outcome-focused, not overspecified | [`$sharpen`](../sharpen/SKILL.md) |
+| Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`$sharpen`](../sharpen/SKILL.md) |
 | Know how code works now, or where new code should live | [`$how`](../how/SKILL.md) |
 | Know why code is shaped this way, or where a number came from | [`$why`](../why/SKILL.md) |
 | Understand a change or subsystem, explained plainly | [`$teach`](../teach/SKILL.md) |
 | Catch up on their own recent work on a topic | [`$recall`](../recall/SKILL.md) |
-| Catch up on what changed in this chat since their last message, in a few plain sentences and small visuals, with enough context to decide each action item | [`$ketchup`](../ketchup/SKILL.md) |
+| Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`$ketchup`](../ketchup/SKILL.md) |
+| Catch up like `$ketchup`, in a short subtitled video of slides, with the waiting calls as text under it | [`$ketchup-video`](../ketchup-video/SKILL.md) |
 | Know what a small diff could break outside itself | [`$blast-radius`](../blast-radius/SKILL.md) |
 | Settle types and module shape before code that crosses a function boundary | [`$architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`$arena`](../arena/SKILL.md) |
-| Run parallel checks over slices, or race available workers | [`$swarm`](../swarm/SKILL.md) |
+| Run parallel checks over slices, or race workers, as cloud agents | [`$swarm`](../swarm/SKILL.md) |
 | Have different models review a diff and try to break it | [`$interrogate`](../interrogate/SKILL.md) |
 | Fix a bug test-first when a cheap local test exists | [`$tdd`](../tdd/SKILL.md) |
 | Apply TypeScript rules to `.ts` or `.tsx` work | [`$typescript-best-practices`](../typescript-best-practices/SKILL.md) |
@@ -67,10 +68,14 @@ The default answer is `$poteto-mode`, which runs most of the others when its ste
 | Hear the last reply again in plain words | [`$bro`](../bro/SKILL.md) |
 | Give agents a scripted way to drive the app and prove behavior | [`$create-verification-skill`](../create-verification-skill/SKILL.md) |
 | Bring a verification skill and its feature map back in line with the app | [`$maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
+| Formally verify a race, invariant, or other property that tests rarely reach | [`$create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
+| Bring a formal verification back in line after the code it covers changed, and learn whether a failure is drift or a bug | [`$maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
+| Show a PM or designer what the user sees as a chart checked by a TLA+ model, with the shortest path to each state that breaks a rule | [`$statechart`](../statechart/SKILL.md) |
 | Vet a performance number before reporting or acting on it | [`$benchmark-checklist`](../benchmark-checklist/SKILL.md) |
 | Run a large or cross-cutting change, or one to review after stepping away | [`$figure-it-out`](../figure-it-out/SKILL.md) |
 | Keep a decision log during a run, and review it afterward | [`$show-me-your-work`](../show-me-your-work/SKILL.md) |
-| Inspect or change supported Codex model and reasoning settings | [`$setup-pstack`](../setup-pstack/SKILL.md) |
+| Pick a model for each role and a reasoning budget | [`$setup-pstack`](../setup-pstack/SKILL.md) |
+| Assess a UI library and set up UI verification when requested | [`$setup-ui`](../setup-ui/SKILL.md), a Tugling addition |
 | Turn their own working habits into a personal mode skill | [`$automate-me`](../automate-me/SKILL.md) |
 | Turn what a finished task taught into skill edits | [`$reflect`](../reflect/SKILL.md) |
 | Stop agents from repeating the same mistakes in this repo | [`$correct`](../correct/SKILL.md) |
@@ -102,14 +107,14 @@ Playbooks are step lists inside `$poteto-mode`, not skills, so they have no slas
 - "land the stack" runs Shipping.
 - "take over this branch" runs Session pickup.
 - "pause safely" runs Pause safely.
-- "full autopilot on this queue" runs Autopilot-full. "stack them, don't ship" runs Autopilot-stack.
+- "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
 - "run the eval playbook" runs Eval.
 
-Invoke `$poteto-mode` when this specific playbook is intended. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](https://github.com/cursor/plugins/blob/101b274dd991f694e1f7024be2157e5f3adf07de/pstack/docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
+Invoke `$poteto-mode` when this specific playbook is intended. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
 
 pstack has no planning skill. Codex plan-only requests keep their read-only scope. For work that spans phases or stacked PRs, asking `$poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `$architect` settles it in code first.
 
-Principles are one-rule skills that `$poteto-mode` reads and cites in its replies. The user rarely invokes one. They steer with the names instead, as in "apply prove it works. show me the real output." Typing `$principle-<name>` still loads one on demand. [Guide page 8](https://github.com/cursor/plugins/blob/101b274dd991f694e1f7024be2157e5f3adf07de/pstack/docs/guide/08-principles.md) lists them.
+Principles are one-rule skills that `$poteto-mode` reads and cites in its replies. The user rarely invokes one. They steer with the names instead, as in "apply prove it works. show me the real output." Typing `$principle-<name>` still loads one on demand. [Guide page 8](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/docs/guide/08-principles.md) lists them.
 
 ## Fix a run that went wrong
 
@@ -121,10 +126,10 @@ Principles are one-rule skills that `$poteto-mode` reads and cites in its replie
 | Runs cost more than expected | Reduce unnecessary fan-out and use supported model/effort choices through `$setup-pstack`; do not guess per-role cost savings. |
 | A skill didn't load on its own | Only `$setup-pstack` loads from the user's words. The others load when the user types them or when `$poteto-mode` runs them, and it doesn't run every skill. |
 | Parallel agents overwrote each other | Use isolated worktrees for authorized concurrent writers. |
-| An overnight run moved but finished nothing | A requested Codex automation needs a check that can pass or fail, not only a duration. See [guide page 7](https://github.com/cursor/plugins/blob/101b274dd991f694e1f7024be2157e5f3adf07de/pstack/docs/guide/07-overnight.md). |
+| An overnight run moved but finished nothing | A requested Codex automation needs a check that can pass or fail, not only a duration. See [guide page 7](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/docs/guide/07-overnight.md). |
 | The reply claims success from a green build | Ask for the real command, flow, stored value, or profile. That's the prove-it-works principle. |
 
-For a run that drifts, [`references/prompting.md`](references/prompting.md) has one-line steers. [Guide page 10](https://github.com/cursor/plugins/blob/101b274dd991f694e1f7024be2157e5f3adf07de/pstack/docs/guide/10-recipes-and-pitfalls.md) has more pitfalls and the recipes worth copying.
+For a run that drifts, [`references/prompting.md`](references/prompting.md) has one-line steers. [Guide page 10](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/docs/guide/10-recipes-and-pitfalls.md) has more pitfalls and the recipes worth copying.
 
 ## Make pstack my own
 
@@ -133,7 +138,7 @@ For a run that drifts, [`references/prompting.md`](references/prompting.md) has 
 - `$poteto-mode write a skill for <workflow>` runs the authoring playbook. The eval playbook tests a skill change blind.
 - Repair a misbehaving skill separately when that repair is authorized.
 
-[Guide page 9](https://github.com/cursor/plugins/blob/101b274dd991f694e1f7024be2157e5f3adf07de/pstack/docs/guide/09-make-it-yours.md) covers each of these.
+[Guide page 9](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/docs/guide/09-make-it-yours.md) covers each of these.
 
 ## Reply
 

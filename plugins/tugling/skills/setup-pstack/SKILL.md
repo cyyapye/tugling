@@ -8,6 +8,9 @@ description: "Configure Pstack model and reasoning preferences for Codex using a
 Read the [Codex adapter](../poteto-mode/references/codex.md). This retains Pstack's
 model/budget setup entry point; project bootstrap is a poteto-mode workflow.
 
+For requested UI library assessment and verification setup, use the separately
+authored [`setup-ui`](../setup-ui/SKILL.md).
+
 1. Inspect the current session's supported model and reasoning controls. Inherit
    its settings unless the user asked to change them. Never guess a model slug.
 2. Infer the requested scope: this task, delegated roles, or a persistent default.
@@ -21,3 +24,6 @@ model/budget setup entry point; project bootstrap is a poteto-mode workflow.
 5. If the project lacks a way to drive the actual app and the task needs one,
    use [create-verification-skill](../create-verification-skill/SKILL.md) within the
    requested scope. Reuse existing native checks first.
+6. If the user requests formal verification and the project lacks it, use
+   [create-formal-verification-skill](../create-formal-verification-skill/SKILL.md).
+   Keep findings separate from permission to change product code.

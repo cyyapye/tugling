@@ -14,6 +14,7 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+from tests.git_package_fixtures import omit_statechart_corpus
 
 from scripts import certify_release as cert
 
@@ -238,6 +239,7 @@ class CertificationGitTest(unittest.TestCase):
         for name in (".agents", ".github", "plugins", "scripts", "tests", "evals"):
             shutil.copytree(cert.ROOT / name, self.repo / name,
                             ignore=shutil.ignore_patterns("__pycache__", "runs", "releases"))
+        omit_statechart_corpus(self.repo)
         shutil.copy2(cert.ROOT / "Makefile", self.repo / "Makefile")
         manifest = json.loads((self.repo / "plugins/tugling/.codex-plugin/plugin.json").read_text())
         major, minor, patch = map(int, manifest["version"].split("."))

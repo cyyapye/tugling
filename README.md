@@ -2,15 +2,17 @@
 
 **Pstack, adapted for Codex.**
 
-Tugling brings [Pstack](https://github.com/cursor/plugins/tree/101b274dd991f694e1f7024be2157e5f3adf07de/pstack) by Lauren Tan to Codex with its familiar skill names and playbooks. Pstack is the default for every workflow. Optional Tugling guidance must demonstrate a substantive advantage before it becomes part of normal use.
+Tugling brings [Pstack](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack) by Lauren Tan to Codex with its familiar skill names and playbooks. Pstack is the default for every workflow. Optional Tugling guidance must demonstrate a substantive advantage before it becomes part of normal use.
 
 It is intentionally portable. Tugling supplies reusable engineering judgment; each repository keeps its own product rules, commands, architecture, security boundaries, and release authority.
 
 ## Pstack, adapted for Codex
 
 Start with `$poteto-mode` and describe the task. Use `$poteto-help` to choose a
-focused skill. The port preserves Pstack's 54 skill names, 24 principles, and
+focused skill. The port preserves Pstack's 58 skill names, 24 principles, and
 task playbooks so existing users can carry their habits into Codex.
+Version 0.10.0 adds the explicitly invoked `$setup-ui` workflow for project UI
+setup, alongside the current Pstack catalog.
 
 | What you want | Familiar entry point |
 | --- | --- |
@@ -21,6 +23,7 @@ task playbooks so existing users can carry their habits into Codex.
 | Verify behavior and measurements | `$principle-prove-it-works`, `$tdd`, `$benchmark-checklist`, `$create-verification-skill` |
 | Write clearly and learn from completed work | `$technical-writing`, `$unslop`, `$reflect` |
 | Find a workflow or inspect model preferences | `$poteto-help`, `$setup-pstack` |
+| Assess a UI library and set up UI verification | `$setup-ui` (Tugling addition) |
 
 The full catalog is in
 [`poteto-help`](plugins/tugling/skills/poteto-help/SKILL.md). Explicit invocation
@@ -42,13 +45,11 @@ and [MIT attribution](THIRD_PARTY_NOTICES.md) distinguish Pstack's work from the
 Codex port. The earlier [verification cases](evals/pstack/verification-cases.md)
 remain part of the evaluation record.
 
-Version 0.9.0 prepares the optional [project UI evidence workflow](docs/ui-evidence-evaluation.md).
-The released baseline remains 0.8.0 until separate certification and stable promotion.
-See the [release preparation](evals/releases/v0.9.0/README.md) for evidence and remaining requirements.
-The [release policy](evals/pstack/release-policy.json) requires reviewed evidence
-for the Codex workflow areas, with failed attempts and limitations preserved.
-The older questionnaire and its catalog inventory remain diagnostics; counting
-its covered skill names no longer determines release acceptance.
+The [0.10.0 qualification record](evals/releases/v0.10.0/README.md) documents the
+exact-package workflow review and bounded development observations. The earlier
+[UI setup development record](evals/ui-setup/README.md) preserves prior attempts
+and their limits. Certification and stable promotion require their separate
+reviewed evidence and authority.
 
 ## Install locally
 
@@ -80,6 +81,23 @@ Pstack supplies the method; the repository owns its stack, commands, CI and
 completion contract. Generic setup does not require a Tugling adapter, receipt
 system, learning ledger, or extra CI gate. For advice only, request an assessment
 without implementation.
+
+For UI setup, use the dedicated [setup-ui skill](plugins/tugling/skills/setup-ui/SKILL.md):
+
+```text
+Use $setup-ui to assess this project's UI library, recommend reuse and extraction improvements, and configure and prove UI lint, browser captures, and independent rendered review.
+```
+
+A bare `$setup-ui` starts a guided local wizard: inspect and assess, configure
+approved verification changes, implement selected UI improvements, then run
+browser evidence, independent review, and the native gate. Each step explains
+what comes next and shows its results. Before changing lint, dependencies,
+components, variants, or other project files, it presents a concrete proposal
+and waits for approval unless that specific work is already authorized. You can
+approve a subset or skip a step; skipped work stays explicit. Ask for assessment
+only to keep it read-only. Reruns preserve existing configuration and decisions.
+See the [development checks and limits](evals/ui-setup/README.md). This entry
+point does not change model settings or start publication or release workflows.
 
 ## Existing Tugling adapters
 
