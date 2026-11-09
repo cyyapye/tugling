@@ -11,8 +11,8 @@ It is intentionally portable. Tugling supplies reusable engineering judgment; ea
 Start with `$poteto-mode` and describe the task. Use `$poteto-help` to choose a
 focused skill. The port preserves Pstack's 58 skill names, 24 principles, and
 task playbooks so existing users can carry their habits into Codex.
-The unreleased 0.10.0 source adds `$setup-ui` for project UI setup. Published
-stable remains 0.9.1; its exact-package review does not cover this candidate.
+Version 0.10.0 adds the explicitly invoked `$setup-ui` workflow for project UI
+setup, alongside the current Pstack catalog.
 
 | What you want | Familiar entry point |
 | --- | --- |
@@ -45,14 +45,11 @@ and [MIT attribution](THIRD_PARTY_NOTICES.md) distinguish Pstack's work from the
 Codex port. The earlier [verification cases](evals/pstack/verification-cases.md)
 remain part of the evaluation record.
 
-The local 0.10.0 release candidate refreshes Pstack to 58 entry points and adds the
-explicitly invoked `setup-ui` workflow. Published stable remains 0.9.1. The
-[UI setup development record](evals/ui-setup/README.md) describes prior attempts
-and their limits; these do not certify the refreshed candidate. Certification
-and stable promotion require their separate reviewed evidence and authority.
-
-See the [0.10.0 candidate record](evals/releases/v0.10.0/README.md) for the
-refreshed package, development observations, and remaining release boundaries.
+The [0.10.0 qualification record](evals/releases/v0.10.0/README.md) documents the
+exact-package workflow review and bounded development observations. The earlier
+[UI setup development record](evals/ui-setup/README.md) preserves prior attempts
+and their limits. Certification and stable promotion require their separate
+reviewed evidence and authority.
 
 ## Install locally
 
