@@ -31,8 +31,13 @@ cannot be relabeled as successful or erased by an automatic retry.
 
 The report must disclose same-family review, development tasks rather than
 holdouts, incomplete catalog behavior coverage, no enhancement claim, and usage
-limited to builders. A directory-granted repeat also discloses its environment
-and longer timeout. These are compatibility observations, not a claim that every
+limited to builders. Every scoped-directory attempt discloses
+`authoring-requires-explicit-directory-grant`, including a fresh attempt or a
+repeat using the unchanged timeout cap. Separately, `repeat-used-longer-timeout`
+is required only when an attempt's timeout exceeds an earlier attempt with the
+same scenario, runtime, task digest and workflow areas, regardless of environment.
+The label is rejected without such an observed extension; a scoped grant alone
+does not imply a longer timeout. These are compatibility observations, not a claim that every
 one of the current skills works in every setting or that Tugling outperforms Pstack.
 
 **Maintainer approval of the exact report digest is the semantic trust boundary.**

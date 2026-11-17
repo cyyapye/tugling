@@ -194,8 +194,17 @@ def validate_report(report: Any, plugin: dict[str, Any]) -> dict[str, Any]:
                 or resolution.get("environment") not in {"scoped-skill-directory", "host-launched-workspace-write"}
                 or item["criteria"]["passed"] + item["criteria"]["failed"] != resolution["criteria"]["passed"]):
             raise ReviewedReleaseError("failed attempt lacks a matching authorized environment resolution")
-    if any(item["environment"] == "scoped-skill-directory" for item in attempts.values()) and not EXTRA_LIMITATIONS <= set(report["limitations"]):
-        raise ReviewedReleaseError("environment repeat limitations are missing")
+    if (any(item["environment"] == "scoped-skill-directory" for item in attempts.values())
+            and "authoring-requires-explicit-directory-grant" not in report["limitations"]):
+        raise ReviewedReleaseError("explicit directory grant limitation is missing")
+    longer_repeat = any(
+        item["timeout_seconds"] > earlier["timeout_seconds"]
+        and all(item[key] == earlier[key] for key in ("scenario", "runtime", "task_sha256"))
+        and set(item["areas"]) == set(earlier["areas"])
+        for index, item in enumerate(report["attempts"])
+        for earlier in report["attempts"][:index])
+    if longer_repeat != ("repeat-used-longer-timeout" in report["limitations"]):
+        raise ReviewedReleaseError("longer timeout limitation must match observed repeat timeouts")
     if any(item["environment"] == "host-launched-workspace-write" for item in attempts.values()) and not HOST_LAUNCH_LIMITATIONS <= set(report["limitations"]):
         raise ReviewedReleaseError("host launch repeat limitations are missing")
     if covered != AREAS:

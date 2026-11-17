@@ -46,6 +46,44 @@ class ReviewedEvidenceTest(unittest.TestCase):
         self.assertEqual(value["attempts"][-1]["environment"], "scoped-skill-directory")
         self.assertNotEqual(original["timeout_seconds"], repeat["timeout_seconds"])
 
+    def test_fresh_scoped_attempt_keeps_300_second_cap_without_extension_label(self):
+        self.report["attempts"][-1].update(environment="scoped-skill-directory", timeout_seconds=300)
+        self.report["limitations"].append("authoring-requires-explicit-directory-grant")
+        reviewed.validate_report(self.report, self.plugin)
+        self.report["limitations"].remove("authoring-requires-explicit-directory-grant")
+        with self.assertRaisesRegex(reviewed.ReviewedReleaseError, "directory grant"):
+            reviewed.validate_report(self.report, self.plugin)
+
+    def test_scoped_repeat_same_cap_does_not_claim_timeout_extension(self):
+        original, repeat = self.resolved_failure()
+        original["timeout_seconds"] = repeat["timeout_seconds"] = 300
+        self.report["limitations"].remove("repeat-used-longer-timeout")
+        reviewed.validate_report(self.report, self.plugin)
+        self.report["limitations"].append("repeat-used-longer-timeout")
+        with self.assertRaisesRegex(reviewed.ReviewedReleaseError, "observed repeat timeouts"):
+            reviewed.validate_report(self.report, self.plugin)
+
+    def test_real_timeout_extension_requires_label_even_for_host_launch(self):
+        _, repeat = self.resolved_failure()
+        repeat["environment"] = "host-launched-workspace-write"
+        self.report["limitations"] = sorted(reviewed.LIMITATIONS | reviewed.HOST_LAUNCH_LIMITATIONS)
+        with self.assertRaisesRegex(reviewed.ReviewedReleaseError, "observed repeat timeouts"):
+            reviewed.validate_report(self.report, self.plugin)
+        self.report["limitations"].append("repeat-used-longer-timeout")
+        reviewed.validate_report(self.report, self.plugin)
+
+    def test_unrelated_longer_attempt_does_not_support_extension_label(self):
+        self.report["attempts"][-1]["timeout_seconds"] = 600
+        self.report["limitations"].append("repeat-used-longer-timeout")
+        with self.assertRaisesRegex(reviewed.ReviewedReleaseError, "observed repeat timeouts"):
+            reviewed.validate_report(self.report, self.plugin)
+
+    def test_historical_reports_keep_valid_timeout_disclosures(self):
+        for path in sorted((reviewed.ROOT / "evals/releases").glob("*/pstack-review.json")):
+            with self.subTest(path=path):
+                report = reviewed.read_json(path)
+                reviewed.validate_report(report, report["plugin"])
+
     def test_human_promotion_summary_preserves_failures_and_usage_limits(self):
         self.resolved_failure()
         summary = reviewed.review_summary(reviewed.validate_report(self.report, self.plugin))

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import re
 import sys
+import subprocess
+import shlex
 
 
 PROFILE = ".tugling/ui.json"
@@ -217,7 +219,7 @@ def prepare(root, brief_path, output):
         checks.append({"command": item["command"], "path": name, "sha256": digest(data)})
         payloads.append((name, data))
     packet = {"schemaVersion": 1, "project": profile["project"], "repository": str(root),
-              "helperSha256": digest(Path(__file__).read_bytes()), "files": files,
+              "helperSha256": digest(Path(__file__).read_bytes()), "gitHead": git_head(root), "files": files,
               "brief": brief, "criteria": profile["criteria"], "images": images, "checks": checks}
     packet["fingerprint"] = digest(encode(packet))
     output.mkdir(parents=True)
@@ -319,6 +321,97 @@ def check(root, packet_dir, review_path):
     return {"status": status, "advisory": True, "fingerprint": expected}
 
 
+def git_head(root):
+    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def revision(root, profile):
+    return {"head": git_head(root), "files": source_files(root, profile)}
+
+
+def run_checks(root, output):
+    """Execute approved project commands, retaining failures and source identity."""
+    profile = validate_profile(read_json(inside(root, PROFILE)))
+    output = Path(output).resolve()
+    require(not output.exists(), "Use a new checks directory; preserve earlier evidence")
+    for name in profile["sourceRoots"]:
+        require(not output.is_relative_to(inside(root, name)), "Checks must be outside source roots")
+    before = revision(root, profile)
+    output.mkdir(parents=True)
+    checks = []
+    for index, (name, command) in enumerate(profile["checks"].items()):
+        try:
+            result = subprocess.run(command, cwd=root, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, check=False)
+            code, stdout, stderr = result.returncode, result.stdout, result.stderr
+        except OSError as error:
+            code, stdout, stderr = 127, b"", str(error).encode()
+        # Keep even silent success inspectable, preserving both output streams byte-for-byte.
+        header = {"argv": command, "exitCode": code,
+                  "stdoutBytes": len(stdout), "stderrBytes": len(stderr)}
+        data = encode(header) + b"\nstdout:\n" + stdout + b"\nstderr:\n" + stderr
+        log = f"native-{index + 1}.log"
+        (output / log).write_bytes(data)
+        checks.append({"name": name, "argv": command, "exitCode": code,
+                       "path": log, "sha256": digest(data)})
+    try:
+        after = revision(root, profile)
+    except (ValueError, OSError, subprocess.CalledProcessError):
+        after = None
+    receipt = {"schemaVersion": 1, "repository": str(root), "revision": before,
+               "helperSha256": digest(Path(__file__).read_bytes()), "checks": checks,
+               "sourceUnchanged": before == after}
+    save(output / "receipt.json", receipt)
+    require(before == after, "Native checks changed reviewed source; receipt retained")
+    require(all(c["exitCode"] == 0 for c in checks), "Native checks failed; receipt retained")
+    return {"status": "NATIVE_CHECKS_PASSED", "receipt": str(output / "receipt.json")}
+
+
+def handoff(root, packet_dir, review_path, checks_dir, record_path):
+    """Fail closed on evidence completeness, not authenticate a reviewer or pixels."""
+    result = check(root, packet_dir, review_path)
+    require(result["status"] == "REVIEW_COMPLETE", "Rendered review is not complete: " + result["status"])
+    profile = validate_profile(read_json(inside(root, PROFILE)))
+    receipt = read_json(Path(checks_dir) / "receipt.json")
+    object_fields(receipt, ["schemaVersion", "repository", "revision", "helperSha256", "checks", "sourceUnchanged"])
+    require(receipt["schemaVersion"] == 1 and receipt["repository"] == str(root), "Wrong native receipt project/version")
+    require(receipt["helperSha256"] == digest(Path(__file__).read_bytes()), "Native receipt helper changed")
+    require(receipt["sourceUnchanged"] is True and receipt["revision"] == revision(root, profile),
+            "Native receipt is stale or source changed")
+    require(isinstance(receipt["checks"], list), "Invalid native checks")
+    exact([c["name"] for c in receipt["checks"]], profile["checks"], "Native check coverage")
+    for item in receipt["checks"]:
+        object_fields(item, ["name", "argv", "exitCode", "path", "sha256"])
+        require(item["argv"] == profile["checks"][item["name"]], "Native command changed")
+        require(type(item["exitCode"]) is int and item["exitCode"] == 0, "Native check failed")
+        require(digest(inside(Path(checks_dir).resolve(), item["path"]).read_bytes()) == item["sha256"],
+                "Native log changed")
+    packet = read_json(Path(packet_dir) / "packet.json")
+    expected_logs = {(shlex.join(c["argv"]), c["sha256"]) for c in receipt["checks"]}
+    actual_logs = {(c["command"], c["sha256"]) for c in packet["checks"]}
+    require(actual_logs == expected_logs and len(packet["checks"]) == len(receipt["checks"]),
+            "Packet must contain the exact native command logs from this receipt")
+    require(packet.get("gitHead") == receipt["revision"]["head"], "Packet Git revision is stale")
+    require(packet["files"] == receipt["revision"]["files"], "Packet/native source mismatch")
+    record_path = Path(record_path).resolve()
+    record = read_json(record_path)
+    object_fields(record, ["packetFingerprint", "reviewSha256", "authorSession", "reviewerSession",
+                           "firstLookNotes", "transcript"])
+    require(record["packetFingerprint"] == result["fingerprint"], "Reviewer record belongs to another packet")
+    require(record["reviewSha256"] == digest(Path(review_path).read_bytes()), "Reviewer response changed")
+    require(text(record["authorSession"]) != text(record["reviewerSession"]), "Author cannot be reviewer")
+    for name in ["firstLookNotes", "transcript"]:
+        item = record[name]
+        object_fields(item, ["path", "sha256"])
+        data = inside(record_path.parent, item["path"]).read_bytes()
+        require(data and digest(data) == item["sha256"], "Missing or changed reviewer evidence: " + name)
+    return {"status": "HANDOFF_EVIDENCE_COMPLETE", "fingerprint": result["fingerprint"],
+            "head": receipt["revision"]["head"],
+            "sourceFingerprint": digest(encode(receipt["revision"])), "advisory": True,
+            "limits": "Hashes and session labels do not authenticate independence, rendered inspection or command provenance; no message interception."}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, required=True)
@@ -331,15 +424,24 @@ def main():
     check_parser = commands.add_parser("check")
     check_parser.add_argument("--packet", type=Path, required=True)
     check_parser.add_argument("--review", type=Path, required=True)
+    run_parser = commands.add_parser("run-checks")
+    run_parser.add_argument("--out", type=Path, required=True)
+    handoff_parser = commands.add_parser("handoff")
+    handoff_parser.add_argument("--packet", type=Path, required=True)
+    handoff_parser.add_argument("--review", type=Path, required=True)
+    handoff_parser.add_argument("--checks", type=Path, required=True)
+    handoff_parser.add_argument("--review-record", type=Path, required=True)
     args = parser.parse_args()
     root = args.repo.resolve(strict=True)
     try:
         result = (initialize(root, args.profile) if args.command == "init" else
                   prepare(root, args.brief, args.out) if args.command == "prepare" else
+                  run_checks(root, args.out) if args.command == "run-checks" else
+                  handoff(root, args.packet, args.review, args.checks, args.review_record) if args.command == "handoff" else
                   check(root, args.packet, args.review))
         print(json.dumps(result, indent=2))
         return 0 if result["status"] not in {"CHANGES_REQUESTED", "INCOMPLETE"} else 2
-    except (ValueError, OSError, KeyError, TypeError) as error:
+    except (ValueError, OSError, KeyError, TypeError, subprocess.CalledProcessError) as error:
         print("Evidence error: " + str(error), file=sys.stderr)
         return 1
 

@@ -2,8 +2,10 @@
 
 Use for requested repeatable UI setup or material work in an already configured
 project. Keep the project's product rules, approval boundary and native gates
-authoritative. This helper packages evidence; it does not execute commands,
-render a browser, evaluate accessibility, call an LLM or certify design quality.
+authoritative. The helper packages evidence and can execute approved profile
+checks through `run-checks`; it does not itself render a browser, evaluate
+accessibility, call an LLM or certify design quality. Native browser commands
+remain responsible for actual captures.
 
 ## Configure once, inspect for drift
 
@@ -52,7 +54,9 @@ it when none exists; UI work alone does not require building a generator. When
 present, inspect the commands before running them and query the relevant control
 or task before coding. Keep its authored guidance, inventory, example sources
 and generator covered by `sourceFiles` or `sourceRoots`, with canonical rules in
-`contracts`. Commands are metadata only; this helper never executes them.
+`contracts`. Guide commands are discovery metadata, not executed by this helper. Profile
+`checks` are executed only by the explicit `run-checks` command; inspect their
+argv and side effects within existing authorization first.
 
 Run the bundled Python 3.11+ helper by its actual skill path:
 
@@ -85,6 +89,50 @@ execution nor defect detection. A seeded-defect demonstration tests a known
 capability; keep expected findings hidden from the reviewer and report false
 positives and misses. It does not establish general design superiority.
 
+## Install the durable handoff contract
+
+After setup approval, add a project-owned native command (for example
+`make ui-handoff`) and a scoped instruction in the adopter's existing `AGENTS.md`
+or equivalent. Preserve unrelated instructions exactly. Resolve the helper by a
+stable supported project mechanism; do not hardcode an author's plugin-cache or
+machine path. Document its dependency and fail visibly if unavailable. Keep the
+profile's `checks` limited to underlying native checks: including the wrapper
+that calls `run-checks` would recurse. Do not replace the project's normal gate.
+
+Adapt this instruction to the project's actual command and evidence locations:
+
+> Before a completion handoff for a material UI change, or showing a user-facing
+> material rendered proposal or prototype before implementation (including from
+> scratch directories), follow the project's UI evidence contract and run
+> `<native UI handoff command>` against the current
+> immutable packet, actual native check receipts, and actual independent review.
+> This applies in fresh threads without another setup request. Material changes
+> include rendered structure, styling, interactions, states, and domain meaning.
+> Mechanical or non-UI changes use focused checks unless they affect these UI
+> contracts. Missing, stale, failed or unresolved evidence blocks a verified UI
+> completion claim. Report the blocker; do not invent evidence or bypass it.
+
+The instruction is durable project routing, not automatic invocation of a
+Pstack skill. Preserve explicit Pstack invocation policy and existing approvals.
+Neither this file nor the helper intercepts messages or prevents an agent from
+ignoring instructions. Status updates and blocked handoffs remain possible;
+they must not claim the UI gate passed.
+
+The adopter owns criteria, supported viewports, task-specific required states,
+commands, source coverage and evidence retention. Keep each run's packet, check
+receipts, captures and reviewer artifacts immutable and separate from the next
+run; do not overwrite a failed run. Bind the wrapper to explicit current inputs,
+not a convenient old passing packet. Exclude evidence output from source roots.
+Include the wrapper, instruction, harness and relevant configuration in source
+coverage so changing the gate invalidates old evidence.
+
+Prove the native entry point fails for missing evidence, changed source/evidence,
+and unresolved reviewer findings, and passes for the current complete evidence.
+Use disposable copies for negative probes, preserving real receipts and user
+work. Replay setup without duplicating instructions or resetting approved policy.
+An inspection of these files establishes wiring only; automatic invocation in a
+fresh thread requires an observed run, not a routing/schema assertion.
+
 ## Use for a delivery
 
 1. **Discover:** inspect the adapter, relevant sources and current render. Select
@@ -109,6 +157,12 @@ positives and misses. It does not establish general design superiority.
    before the brief or later disclosure supplies context.
    Adjudicate disagreements using the product contract and native evidence; do
    not automatically accept every model finding or treat silence as proof.
+6. **Gate:** run the installed native UI handoff command on that exact source,
+   packet, actual native receipts and independent review before claiming verified
+   completion. After a relevant change, recapture and rerun affected checks and
+   review in a new evidence set; an old passing result does not cover new work.
+   Apply the same gate before presenting a material rendered proposal or
+   prototype, not just before handing off implemented code.
 
 One bounded review is normally enough for a small repair. A clean result may
 justify no application changes. Mechanical edits keep focused verification;
@@ -172,6 +226,72 @@ provenance, native test success or human approval. The hashes detect accidental
 drift; they are not signatures. Never fabricate a response or edit a negative
 review into a pass. Keep reviewer identity/session and native receipts alongside
 the packet. Recapture and use a new packet after changes.
+
+## Execute and check the handoff
+
+After inspecting the approved profile commands, run them through the helper to
+preserve native execution receipts, then prepare and review the packet:
+
+```sh
+python3 /path/to/poteto-mode/scripts/design_evidence.py --repo /project \
+  run-checks --out /local/new-check-run
+# Capture actual required states, prepare a new packet, and obtain fresh review.
+python3 /path/to/poteto-mode/scripts/design_evidence.py --repo /project \
+  handoff --packet /local/new-packet --review /local/new-packet/review.json \
+  --checks /local/new-check-run --review-record /local/reviewer-record.json
+```
+
+Run `run-checks` before `prepare`. Each brief check must reference the exact
+resulting `native-N.log` from that checks directory as its `evidence`, and its
+`command` must be the exact Python `shlex.join(argv)` encoding of the corresponding
+profile command argv. Do not substitute a descriptive command label or unrelated
+log. The handoff compares these command strings and native log hashes with the
+packet's check evidence.
+
+`run-checks` executes profile check argv without a shell and records exit status,
+stdout/stderr and source identity before/after. A failed check or source drift
+fails the run. Use actual resulting logs in the brief, not authored success text.
+`handoff` combines response validation with current source/Git identity, command
+coverage, successful native receipts and their log hashes, plus a reviewer record
+bound to the exact packet and response. Preserve actual reviewer session evidence,
+first-look notes and transcript from the fresh reviewer execution. Never invent
+session IDs, notes or transcripts to satisfy a schema, or relabel self-review as
+independent. Session differences and matching hashes establish recorded linkage,
+not authenticated independence, real pixels, truthful logs or design quality.
+Missing reviewer access is a reported blocker, not a fabricated pass.
+
+Non-Git scratch proposals use exact configured source hashes and the returned
+`sourceFingerprint`, with `gitHead: null`; Git-backed work also binds the current
+HEAD. Track the proposal's actual HTML, assets, configuration and other rendering
+inputs in its profile. A scratch location does not exempt a material proposal
+from review, and hashes cannot establish freshness for omitted inputs.
+
+`--checks` names the directory containing the generated `receipt.json`. The
+reviewer record has these exact fields; compute hashes from the retained actual
+artifacts and use the packet's fingerprint, not the illustrative placeholders:
+
+```json
+{
+  "packetFingerprint": "<packet fingerprint>",
+  "reviewSha256": "<SHA-256 of actual review response bytes>",
+  "authorSession": "<actual implementation session>",
+  "reviewerSession": "<actual fresh reviewer session>",
+  "firstLookNotes": {"path": "first-look.txt", "sha256": "<SHA-256>"},
+  "transcript": {"path": "reviewer-transcript.jsonl", "sha256": "<SHA-256>"}
+}
+```
+
+Evidence paths are relative to and contained within the record's directory.
+Inspect the actual reviewer execution/tool results before constructing this
+record. Distinct session labels alone prove nothing about who inspected what.
+`HANDOFF_EVIDENCE_COMPLETE` means the linked evidence passes these consistency
+checks, not an independently authenticated or certified UX verdict.
+
+The native wrapper must propagate nonzero status. Do not hide a failure with an
+unconditional successful exit, stale fallback, or a changed criterion. Changes
+to accepted policy need the project's approval; repair and rereview under the
+existing authorization when within scope. A passing local gate does not grant
+publication, deployment, financial writes or release authority.
 
 ## Evaluation boundary
 
