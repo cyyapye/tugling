@@ -93,6 +93,52 @@ class ReviewedEvidenceTest(unittest.TestCase):
         self.assertEqual(summary["preserved_failures"][0]["resolved_by"], "authorized-repeat")
         self.assertIn("builder-usage-only", summary["limitations"])
 
+    def test_unknown_failed_usage_is_preserved_without_claiming_complete_totals(self):
+        original, repeat = self.resolved_failure()
+        original["usage"] = None
+        repeat.update(environment="host-launched-workspace-write", timeout_seconds=original["timeout_seconds"])
+        self.report["limitations"] = sorted(reviewed.LIMITATIONS | reviewed.HOST_LAUNCH_LIMITATIONS)
+        summary = reviewed.review_summary(reviewed.validate_report(self.report, self.plugin))
+        self.assertIsNone(summary["builder_usage"])
+        self.assertEqual(summary["known_attempt_builder_usage"],
+                         {"input_tokens": 800, "cached_input_tokens": 400, "output_tokens": 80})
+        self.assertEqual(summary["builder_usage_completeness"],
+                         {"complete": False, "known_attempts": 8, "unknown_attempt_ids": [original["id"]]})
+        self.assertEqual(summary["outcomes"], {"passed": 8, "failed": 1})
+        self.assertEqual(summary["preserved_failures"][0]["id"], original["id"])
+
+    def test_unknown_usage_cannot_relax_success_or_failure_resolution(self):
+        original, _ = self.resolved_failure()
+        original["usage"] = None
+        for change in (lambda r: r["attempts"][-1].update(usage=None),
+                       lambda r: r["attempts"][-2].update(resolved_by=None),
+                       lambda r: r["attempts"][-2].update(failure_kind="behavior"),
+                       lambda r: r["attempts"][-1].update(task_sha256="f" * 64)):
+            value = copy.deepcopy(self.report)
+            change(value)
+            with self.subTest(value=value["attempts"][-2]), self.assertRaises(reviewed.ReviewedReleaseError):
+                reviewed.validate_report(value, self.plugin)
+
+    def test_partial_null_or_invalid_usage_is_not_unknown_usage(self):
+        self.resolved_failure()
+        for usage in ({"input_tokens": None, "cached_input_tokens": 50, "output_tokens": 10},
+                      {"input_tokens": None, "cached_input_tokens": None, "output_tokens": None},
+                      {"input_tokens": 100, "output_tokens": 10},
+                      {"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0},
+                      {"input_tokens": True, "cached_input_tokens": 0, "output_tokens": 1}, "unknown", {}):
+            value = copy.deepcopy(self.report)
+            value["attempts"][-2]["usage"] = usage
+            with self.subTest(usage=usage), self.assertRaises(reviewed.ReviewedReleaseError):
+                reviewed.validate_report(value, self.plugin)
+
+    def test_complete_usage_retains_existing_totals_and_explicit_coverage(self):
+        summary = reviewed.review_summary(reviewed.validate_report(self.report, self.plugin))
+        self.assertEqual(summary["builder_usage"],
+                         {"input_tokens": 800, "cached_input_tokens": 400, "output_tokens": 80})
+        self.assertEqual(summary["builder_usage"], summary["known_attempt_builder_usage"])
+        self.assertEqual(summary["builder_usage_completeness"],
+                         {"complete": True, "known_attempts": 8, "unknown_attempt_ids": []})
+
     def test_host_launcher_repeat_preserves_failure_and_requires_disclosure(self):
         original, repeat = self.resolved_failure()
         repeat.update(environment="host-launched-workspace-write", timeout_seconds=original["timeout_seconds"])

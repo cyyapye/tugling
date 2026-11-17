@@ -163,11 +163,18 @@ def validate_report(report: Any, plugin: dict[str, Any]) -> dict[str, Any]:
         passed, failed = (integer(criteria[key], maximum=1000) for key in ("passed", "failed"))
         if passed + failed == 0:
             raise ReviewedReleaseError("attempt has no reviewed criteria")
-        usage = fields(item["usage"], {"input_tokens", "cached_input_tokens", "output_tokens"}, "builder usage")
-        for count in usage.values():
-            integer(count)
-        if usage["input_tokens"] == 0 or usage["cached_input_tokens"] > usage["input_tokens"]:
-            raise ReviewedReleaseError("missing or inconsistent builder usage")
+        # A killed environment attempt may lack terminal usage. Never invent zero
+        # counters or accept partial telemetry as exact turn accounting. The
+        # matching successful resolution below still requires complete usage.
+        if item["usage"] is None:
+            if item["outcome"] != "failed" or item["failure_kind"] != "environment":
+                raise ReviewedReleaseError("unknown builder usage requires a resolved environment failure")
+        else:
+            usage = fields(item["usage"], {"input_tokens", "cached_input_tokens", "output_tokens"}, "builder usage")
+            for count in usage.values():
+                integer(count)
+            if usage["input_tokens"] == 0 or usage["cached_input_tokens"] > usage["input_tokens"]:
+                raise ReviewedReleaseError("missing or inconsistent builder usage")
         if item["outcome"] == "passed":
             if failed or item["failure_kind"] != "none" or item["resolved_by"] is not None:
                 raise ReviewedReleaseError("failed criteria cannot be relabeled as a pass")
@@ -221,11 +228,16 @@ def validate_report(report: Any, plugin: dict[str, Any]) -> dict[str, Any]:
 
 def review_summary(report: dict[str, Any]) -> dict[str, Any]:
     attempts = report["attempts"]
+    unknown = [item["id"] for item in attempts if item["usage"] is None]
+    known_usage = {counter: sum(item["usage"][counter] for item in attempts if item["usage"] is not None)
+                   for counter in ("input_tokens", "cached_input_tokens", "output_tokens")}
     return {"attempts": len(attempts),
             "outcomes": {outcome: sum(item["outcome"] == outcome for item in attempts) for outcome in ("passed", "failed")},
             "criteria": {outcome: sum(item["criteria"][outcome] for item in attempts) for outcome in ("passed", "failed")},
-            "builder_usage": {counter: sum(item["usage"][counter] for item in attempts)
-                              for counter in ("input_tokens", "cached_input_tokens", "output_tokens")},
+            "builder_usage": None if unknown else known_usage,
+            "known_attempt_builder_usage": known_usage,
+            "builder_usage_completeness": {"complete": not unknown, "known_attempts": len(attempts) - len(unknown),
+                                           "unknown_attempt_ids": unknown},
             "observed_runtimes": report["runtimes"], "limitations": report["limitations"],
             "preserved_failures": [{key: item[key] for key in ("id", "scenario", "environment", "failure_kind", "resolved_by")}
                                    for item in attempts if item["outcome"] == "failed"]}

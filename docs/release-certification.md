@@ -29,6 +29,17 @@ it does not authorize an unsandboxed builder or omit the original failed attempt
 The original failure remains failed. Behavioral failures
 cannot be relabeled as successful or erased by an automatic retry.
 
+If terminal builder usage is unavailable for a preserved environment failure
+(for example, a killed timeout), record the whole `usage` value as `null`, not
+zero counters, partial counters, or estimates. Passing attempts and their
+successful resolutions still require complete, consistent usage. The evidence
+review must verify why the failed attempt's usage is unavailable. A promotion
+summary reports `builder_usage: null` whenever any attempt has unknown usage;
+`known_attempt_builder_usage` sums only fully accounted attempts, and
+`builder_usage_completeness` identifies the missing attempts. That subtotal is
+not total usage or a spending bound. Existing fully accounted reports remain
+valid and retain numeric `builder_usage` totals.
+
 The report must disclose same-family review, development tasks rather than
 holdouts, incomplete catalog behavior coverage, no enhancement claim, and usage
 limited to builders. Every scoped-directory attempt discloses
