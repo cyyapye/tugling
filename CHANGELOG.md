@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 0.11.0 — Project-owned design handoff gate
+
+- Let `$setup-ui` configure durable project-owned instructions and a native handoff command for material rendered proposals and implementation changes.
+- Bind independent rendered review to exact project source, configured native check receipts, and retained review evidence; reject missing, stale, or unresolved evidence.
+- Preserve upstream explicit invocation and adopter ownership. Evidence consistency is not reviewer authentication or platform-level message interception.
+
+Local candidate only. Development observations do not constitute a certified release, a held-out enhancement result, or approval of new controller pins. Frozen prior release evidence is unchanged.
+
 ### 0.9.0 — Project UI evidence
 
 - Add an optional project UI profile and dependency-free evidence helper. Bind reviews to configured source, assets, native logs and required viewport/state captures; reject missing or stale evidence.

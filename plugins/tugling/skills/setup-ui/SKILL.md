@@ -74,7 +74,9 @@ capture, evidence packaging, and independent reviewer response protocol.
 
 Show the existing lint and verification setup and the exact proposed additions
 or changes, including enabled rules, enforcement scope, dependencies/lockfiles,
-profile, native commands/CI, and report updates that are actually needed. Explain
+profile, native commands/CI, durable project instructions, and report updates that
+are actually needed. Include an adopter-owned UI handoff command and its scoped
+invocation rule in this approval batch, not just a profile listing checks. Explain
 what new failures existing consumers may encounter. Get approval for this batch,
 then implement only the selected changes. If nothing needs changing, say so and
 verify the existing setup without manufacturing a proposal.
@@ -107,6 +109,17 @@ enforcement, and a JSX rule does not establish CSS or rendered correctness.
 If no runnable way to drive the app exists, propose the missing verification
 work and, once approved, use
 [`create-verification-skill`](../create-verification-skill/SKILL.md).
+
+Install the approved native handoff command and persistent instruction using the
+[durable handoff contract](../poteto-mode/references/extensions/project-evidence.md#install-the-durable-handoff-contract).
+The project must invoke it before subsequent material UI completion handoffs
+and before showing user-facing material rendered proposals or prototypes, even
+before implementation or from scratch directories. This applies in fresh threads
+without requiring another `$setup-ui` request. This is
+a project-owned gate, not implicit invocation of Pstack skills or a message
+interceptor. Prove missing evidence, stale evidence and unresolved findings fail,
+and a current complete packet passes. Preserve skipped installation as partial
+setup rather than claiming this future gate is installed.
 
 ## Step 3: approve and implement UI improvements
 
@@ -149,7 +162,10 @@ after their defining condition has settled; a screenshot taken while a request
 is still pending cannot prove the resulting failure or saved state.
 
 Replay setup to confirm it preserves approved configuration and skipped decisions,
-and reports only real drift; do not repeat approvals for unchanged work. Run the
+and reports only real drift; do not repeat approvals for unchanged work. Check
+that a fresh thread can discover the scoped instruction, resolve the native
+command, and identify required evidence without conversation memory. Distinguish
+inspecting that wiring from an observed fresh-thread execution. Run the
 project's appropriate final gate. Show native results separately from the advisory
 review, including failures, skipped checks, and unavailable evidence. Keep model settings,
 plugin installation, publication, and deployment within the user's stated scope.

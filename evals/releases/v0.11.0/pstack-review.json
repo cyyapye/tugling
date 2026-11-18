@@ -1,0 +1,506 @@
+{
+  "attempts": [
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "7d62c601298707cd43e8adfad19f4f9c8fb731ae8dae0c034b818e5b2a5d446f",
+      "failure_kind": "none",
+      "id": "core-original-help",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "help",
+      "task_sha256": "5877131ae2dfcf39c7ad2219e4b239eaa219271f7d0c5364d54eee7b12920d24",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 100736,
+        "input_tokens": 130872,
+        "output_tokens": 2122
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "075985e5414a65816752a5141488982a6de72dc66b79f558b184b72396220f5b",
+      "failure_kind": "none",
+      "id": "core-original-setup",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "setup",
+      "task_sha256": "430df6cbfb09ef8520c162bacfa361fd68eeb0174f7720ffe2890bc1393a3f93",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 81664,
+        "input_tokens": 101786,
+        "output_tokens": 2221
+      }
+    },
+    {
+      "areas": [
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "e57eeea9be8ff5af84d55ef490b51a529c693d917bdb9bff44ac18770f0b4fd8",
+      "failure_kind": "none",
+      "id": "core-original-plan-only",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "plan-only",
+      "task_sha256": "f51eb84a781bdb3fe5ae0c2ea24015c4e596241cfcdf31e8fd30a2459dea13d5",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 139392,
+        "input_tokens": 176134,
+        "output_tokens": 2547
+      }
+    },
+    {
+      "areas": [
+        "repair-and-regression"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 4
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "47d685f822221bbba5ed84169be5a8e43adbfea89cbd17c351411810c29a4e98",
+      "failure_kind": "none",
+      "id": "core-original-bug-fix",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "bug-fix",
+      "task_sha256": "2d56ff3ab4144505c4985143d68e6ad072374a0d16ffd4b82714465cf7da2756",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 272896,
+        "input_tokens": 315309,
+        "output_tokens": 2686
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "4ffc4d89ab7d1976d28556cbca454a3f103949a653d34a3ea0bef87b692d95a1",
+      "failure_kind": "none",
+      "id": "core-original-verification",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "verification",
+      "task_sha256": "37758a1939ff75c5c96016fd35d1f1a72d788c1ee64c1c0c74472f1b35e064a6",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 174464,
+        "input_tokens": 198249,
+        "output_tokens": 2648
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "0a8eb14034e1368d2efb8f283b9ee0fe89a1e76a0042795ff70fa377352f4cfb",
+      "failure_kind": "none",
+      "id": "core-original-architecture-fallback",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "architecture-fallback",
+      "task_sha256": "7efa58962e6bfe9b5d271bcb0d491c108c9b80b9afe399623154a1da06ea4ad2",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 249472,
+        "input_tokens": 285702,
+        "output_tokens": 4613
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 3,
+        "passed": 0
+      },
+      "environment": "workspace-write",
+      "evidence_set": "core-original",
+      "evidence_sha256": "8d4ac4918a92b574de4e638cc213ccd063374dfa5b99775d1c52e4a2eec3356f",
+      "failure_kind": "environment",
+      "id": "core-original-unavailable-integration",
+      "outcome": "failed",
+      "resolved_by": "core-recovery-unavailable-integration",
+      "runtime": "configured-codex",
+      "scenario": "unavailable-integration",
+      "task_sha256": "b5bbf446f03205cd0f9139394d1c3c5ad05fccf53685e4ab70e986a9ed0eee3f",
+      "timeout_seconds": 300,
+      "usage": null
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "host-launched-workspace-write",
+      "evidence_set": "core-recovery",
+      "evidence_sha256": "11fc666c5ca8aa6fbf042fed9132057488864b02644684358b218dd1449f6aab",
+      "failure_kind": "none",
+      "id": "core-recovery-unavailable-integration",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "unavailable-integration",
+      "task_sha256": "b5bbf446f03205cd0f9139394d1c3c5ad05fccf53685e4ab70e986a9ed0eee3f",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 98304,
+        "input_tokens": 144851,
+        "output_tokens": 2504
+      }
+    },
+    {
+      "areas": [
+        "history-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "b8c0e3d101cc0291ba1e8949846c9b34f078d76408a7c0a307a10511b6f7caf6",
+      "failure_kind": "none",
+      "id": "codex-compatibility-resume-greeting-work",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "resume-greeting-work",
+      "task_sha256": "95de307fcd7e1bf678087218894a0021d172c44f50f3a98072e4cab1ca240ddc",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 134272,
+        "input_tokens": 174129,
+        "output_tokens": 3034
+      }
+    },
+    {
+      "areas": [
+        "skill-authoring",
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "scoped-skill-directory",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "b6c4994c56719138a9ef94f8bfb9d6f9e6be30c5680cdd007c693f06497e44ec",
+      "failure_kind": "none",
+      "id": "codex-compatibility-reuse-cli-check",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "reuse-cli-check",
+      "task_sha256": "4497af55f9871aba5151d948f712af227a14945c44eae475fc26a24deaf3c6dd",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 337536,
+        "input_tokens": 370892,
+        "output_tokens": 10907
+      }
+    },
+    {
+      "areas": [
+        "capability-fallbacks"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "d76623a63f51c82982bc1b4f8d166c6dad0af4f5a195c2922be27c01bf839a50",
+      "failure_kind": "none",
+      "id": "codex-compatibility-compare-check-approaches",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "compare-check-approaches",
+      "task_sha256": "0c2286b1fbd83372c40d1fb11a407feb0f2615d8094b160ea84ad96ef3dbb300",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 164480,
+        "input_tokens": 185894,
+        "output_tokens": 3627
+      }
+    },
+    {
+      "areas": [
+        "verification-honesty"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 6
+      },
+      "environment": "workspace-write",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "47cbcb3e2a500d9618be74f49c1c22843e65619bf2f820a90155b3acc9c99e16",
+      "failure_kind": "none",
+      "id": "codex-compatibility-cover-cli-inputs",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "cover-cli-inputs",
+      "task_sha256": "75bf17c3efd431f10a0e83db1e4fd927b6bdbb79491e00c69c15e020e017d5b4",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 110976,
+        "input_tokens": 133999,
+        "output_tokens": 3082
+      }
+    },
+    {
+      "areas": [
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "b31e4c98bc318f06765fb9b1e729013cbd2d0cb96244a8bd16fbab6b2372ed26",
+      "failure_kind": "none",
+      "id": "codex-compatibility-explain-quoted-names",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "explain-quoted-names",
+      "task_sha256": "a8055a5098c816619c9be9ea9dd09df4c578b81cbfdd14e26afbf83c5845462b",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 136320,
+        "input_tokens": 159226,
+        "output_tokens": 1417
+      }
+    },
+    {
+      "areas": [
+        "idle-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 3
+      },
+      "environment": "workspace-write",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "e65c0a5659da503f46779b4d3c7903f62840808ba0e51044ff7ffe38eb275fa4",
+      "failure_kind": "none",
+      "id": "codex-compatibility-wait-for-next-request",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "wait-for-next-request",
+      "task_sha256": "58e2af41856d0ca3329f5bb3937db35a0e1fccb3b15ad66541b8f8d6dd4d879e",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 9728,
+        "input_tokens": 13052,
+        "output_tokens": 9
+      }
+    },
+    {
+      "areas": [
+        "discovery-and-setup",
+        "planning-scope"
+      ],
+      "criteria": {
+        "failed": 0,
+        "passed": 5
+      },
+      "environment": "workspace-write",
+      "evidence_set": "codex-compatibility",
+      "evidence_sha256": "6fe8fa76ba55d9c52f38698a2214fab19eac8abc56774a81998d16e77624487c",
+      "failure_kind": "none",
+      "id": "codex-compatibility-prepare-short-session",
+      "outcome": "passed",
+      "resolved_by": null,
+      "runtime": "configured-codex",
+      "scenario": "prepare-short-session",
+      "task_sha256": "1f03e2f036f434549a61b9d11b9d28b10ad70f8006b6ac0748de12c27272ce58",
+      "timeout_seconds": 300,
+      "usage": {
+        "cached_input_tokens": 95232,
+        "input_tokens": 110894,
+        "output_tokens": 1505
+      }
+    }
+  ],
+  "evidence_sets": [
+    {
+      "attempt_ids": [
+        "core-original-help",
+        "core-original-setup",
+        "core-original-plan-only",
+        "core-original-bug-fix",
+        "core-original-verification",
+        "core-original-architecture-fallback",
+        "core-original-unavailable-integration"
+      ],
+      "id": "core-original",
+      "manifest_sha256": "f758b434b14fca465ac05e6b66c71f554f30940c6b623bfe704b7db321187649"
+    },
+    {
+      "attempt_ids": [
+        "core-recovery-unavailable-integration"
+      ],
+      "id": "core-recovery",
+      "manifest_sha256": "c7a1d0f29af4c2c6164f88ce7ba1aec382c91bf4fafa0fd261541bf3337cb7e9"
+    },
+    {
+      "attempt_ids": [
+        "codex-compatibility-resume-greeting-work",
+        "codex-compatibility-reuse-cli-check",
+        "codex-compatibility-compare-check-approaches",
+        "codex-compatibility-cover-cli-inputs",
+        "codex-compatibility-explain-quoted-names",
+        "codex-compatibility-wait-for-next-request",
+        "codex-compatibility-prepare-short-session"
+      ],
+      "id": "codex-compatibility",
+      "manifest_sha256": "3c975c01caef25a15b9c6807bd115fab3d2ef72736a9e5af60b6a1c9dda2fd60"
+    }
+  ],
+  "limitations": [
+    "authoring-requires-explicit-directory-grant",
+    "builder-usage-only",
+    "development-tasks-not-holdouts",
+    "not-enhancement-evidence",
+    "not-full-catalog-behavior",
+    "repeat-restored-host-launch",
+    "same-family-review"
+  ],
+  "method": "pstack-eval",
+  "plugin": {
+    "content_sha256": "4c7fd827e4f612aeaa7a01b7eb643061ca57a1dae9e1b881edaee36263bdde15",
+    "name": "tugling",
+    "skills": [
+      "architect",
+      "arena",
+      "automate-me",
+      "benchmark-checklist",
+      "blast-radius",
+      "bro",
+      "correct",
+      "create-formal-verification-skill",
+      "create-verification-skill",
+      "figure-it-out",
+      "how",
+      "in-your-own-words",
+      "interrogate",
+      "ketchup",
+      "ketchup-video",
+      "maintain-formal-verification-skill",
+      "maintain-verification-skill",
+      "make-bot-ui",
+      "no-comments",
+      "poteto-help",
+      "poteto-mode",
+      "principle-attack-the-premise",
+      "principle-boundary-discipline",
+      "principle-build-the-lever",
+      "principle-encode-lessons-in-structure",
+      "principle-exhaust-the-design-space",
+      "principle-experience-first",
+      "principle-explain-the-number",
+      "principle-fix-root-causes",
+      "principle-foundational-thinking",
+      "principle-guard-the-context-window",
+      "principle-laziness-protocol",
+      "principle-make-operations-idempotent",
+      "principle-migrate-callers-then-delete-legacy-apis",
+      "principle-minimize-reader-load",
+      "principle-model-the-domain",
+      "principle-never-block-on-the-human",
+      "principle-outcome-oriented-execution",
+      "principle-prove-it-works",
+      "principle-redesign-from-first-principles",
+      "principle-separate-before-serializing-shared-state",
+      "principle-sequence-verifiable-units",
+      "principle-subtract-before-you-add",
+      "principle-test-behavior-not-implementation",
+      "principle-type-system-discipline",
+      "recall",
+      "reflect",
+      "setup-pstack",
+      "setup-ui",
+      "sharpen",
+      "show-me-your-work",
+      "statechart",
+      "swarm",
+      "tdd",
+      "teach",
+      "technical-writing",
+      "typescript-best-practices",
+      "unslop",
+      "why"
+    ],
+    "version": "0.11.0"
+  },
+  "review": {
+    "evidence_sha256": "b94a9a62762d2f0710f0ec08dbeff47c573ba43ad0e7d95a2266e75d2b3f0df1",
+    "method": "blind-output-plus-parent-trace",
+    "reviewer_family": "same-family",
+    "trace_audit_sha256": "975d8cc1e9e1dd69c3dfe7c2032a1854c566ff218bcf736d1066dce14e288321",
+    "unresolved_criteria": 0
+  },
+  "runtimes": [
+    {
+      "codex_version": "codex-cli 0.169.0-alpha.11.1",
+      "id": "configured-codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "xhigh"
+    }
+  ],
+  "schema_version": 1,
+  "scope": "codex-port-compatibility",
+  "upstream_revision": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c"
+}

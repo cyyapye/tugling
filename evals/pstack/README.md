@@ -49,6 +49,16 @@ separately. A protected `.agents` directory can prevent delivery: preserve that
 failure, and treat a separately authorized directory grant as a changed execution
 environment, not a retroactive pass or a reason to bypass the sandbox.
 
+After authorizing the exact fixture directory, use
+`--skill-directory-grant reuse-cli-check=.agents/skills/verify-greeting-cli`
+for that selected case only. The optional grant retains workspace-write and
+disables network access. Before any model task, the same isolated home and
+permission configuration must pass a non-model sandbox probe: the named subtree
+is writable, its protected sibling and an unrelated host path are not. The
+runner retains the resolved scope, request, response and configuration hash, and
+stops before model execution on any mismatch. The grant does not extend the task
+timeout; report the granted environment separately from an actual timeout increase.
+
 Builders work in neutral temporary project paths. Rubrics and observer records
 stay outside their workspaces; the environment has no evaluation marker. Each
 delivery is copied and hashed before its temporary project is removed. Native
